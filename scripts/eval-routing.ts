@@ -29,6 +29,8 @@ const CONFIGS: Record<string, Partial<Routing>> = {
 };
 
 const ROOT = path.resolve(import.meta.dirname, "..");
+// The eval measures each writer as it is, so it allows slower writers more time than the live app does.
+process.env.NEBIUS_WRITER_MAX_MS ??= "420000";
 const OUT = path.join(ROOT, "eval", "results");
 // --runs <dir> keeps each design's runs apart (re-running with an existing dir only re-aggregates cached runs);
 // --summary <file> chooses where the table goes.

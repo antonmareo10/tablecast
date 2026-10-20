@@ -581,7 +581,9 @@ ${sourcesForPrompt(ledger)}`,
           ? "ran out of room while reasoning"
           : finish === "stall"
             ? "stopped responding for a minute"
-            : "stopped without publishing";
+            : finish === "slow"
+              ? "was taking too long"
+              : "stopped without publishing";
     emit({ type: "note", text: `🧠 ${modelLabel(routing.reasoning)} ${why} — writing again (reasoning_effort "low").` });
     ({ value: raw, finish } = await write("low"));
   }

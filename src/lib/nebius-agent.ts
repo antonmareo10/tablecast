@@ -24,6 +24,8 @@ export type Emit = (e: AgentEvent) => void;
 
 const MAX_ARGS_CHARS = 70_000;
 const STALL_MS = Number(process.env.NEBIUS_STALL_MS || 60_000);
+// A whole writing attempt may not take longer than this (a slow trickle never trips the stall watchdog).
+const writerMaxMs = () => Number(process.env.NEBIUS_WRITER_MAX_MS || 150_000); // read per call, so scripts can raise it
 
 const BASE_URL = process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1/";
 
@@ -100,7 +102,7 @@ type StreamChunk = {
 
 let sharedClient: OpenAI | null = null;
 function client(): OpenAI {
-  sharedClient ??= new OpenAI({ baseURL: BASE_URL, apiKey: process.env.NEBIUS_API_KEY, maxRetries: 2, timeout: 240_000 }) // no request may hang a run;
+  sharedClient ??= new OpenAI({ baseURL: BASE_URL, apiKey: process.env.NEBIUS_API_KEY, maxRetries: 2, timeout: 240_000 }); // no request may hang a run;
   return sharedClient;
 }
 
@@ -314,6 +316,10 @@ export async function synthesize(opts: {
     }, STALL_MS);
   };
   kick();
+  const capTimer = setTimeout(() => {
+    finish = "slow";
+    stopper.abort();
+  }, writerMaxMs());
   let stream: AsyncIterable<StreamChunk>;
   try {
     stream = await chatStream(
@@ -334,7 +340,8 @@ export async function synthesize(opts: {
   } catch (err) {
     clearTimeout(stallTimer);
     // The connection never answered: let the caller retry once.
-    if (finish === "stall" && !signal?.aborted) return { value: null, finish };
+    clearTimeout(capTimer);
+    if ((finish === "stall" || finish === "slow") && !signal?.aborted) return { value: null, finish };
     throw err;
   }
   let args = "";
@@ -399,10 +406,11 @@ export async function synthesize(opts: {
     }
   } catch (err) {
     // Only our loop guard may end the stream early; anything else (incl. the caller's abort) propagates.
-    if (!((finish === "loop" || finish === "stall") && stopper.signal.aborted && !signal?.aborted)) throw err;
+    if (!((finish === "loop" || finish === "stall" || finish === "slow") && stopper.signal.aborted && !signal?.aborted)) throw err;
   }
   clearTimeout(stallTimer);
-  if (finish === "loop" || finish === "stall") args = ""; // a cut-off or looping plan is not trusted
+  clearTimeout(capTimer);
+  if (finish === "loop" || finish === "stall" || finish === "slow") args = ""; // a cut-off or looping plan is not trusted
   // A stream cut by us never reports usage: estimate it (~4 characters per token) and say so.
   const estimated = !usage;
   if (estimated) usage = { prompt_tokens: Math.round((opts.system.length + opts.user.length) / 4), completion_tokens: Math.round(outChars / 4) };
