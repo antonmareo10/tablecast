@@ -1,0 +1,10 @@
+[
+  { "restaurant": "Casa Lucio", "city": "Madrid", "goal": "Fill quiet weeknights" },
+  { "restaurant": "Katz's Delicatessen", "city": "New York", "goal": "Make the most of this week’s weather" },
+  { "restaurant": "Gjelina", "city": "Los Angeles", "goal": "Win more lunch covers" },
+  { "restaurant": "Dishoom Covent Garden", "city": "London", "goal": "Fill quiet weeknights" },
+  { "restaurant": "Chez Janou", "city": "Paris", "goal": "Launch a seasonal special" },
+  { "restaurant": "Bar Cañete", "city": "Barcelona", "goal": "Win more lunch covers" },
+  { "restaurant": "Zuni Café", "city": "San Francisco", "goal": "Make the most of this week’s weather" },
+  { "restaurant": "Au Cheval", "city": "Chicago", "goal": "Grow takeaway orders" }
+]

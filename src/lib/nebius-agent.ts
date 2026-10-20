@@ -16,6 +16,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import type { SourceLedger } from "./evidence";
+import { LoopGuard } from "./loop-guard";
 import { estimateCostUsd } from "./nebius-pricing";
 import type { AgentEvent, EngineCall, Evidence, MenuItem } from "./types";
 
@@ -317,8 +318,8 @@ export async function synthesize(opts: {
   let lastThought = Date.now();
   let thinking = ""; // reasoning streamed since the last note
   let lastNote = "";
-  const seen = new Map<string, number>(); // reasoning sentences → how often they appeared
-  let tail = "";
+  const guard = new LoopGuard();
+  let outChars = 0; // streamed characters, to estimate tokens if a cut stream never reports usage
   try {
     for await (const chunk of stream) {
       if (chunk.usage) usage = chunk.usage;
@@ -331,21 +332,12 @@ export async function synthesize(opts: {
       const thought = delta.reasoning_content ?? delta.reasoning;
       if (thought) {
         thinking += thought;
-        // Loop guard: the same reasoning sentence coming back again and again means the model is stuck.
-        tail += thought;
-        const done = tail.match(/[^.!?\n]{20,}[.!?\n]/g);
-        if (done) {
-          for (const sentence of done) {
-            const key = sentence.trim().toLowerCase();
-            const n = (seen.get(key) ?? 0) + 1;
-            seen.set(key, n);
-            if (n >= 4) {
-              finish = "loop";
-              stopper.abort();
-            }
-          }
-          tail = tail.slice(tail.lastIndexOf(done[done.length - 1]) + done[done.length - 1].length);
-          if (finish === "loop") break;
+        outChars += thought.length;
+        // Loop guard: sustained repetition in the reasoning means the model is stuck.
+        if (guard.push(thought)) {
+          finish = "loop";
+          stopper.abort();
+          break;
         }
         // Every few seconds, show the latest complete sentence of the model's reasoning.
         if (Date.now() - lastThought > 3500) {
@@ -359,9 +351,11 @@ export async function synthesize(opts: {
           }
         }
       }
+      if (delta.content) outChars += delta.content.length;
       for (const tc of delta.tool_calls ?? []) {
         if (tc.function?.arguments) {
           args += tc.function.arguments;
+          outChars += tc.function.arguments.length;
           if (opts.onDraft && Date.now() - lastDraft > 700) {
             lastDraft = Date.now();
             const partial = tolerantParse(args);
@@ -375,10 +369,14 @@ export async function synthesize(opts: {
     if (!(finish === "loop" && stopper.signal.aborted && !signal?.aborted)) throw err;
   }
   if (finish === "loop") args = ""; // a plan written by a looping model is not trusted
+  // A stream cut by us never reports usage: estimate it (~4 characters per token) and say so.
+  const estimated = !usage;
+  if (estimated) usage = { prompt_tokens: Math.round((opts.system.length + opts.user.length) / 4), completion_tokens: Math.round(outChars / 4) };
   emit({
     type: "engine",
     call: measured("synthesize", routing.reasoning, Date.now() - started, usage, {
       ...(ttft != null ? { ttft_ms: ttft } : {}),
+      ...(estimated ? { usage_estimated: true } : {}),
       note: `reasoning_effort ${effort}${finish === "loop" ? " · cut: reasoning loop detected" : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
     }),
   });

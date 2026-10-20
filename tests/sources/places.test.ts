@@ -187,7 +187,7 @@ describe("nearbyVenues Nominatim fallback", () => {
     pub: [poi(200, "pub", "The Hat", 130), poi(100, "bar", "Bar Paco", 120)],
     fast_food: [poi(400, "fast_food", "Burger Sol", 150, { cuisine: "burger" }), poi(401, "fast_food", "", 20)],
   };
-  const nominatimRoute = (lists: Record<string, unknown[]>) => (url: string, init: RequestInit | undefined) => {
+  const nominatimRoute = (lists: Record<string, unknown[]>) => (url: string) => {
     if (isOverpass(url)) return jsonResponse("at capacity", 502);
     return jsonResponse(lists[new URL(url).searchParams.get("q") ?? ""] ?? []);
   };

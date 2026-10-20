@@ -128,6 +128,7 @@ export type EngineCall = {
   tool_calls?: number;
   tools_ms?: number;
   est_cost_usd?: number;
+  usage_estimated?: boolean; // the call was cut before Token Factory reported usage
   note?: string;
 };
 
