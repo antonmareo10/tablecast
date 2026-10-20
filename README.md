@@ -146,4 +146,6 @@ Everything here. Tastecraft started on 16 Oct 2026 as an agent over a proprietar
 - **Rough edges.**
   - Model-ID casing is inconsistent across docs and catalog (`Nemotron-3_5-Lightning`, `nemotron-3-super-120b-a12b`, `Nemotron-3.5-Super-VL`); we had to read `GET /v1/models` to pin exact strings. A copy button or canonical lowercase IDs would help.
   - Ultra at `reasoning_effort: "medium"` occasionally loops in its reasoning (the same sentence repeated until `max_tokens`) on long, multi-source prompts. A server-side repetition guard or a `max_reasoning_tokens` parameter separate from `max_tokens` would make reasoning budgets safer.
+  - Effort levels don't bound reasoning tightly. Writing the same plan (median of 8 runs each), reasoning tokens were 46% of Ultra's output at `low`, 77% of Super's at `medium` and 83% of Lightning's at `low`. That is why a separate reasoning budget matters for latency and cost.
+  - Throughput is good and differs a lot by model, which shapes routing. Median output speed while streaming a plan: Ultra ≈ 290 tok/s, Lightning ≈ 196 tok/s, Super ≈ 138 tok/s. Super's slowest write took 207 s. Published per-model throughput and latency in the catalog, kept current, would help routing decisions.
   - We couldn’t find a spend cap or per-key budget for a public demo; it would make hackathon deployments safer.
