@@ -702,18 +702,19 @@ export async function readMenuPhoto(opts: {
 
 // ---- BASELINE: the same fast Nemotron, no tools, no data -------------------------------------
 
+/** The same model that writes the plan, asked without any data: the honest "without the week" comparison. */
 export async function baseline(prompt: string, routing: Routing, emit: Emit, signal?: AbortSignal): Promise<string> {
   const t0 = Date.now();
   const res = await chat(
     {
-      model: routing.fast,
-      reasoning_effort: "none",
-      max_tokens: 800,
+      model: routing.reasoning,
+      reasoning_effort: "low",
+      max_tokens: 3000,
       temperature: 0.6,
       messages: [{ role: "user", content: prompt }],
     },
     signal,
   );
-  emit({ type: "engine", call: measured("baseline", routing.fast, Date.now() - t0, res.usage) });
+  emit({ type: "engine", call: measured("baseline", routing.reasoning, Date.now() - t0, res.usage) });
   return cleanText(res.choices?.[0]?.message?.content);
 }

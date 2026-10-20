@@ -15,7 +15,7 @@ Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and
 1. Open the live demo and click one of the **instant replays** under the form (real recorded runs, labelled as recorded — no waiting).
 2. Look at **Your week**: the 7-day forecast, holidays and events within 5 km, then the **demand moments** the agent drew from them.
 3. In the green header, read **“N / N claims checked against their sources”**. Hover any source chip (`S3 gjelina.com ×3`) to see the exact sentences it cites; click it to open the page. A claim that failed the check is marked in place, with the reason.
-4. Jump to **Proof & engine**: the evidence ledger (every source fetched in that run), the same Nemotron answering *without* data, and the **engine room** — every Nemotron call with its tokens, latency and cost.
+4. Jump to **Proof & engine**: the evidence ledger (every source fetched in that run), Nemotron answering *without* data, and the **engine room** — every Nemotron call with its tokens, latency and cost.
 5. Then type any restaurant and city and run it live: **Quick** (Nemotron Ultra writes, about a minute) or **Thorough** (Nemotron Super writes, 2–3 min, the most claims verified first time). Optionally add a photo of its menu.
 
 ## The problem
@@ -33,7 +33,7 @@ Every model call goes to **Nebius Token Factory** (`https://api.tokenfactory.neb
 | Writing the plan — **Quick** (default) | **Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`), `reasoning_effort: "low"` | one **forced, streamed function call** against a strict Zod/JSON schema; the UI drafts the plan live from partial JSON | fastest writer in our eval (median 33 s); 96% of claims verified after repair |
 | Writing the plan — **Thorough** | **Nemotron 3 Super** (`nvidia/nemotron-3-super-120b-a12b`), `reasoning_effort: "medium"` | same call; if it runs out of time, Ultra takes over | most faithful first time (94% verified before repair, 98% after) at a third of Ultra’s cost per plan, but ~2 min to write |
 | Citation repair | **Nemotron 3 Ultra** at `reasoning_effort: "low"` | forced function call, only for claims that failed the code check | we measured it: Lightning fixed almost none of the failed citations, Ultra-low fixes or drops them in ~10 s; every fix is re-checked by code |
-| Generic baseline | **Nemotron 3.5 Lightning** | no tools, no data | the honest “without the week” comparison shown in the app |
+| Generic baseline | **the writer model** (Ultra or Super), low effort | no tools, no data | the honest “same model, without the week” comparison shown in the app |
 
 Engineering details that came out of running it live:
 

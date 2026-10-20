@@ -170,7 +170,7 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
               title="Proof & engine"
               subtitle="Every source this plan stands on, how each claim was checked, and what it cost to produce."
             />
-            {live.baseline && <Compare baseline={live.baseline} playbook={p} />}
+            {live.baseline && <Compare baseline={live.baseline} playbook={p} engine={live.engine} />}
             <SourcesLedger sources={live.sources} playbook={p} />
           </>
         )}
@@ -686,18 +686,26 @@ function allEvidence(p: Playbook): Evidence[] {
   ];
 }
 
-function Compare({ baseline, playbook: p }: { baseline: string; playbook: Playbook }) {
+function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook: Playbook; engine: EngineCall[] }) {
   const v = p.verification;
+  // Name the models from the run itself (older recordings used Lightning for the baseline).
+  const without = engine.find((c) => c.phase === "baseline")?.label ?? "Nemotron";
+  const writer = engine.findLast((c) => c.phase === "synthesize")?.label ?? "Nemotron";
+  const same = without === writer;
   return (
-    <Section icon={<IconSpark size={16} />} kicker="Why live data matters" title="Same Nemotron, with and without the week">
+    <Section
+      icon={<IconSpark size={16} />}
+      kicker="Why live data matters"
+      title={same ? `Same ${writer}, with and without the week` : "Nemotron with and without the week"}
+    >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-line bg-paper/40 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Nemotron Lightning, no tools, no data</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{without}, no tools, no data</p>
           <p className="mt-1 text-[11px] text-muted">0 sources · nothing to verify</p>
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-2">{baseline}</p>
         </div>
         <div className="rounded-xl border border-olive/30 bg-olive/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-olive">Tastecraft, grounded in this week</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-olive">{writer} in Tastecraft, grounded in this week</p>
           {v && (
             <p className="mt-1 text-[11px] font-semibold text-olive">
               {v.sources} live sources · {v.verified}/{v.checked} claims verified in code
