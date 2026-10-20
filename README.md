@@ -1,6 +1,6 @@
 # Tastecraft — plan a restaurant’s week with what’s happening around it
 
-**An AI agent on NVIDIA Nemotron (Nebius Token Factory) that reads an independent restaurant’s coming week — the forecast at its door, holidays, events nearby, the venues on its block, its own menu and what guests say online — and turns it into three dishes to test, an event, a ready-to-post campaign, a supplier order and a day-by-day plan. Every claim links to the source it came from and is checked word for word, in code.**
+**An AI agent on NVIDIA Nemotron (Nebius Token Factory) that reads an independent restaurant’s coming week — the forecast at its door, holidays, events nearby, the venues on its block, its own menu and what guests say online — and turns it into three dishes to test, an event, a ready-to-post campaign, a supplier order and a day-by-day plan. Every claim cites the exact sentences it stands on, and code checks each one.**
 
 Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and Agents** · also entering **Best Use of Tavily** · License: MIT
 
@@ -14,9 +14,9 @@ Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and
 
 1. Open the live demo and click one of the **instant replays** under the form (real recorded runs, labelled as recorded — no waiting).
 2. Look at **Your week**: the 7-day forecast, holidays and events within 5 km, then the **demand moments** the agent drew from them.
-3. In the green header, read **“N / N claims verified word for word”**. Hover any source chip (`S7 · eater.com`) to see the exact quote; click it to open the page.
+3. In the green header, read **“N / N claims checked against their sources”**. Hover any source chip (`S3 gjelina.com ×3`) to see the exact sentences it cites; click it to open the page. A claim that failed the check is marked in place, with the reason.
 4. Jump to **Proof & engine**: the evidence ledger (every source fetched in that run), the same Nemotron answering *without* data, and the **engine room** — every Nemotron call with its tokens, latency and cost.
-5. Then type any restaurant and city and run it live (≈ 60–90 s), optionally with a photo of its menu.
+5. Then type any restaurant and city and run it live: **Quick** (Nemotron Ultra writes, about a minute) or **Thorough** (Nemotron Super writes, 2–3 min, the most claims verified first time). Optionally add a photo of its menu.
 
 ## The problem
 
@@ -30,7 +30,8 @@ Every model call goes to **Nebius Token Factory** (`https://api.tokenfactory.neb
 |---|---|---|---|
 | Web research loop | **Nemotron 3.5 Lightning** (`nvidia/Nemotron-3_5-Lightning`) | tool calling, `reasoning_effort: "none"`, tools requested in one turn run **in parallel** | many short “what to look up next” decisions; ~0.5–2 s per turn at $0.06/M input tokens |
 | Menu photo | **Nemotron 3.5 Super VL** (`nvidia/Nemotron-3.5-Super-VL`) | image input → forced function call → structured menu (dish, price, section) | the only vision model in the family; grounds dishes in the real menu |
-| Writing the plan | **Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`) | one **forced, streamed function call** against a strict Zod/JSON schema; `reasoning_effort` routed; the UI drafts the plan live from partial JSON | the step that needs reasoning across ~30 sources |
+| Writing the plan — **Quick** (default) | **Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`), `reasoning_effort: "low"` | one **forced, streamed function call** against a strict Zod/JSON schema; the UI drafts the plan live from partial JSON | fastest writer in our eval (median 33 s); 96% of claims verified after repair |
+| Writing the plan — **Thorough** | **Nemotron 3 Super** (`nvidia/nemotron-3-super-120b-a12b`), `reasoning_effort: "medium"` | same call; if it runs out of time, Ultra takes over | most faithful first time (94% verified before repair, 98% after) at a third of Ultra’s cost per plan, but ~2 min to write |
 | Citation repair | **Nemotron 3 Ultra** at `reasoning_effort: "low"` | forced function call, only for claims that failed the code check | we measured it: Lightning fixed almost none of the failed citations, Ultra-low fixes or drops them in ~10 s; every fix is re-checked by code |
 | Generic baseline | **Nemotron 3.5 Lightning** | no tools, no data | the honest “without the week” comparison shown in the app |
 
@@ -39,7 +40,17 @@ Engineering details that came out of running it live:
 - **Measured, not assumed.** Every call’s `usage` (prompt, completion and reasoning tokens) and wall-clock time (plus time-to-first-token on streams) is emitted as an `engine` event and shown in the app’s **engine room** with its cost at published Token Factory prices. A typical plan costs a few US cents.
 - **Reasoning-loop guard.** On some inputs Ultra’s chain of thought started repeating the same sentence until it hit `max_tokens`. The stream is now watched: a sentence repeated four times cuts the call, and the plan is rewritten with `reasoning_effort: "low"` — said out loud in the agent log. The same retry covers `finish_reason: "length"`.
 - **Schema repair.** If the forced call ever breaks the schema, Lightning gets one chance to fix only the listed issues; the result is validated again.
-- **Routing eval.** [`scripts/eval-routing.ts`](scripts/eval-routing.ts) gathers the evidence for 8 fixed restaurants once, then has Ultra (medium / low effort), Super and Lightning each write the plan from the *same* evidence, and compares published plans, retries, verified claims (first pass and final), how many dishes tie to this week’s data, latency and cost. Results: **[eval/SUMMARY.md](eval/SUMMARY.md)**.
+- **A time budget per run.** A stream that goes silent for a minute is cut and retried; one writing attempt may take at most 150 s (170 s for Super); and every run plans backwards from the host’s function limit, so the retry and the repair pass only get the time that is really left. Non-streamed calls never wait more than 90 s.
+- **Routing eval.** [`scripts/eval-routing.ts`](scripts/eval-routing.ts) gathers the evidence for 8 fixed restaurants once, then has Ultra (medium / low effort), Super and Lightning each write the plan from the *same* evidence, and compares published plans, retries, verified claims (first pass and final), how many dishes tie to this week’s data, latency and cost. Full results and limits: **[eval/SUMMARY.md](eval/SUMMARY.md)**. The headline numbers (medians, 32 plans):
+
+| Writer | Verified, first pass | Verified, after repair | Dishes tied to this week | Writes in | Cost / plan |
+|---|---|---|---|---|---|
+| Ultra · low (**Quick**) | 73% | 96% | 71% | 33 s | $0.075 |
+| Ultra · medium | 76% | 96% | 67% | 39 s | $0.065 |
+| Super · medium (**Thorough**) | 94% | 98% | 71% | 127 s | $0.023 |
+| Lightning · low | 89% | 94% | 25% | 94 s | $0.008 |
+
+  Switching from copied quotes to cited sentence ids took Ultra’s first pass from 35% to 73% on the same restaurants. Lightning copies faithfully but rarely ties its dishes to the week, so it stays the research model.
 
 ## How it uses Tavily
 
@@ -76,11 +87,11 @@ flowchart LR
     B4[Ticketmaster: events within 5 km]
     B5[Nemotron Super VL: menu photo]
   end
-  B --> C[2 · Research — Nemotron Lightning + Tavily Search/Extract]
+  B --> C[2 · Research — Nemotron Lightning + Tavily Map/Search/Extract]
   C --> L[(Source ledger S1…Sn)]
   B --> L
-  L --> D[3 · Write — Nemotron Ultra, forced streamed function call]
-  D --> E[4 · Verify — quotes & numbers checked in code, Lightning repair once]
+  L --> D[3 · Write — Nemotron Ultra (Quick) or Super (Thorough), forced streamed function call]
+  D --> E[4 · Verify — cited sentences & numbers checked in code, Ultra repair once]
   E --> F[Playbook UI · engine room · evidence ledger]
 ```
 
@@ -100,7 +111,7 @@ npm run dev                  # http://localhost:3000
 | `NEBIUS_API_KEY` | yes | [tokenfactory.nebius.com](https://tokenfactory.nebius.com) |
 | `TAVILY_API_KEY` | yes | [tavily.com](https://tavily.com) (free tier works) |
 | `TICKETMASTER_API_KEY` | optional | [developer.ticketmaster.com](https://developer.ticketmaster.com) (events nearby) |
-| `NEBIUS_FAST_MODEL`, `NEBIUS_MODEL`, `NEBIUS_VISION_MODEL`, `NEBIUS_REASONING_EFFORT` | optional | routing overrides (defaults in `.env.example`) |
+| `NEBIUS_FAST_MODEL`, `NEBIUS_MODEL`, `NEBIUS_THOROUGH_MODEL`, `NEBIUS_VISION_MODEL`, `NEBIUS_REASONING_EFFORT` | optional | routing overrides (defaults in `.env.example`) |
 
 Checks: `npx tsc --noEmit`, `npx eslint .`, `npm test` (unit tests for the verifier and every data source; `LIVE=1 npm test` also hits the keyless APIs). Routing eval: `npx tsx scripts/eval-routing.ts`. Record an instant replay: `node scripts/record-demo.mjs "Casa Lucio" "Madrid" "Fill quiet weeknights" http://localhost:3000`.
 
@@ -114,18 +125,18 @@ Checks: `npx tsc --noEmit`, `npx eslint .`, `npm test` (unit tests for the verif
 
 ## Known limitations
 
-- Verification proves that every quote is really in a fetched source and every number is backed — not that the source is right, nor that the sentence reads the quote correctly (a real quote can still be attributed to the wrong place; the source chip lets the owner check). Nothing here measures sales: the plan is a set of bets to test for a week.
+- Verification proves that every cited sentence exists in a fetched source, that every number in the claim appears in it and that it is about the same thing — not that the source is right, nor that the claim reads the sentence correctly (the source chip lets the owner check). Nothing here measures sales: the plan is a set of bets to test for a week.
 - Forecasts beyond ~3 days are uncertain; event listings come from one ticketing API and miss free or local events unless the web research finds them.
 - Public Overpass servers are often saturated; the app then falls back to Nominatim, which caps results, and says so (“at least N venues, partial list”).
 - Reviews found on the web are not a sample of all guests.
 
 ## What was built during the submission period
 
-Everything here. Tastecraft started on 16 Oct 2026 as an agent over a proprietary taste-graph API with a hosted LLM ([github.com/antonmareo10/tastecraft](https://github.com/antonmareo10/tastecraft)). This repository is a rebuild for open infrastructure: the whole agent now runs on NVIDIA Nemotron via Nebius Token Factory with three-model routing, and the evidence layer was replaced by live web research (Tavily) and open data (OpenStreetMap, Open-Meteo, Nager.Date) plus Nemotron VL for menu photos, with a new code-level verifier (verbatim quotes + numbers), reasoning-loop guard, engine telemetry and a routing eval.
+Everything here. Tastecraft started on 16 Oct 2026 as an agent over a proprietary taste-graph API with a hosted LLM ([github.com/antonmareo10/tastecraft](https://github.com/antonmareo10/tastecraft)). This repository is a rebuild for open infrastructure: the whole agent now runs on NVIDIA Nemotron via Nebius Token Factory with three-model routing, and the evidence layer was replaced by live web research (Tavily) and open data (OpenStreetMap, Open-Meteo, Nager.Date) plus Nemotron VL for menu photos, with a new code-level verifier (cited sentences + numbers), reasoning-loop guard and time budgets, engine telemetry, a routing eval and the Quick/Thorough routing it led to.
 
 ## Feedback on Nebius Token Factory and NVIDIA Nemotron
 
-- **What worked well.** The OpenAI-compatible API meant the official `openai` SDK worked unchanged. Lightning with `reasoning_effort: "none"` is a fast, reliable tool dispatcher (~0.5–2 s per turn, correct parallel tool calls). Ultra produced large schema-valid structured output through forced function calls, streamed. `usage` with `reasoning_tokens` made per-call cost accounting easy, and the public `models_info` catalog (prices, context, throughput) is very handy.
+- **What worked well.** The OpenAI-compatible API meant the official `openai` SDK worked unchanged. Lightning with `reasoning_effort: "none"` is a fast, reliable tool dispatcher (~0.5–2 s per turn, correct parallel tool calls). Ultra produced large schema-valid structured output through forced function calls, streamed; Super at medium effort was the most faithful writer we measured, at a third of Ultra’s cost. `usage` with `reasoning_tokens` made per-call cost accounting easy, and the public `models_info` catalog (prices, context, throughput) is very handy.
 - **Rough edges.**
   - Model-ID casing is inconsistent across docs and catalog (`Nemotron-3_5-Lightning`, `nemotron-3-super-120b-a12b`, `Nemotron-3.5-Super-VL`); we had to read `GET /v1/models` to pin exact strings. A copy button or canonical lowercase IDs would help.
   - Ultra at `reasoning_effort: "medium"` occasionally loops in its reasoning (the same sentence repeated until `max_tokens`) on long, multi-source prompts. A server-side repetition guard or a `max_reasoning_tokens` parameter separate from `max_tokens` would make reasoning budgets safer.
