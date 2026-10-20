@@ -223,7 +223,7 @@ function Hero({ live, running }: { live: LiveState; running: boolean }) {
               <span className="text-sm text-paper/70">/ {v.checked}</span>
             </div>
             <div className="leading-tight">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-paper/90">Claims verified word for word</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-paper/90">Claims checked against their sources</p>
               <p className="text-[11px] text-paper/70">
                 against {v.sources} sources fetched live{v.providers.length ? ` · ${v.providers.join(", ")}` : ""}
               </p>
@@ -700,7 +700,7 @@ function Compare({ baseline, playbook: p }: { baseline: string; playbook: Playbo
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-olive">Tastecraft, grounded in this week</p>
           {v && (
             <p className="mt-1 text-[11px] font-semibold text-olive">
-              {v.sources} live sources · {v.verified}/{v.checked} claims verified word for word
+              {v.sources} live sources · {v.verified}/{v.checked} claims verified in code
             </p>
           )}
           <ul className="mt-2 space-y-2 text-sm leading-relaxed">
@@ -764,18 +764,23 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
   return (
     <Section icon={<IconCheck size={16} />} kicker="Evidence ledger" title={`${sources.length} sources, ${ev.length} claims checked in code`}>
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Every claim cites a source and a verbatim quote. The server checks that each quote appears word for word in the source it fetched in this run, and that
-        every number in the sentence appears in a cited source. No model is asked whether a claim is true.
+        Every source fetched in this run is cut into numbered sentences, and every claim cites the sentences it stands on — the chip shows the exact
+        text. Code checks that each cited sentence exists, that every number in the claim appears in it, and that it talks about the claim. No model is
+        asked whether a claim is true.
       </p>
       {p.verification?.first_pass != null && (
         <ol className="mb-4 grid gap-2 sm:grid-cols-4" aria-label="How the verifier got there">
           {[
             [
-              "Matched as written",
+              "Passed first time",
               `${p.verification.first_pass} / ${p.verification.written ?? p.verification.checked}`,
-              "quotes found word for word on the first pass",
+              "claims the writer got right on its own",
             ],
-            ["Re-pointed by code", String(p.verification.reattributed ?? 0), "right words, wrong source id — moved to the source that has them"],
+            [
+              "Caught by code",
+              String((p.verification.written ?? p.verification.checked) - p.verification.first_pass),
+              "a number not in the cited sentence, or a citation about something else",
+            ],
             ["Fixed or dropped", `${p.verification.fixed ?? 0} / ${p.verification.dropped ?? 0}`, "one Nemotron repair pass, re-checked by code"],
             ["Verified now", `${p.verification.verified} / ${p.verification.checked}`, "what you see in this plan"],
           ].map(([t, v, d], i) => (

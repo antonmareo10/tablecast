@@ -32,12 +32,12 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   {
     step: "4 · Write",
     who: "Nemotron 3 Ultra",
-    what: "The reasoning model writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite a source id and a verbatim quote.",
+    what: "The reasoning model writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
   },
   {
     step: "5 · Verify",
     who: "Code, then Ultra once",
-    what: "The server checks that every quote appears word for word in the source it fetched, and that every number in a sentence appears in a cited source. Failures go back to Nemotron Ultra (low effort) once with the closest passages; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
+    what: "Code checks that every cited sentence exists, that every number in the claim appears in it, and that it talks about the claim. Failures go to Nemotron Ultra (low effort) once — one small call per claim, in parallel — with candidate sentences; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
   },
 ];
 
@@ -84,7 +84,7 @@ export default function About() {
       <Block title="Responsible by design">
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong>Code decides what is verified.</strong> No model is asked whether a claim is true; quotes and numbers are matched against the sources
+            <strong>Code decides what is verified.</strong> No model is asked whether a claim is true; cited sentences and numbers are matched against the sources
             fetched in that run, and failures are shown, not hidden.
           </li>
           <li>

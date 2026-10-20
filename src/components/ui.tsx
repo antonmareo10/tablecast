@@ -93,7 +93,7 @@ export function SourceChip({ cite }: { cite: Cite }) {
   const cls = `inline-flex max-w-[16rem] items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] transition ${
     cite.ok === false ? "border-terracotta/30 text-terracotta" : "border-line text-ink-2 hover:border-ink-2/40 hover:text-ink"
   }`;
-  // A small card with the verbatim quote: on hover/focus on desktop, on tap on touch screens.
+  // A small card with the exact cited sentence: on hover/focus on desktop, on tap on touch screens.
   return (
     <span className="group relative inline-flex" onMouseLeave={() => setOpen(false)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <button type="button" className={cls} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -112,7 +112,7 @@ export function SourceChip({ cite }: { cite: Cite }) {
         {src && <span className="mt-0.5 block font-medium text-ink-2">{src.title}</span>}
         <span className="font-display mt-1.5 block text-[14px] leading-snug">“{cite.quote}”</span>
         <span className={`mt-1.5 block text-[11px] ${cite.ok === false ? "text-terracotta" : "text-olive"}`}>
-          {cite.ok === false ? "✗ Not found in this source" : "✓ Found word for word in this source"}
+          {cite.ok === false ? "✗ Not found in this source" : "✓ Exact sentence from this source"}
         </span>
         {src?.url && (
           <a href={src.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[11px] text-olive underline underline-offset-2">
@@ -132,7 +132,7 @@ export function EvidenceLine({ evidence }: { evidence: Evidence }) {
       <div className="flex gap-2">
         <span
           className={`mt-0.5 shrink-0 ${ok ? "text-olive" : unknown ? "text-saffron" : "text-terracotta"}`}
-          title={ok ? "Verified: every quote was found word for word in its source" : unknown ? "Not checked yet" : `Not verified: ${evidence.issue ?? "quote not found"}`}
+          title={ok ? "Verified in code: cited sentences exist, contain every number and talk about the claim" : unknown ? "Not checked yet" : `Not verified: ${evidence.issue ?? "not backed by its sources"}`}
         >
           {ok ? <IconCheck size={13} /> : <IconAlert size={13} />}
           <span className="sr-only">{ok ? "Verified against its sources" : "Not verified"}</span>

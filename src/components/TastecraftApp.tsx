@@ -123,7 +123,7 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
             <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-2">
               Rain on Thursday, a match two streets away, a holiday on Sunday, a rival that just raised its prices. Tastecraft reads your week —
               forecast, events, your block, your menu and what guests say online — and turns it into three dishes to test, an event, a post and a
-              supplier order. Every claim links to its source and is checked word for word.
+              supplier order. Every claim links to the exact sentence it stands on, checked in code.
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-2 text-[12px] text-muted">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">

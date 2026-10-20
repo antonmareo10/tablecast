@@ -30,6 +30,15 @@ const CONFIGS: Record<string, Partial<Routing>> = {
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const OUT = path.join(ROOT, "eval", "results");
+// --runs <dir> keeps each design's runs apart (re-running with an existing dir only re-aggregates cached runs);
+// --summary <file> chooses where the table goes.
+const RUNS_DIR = argOne("runs") ?? "runs";
+const SUMMARY_FILE = argOne("summary") ?? "eval/SUMMARY.md";
+
+function argOne(name: string): string | null {
+  const i = process.argv.indexOf(`--${name}`);
+  return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : null;
+}
 const WEEK_KINDS = new Set(["weather", "event", "holiday", "news"]);
 
 function slugOf(r: AgentRequest): string {
@@ -88,7 +97,7 @@ async function packFor(req: AgentRequest, slug: string): Promise<{ pack: Evidenc
 }
 
 async function runConfig(slug: string, config: string, pack: EvidencePack): Promise<RunResult> {
-  const file = path.join(OUT, "runs", `${slug}__${config}.json`);
+  const file = path.join(OUT, RUNS_DIR, `${slug}__${config}.json`);
   if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
   const calls: EngineCall[] = [];
   const emit = (e: AgentEvent) => {
@@ -193,7 +202,7 @@ async function main() {
     ``,
     `Run on ${date} with \`npx tsx scripts/eval-routing.ts\`. Restaurants: [eval/restaurants.json](restaurants.json) (fixed before running).`,
     ``,
-    `**Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, then Nemotron 3.5 Lightning researching the web with Tavily). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: the quote must appear word for word in the cited source and every number in the sentence must appear in a cited source. "First pass" is the writer alone, before any help; then code re-points quotes that are word for word in a different source than cited, and one repair pass (the same for every configuration: Nemotron Ultra at low effort) fixes or drops what still fails; "final" is what the owner sees. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).`,
+    `**Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, Tavily Map, then Nemotron 3.5 Lightning researching the web with Tavily Search/Extract). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: each cited sentence must exist, every number in the claim must appear in a cited sentence, and the cited sentences must share content with the claim. "First pass" is the writer alone; then one repair pass (the same for every configuration: Nemotron Ultra at low effort, one call per failing claim) fixes or drops what failed; "final" is what the owner sees. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).`,
     ``,
     `| Writer | Plans published | Retries | Claims / plan | Verified, first pass | Verified, final | Dishes tied to this week | Dishes new to the menu | Writer time (median) | Cost / plan (median) |`,
     `|---|---|---|---|---|---|---|---|---|---|`,
@@ -209,7 +218,7 @@ async function main() {
     `**Limits.** ${results.length} plans over ${gatherStats.length} restaurants is a small sample; verification measures whether claims are backed by the sources, not whether the dishes would sell. Web content changes daily, so a re-run gathers different evidence.`,
     ``,
   ].join("\n");
-  fs.writeFileSync(path.join(ROOT, "eval", "SUMMARY.md"), md);
+  fs.writeFileSync(path.resolve(ROOT, SUMMARY_FILE), md);
   console.log(`\n${md}`);
 }
 

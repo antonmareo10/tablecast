@@ -52,12 +52,17 @@ Tavily is the agent’s eyes on the live web — three endpoints, each with a jo
 
 ## How every claim is verified (code decides, not a model)
 
-1. Everything the agent sees becomes a numbered source: `S1` the forecast, `S2…` events, `S9…` web pages, the block, the menu photo.
-2. The writer must back each claim with `cites: [{ source: "S7", quote: "3-20 words copied exactly" }]`.
+1. Everything the agent sees becomes a numbered source — `S1` the forecast, `S2…` events, then web pages, the block, the menu photo — and every source is cut into numbered sentences (`S9.1`, `S9.2`, …).
+2. The writer backs each claim with the ids of the sentences it stands on: `cites: [{ span: "S9.4" }]`. It never types a quote; the server shows the owner the exact cited sentence, so a quote can't be mis-copied or invented.
 3. The server checks, deterministically ([`src/lib/evidence.ts`](src/lib/evidence.ts)):
-   - the source exists in this run and the **quote appears word for word** in its fetched text (accents, case and punctuation ignored; decimals kept intact);
-   - **every number in the sentence** appears in the text of a cited source (no invented temperatures, prices or distances).
-4. A quote found word for word in a *different* source than cited is re-attributed to it (code). Remaining failures go back to Nemotron Ultra (low effort) once, with the closest passages; a fix is kept only if it passes the same check. What still fails is shown to the owner as **unverified**, not hidden.
+   - every cited sentence exists in this run's sources;
+   - **every number in the claim** (prices, °C, mm, distances, dates, times) appears in a cited sentence — or the line right next to it, for menus that put a dish and its price on separate lines (decimals and glued prices like `Malai15.50` normalised);
+   - the cited sentences share content with the claim (an irrelevant citation fails).
+4. Claims that fail go to Nemotron Ultra (low effort) once — one small call per claim, in parallel, with candidate sentences — and a fix is kept only if it passes the same check. What still fails is shown to the owner as **unverified**, not hidden.
+
+Why sentences and not quotes: we started with "copy a verbatim quote" and measured it. The writer often copied the right words under the wrong source id, or paraphrased; on some runs only 3 of 19 claims passed on the first try. Citing sentence ids removed that whole class of error, and what the check catches now are real mistakes (in one London run: a group menu quoted at £32.50 when the page says £36.50, and a "combined value" the model had computed itself).
+
+A second guard handles **same-name restaurants**: a web result or page only becomes a source if it is on the restaurant's own site or mentions its city, street or postcode. (In one run, a "Casa Lucio" in another Spanish town had slipped its menu into the evidence; the verifier couldn't see it, because the quotes were genuine.)
 
 ## Architecture
 
