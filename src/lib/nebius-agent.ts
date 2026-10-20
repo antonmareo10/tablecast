@@ -48,7 +48,7 @@ export function defaultRouting(): Routing {
     repair: process.env.NEBIUS_REPAIR_MODEL || process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     reasoning: process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     vision: process.env.NEBIUS_VISION_MODEL || "nvidia/Nemotron-3.5-Super-VL",
-    // Measured (eval/SUMMARY.md): low is as faithful as medium after repair, faster, and never looped.
+    // Measured (eval/SUMMARY.md): low ends as faithful as medium after repair and writes faster.
     effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "low",
   };
 }
