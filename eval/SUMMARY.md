@@ -31,6 +31,6 @@ Shared research step (once per restaurant): median 34 sources, median $0.0014 of
 Ultra's first pass doubled at low effort: most of its failures had been copy errors, not unsupported claims. Super and Lightning already copied faithfully.
 
 **Routing.** The app now offers two writers, chosen by whether the owner is waiting:
-- **Quick (default): Nemotron Ultra, low effort.** Fastest writer (median 33 s); 96% of claims verified after the code-checked repair. Low effort is as faithful as medium after repair and is the setting we never saw loop.
+- **Quick (default): Nemotron Ultra, low effort.** Fastest writer (median 33 s); 96% of claims verified after the code-checked repair. Low and medium effort end equally faithful after repair (96%); low writes faster (33 s vs 39 s median), medium costs slightly less. Speed decides it when someone is waiting.
 - **Thorough: Nemotron Super, medium effort.** Most faithful first time (94%) and a third of Ultra's cost per plan, but a median 127 s to write. If it runs out of time, Ultra takes over for the retry.
 - **Lightning stays the research model.** It is the cheapest writer but tied only 25% of its dishes to the coming week.
