@@ -144,6 +144,7 @@ export type EngineCall = {
   est_cost_usd?: number;
   usage_estimated?: boolean; // the call was cut before Token Factory reported usage
   note?: string;
+  count?: number; // HTTP requests this entry stands for (parallel repairs are measured together)
 };
 
 // ---- Stream events ---------------------------------------------------------------------

@@ -827,11 +827,16 @@ function fmtMs(ms: number): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`;
 }
 
+// Parallel repairs are measured as one entry; older recordings only say how many in the note.
+function callCount(c: EngineCall): number {
+  return c.count ?? Number(/(\d+) parallel calls/.exec(c.note ?? "")?.[1] ?? 1);
+}
+
 function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; tavilyCredits?: number; running: boolean }) {
   const byModel = new Map<string, { label: string; calls: number; inTok: number; outTok: number; reason: number; ms: number; usd: number }>();
   for (const c of calls) {
     const m = byModel.get(c.model) ?? { label: c.label, calls: 0, inTok: 0, outTok: 0, reason: 0, ms: 0, usd: 0 };
-    m.calls += 1;
+    m.calls += callCount(c);
     m.inTok += c.prompt_tokens ?? 0;
     m.outTok += c.completion_tokens ?? 0;
     m.reason += c.reasoning_tokens ?? 0;
@@ -890,7 +895,7 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
           <tfoot>
             <tr>
               <td className="pt-2 text-xs uppercase tracking-[0.12em] text-muted">Total</td>
-              <td className="pt-2 pr-3 text-right tabular-nums">{calls.length}</td>
+              <td className="pt-2 pr-3 text-right tabular-nums">{calls.reduce((n, c) => n + callCount(c), 0)}</td>
               <td colSpan={2} className="pt-2 pr-3 text-right tabular-nums">
                 {totalTok.toLocaleString("en-GB")} tokens
               </td>

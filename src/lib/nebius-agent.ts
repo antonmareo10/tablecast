@@ -591,7 +591,7 @@ ${JSON.stringify({ claim: e.text, cited, candidate_sentences: candidates })}`,
     }
   }
   const note = `fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified (${failing.length} parallel calls)`;
-  emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, usage, { note }) });
+  emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, usage, { note, count: failing.length }) });
   emit({ type: "note", text: `🔎 Verifier: fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified.` });
   return { failing: failing.length, fixed, dropped };
 }
