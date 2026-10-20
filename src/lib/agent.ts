@@ -32,7 +32,7 @@ import { eventsNear, eventLine, type NearbyEvent } from "./sources/events";
 import { geocodeCity, geocodePlace } from "./sources/geo";
 import { holidayLine, upcomingHolidays, type Holiday } from "./sources/holidays";
 import { blockLine, nearbyVenues, venueLine } from "./sources/places";
-import { extract, search } from "./sources/tavily";
+import { extract, map as siteMap, search } from "./sources/tavily";
 import { forecastLine, weekForecast, type DayForecast } from "./sources/weather";
 import type { AgentRequest, MenuItem, Place, Playbook, Source, SourceKind } from "./types";
 
@@ -135,7 +135,7 @@ const PUBLISH = {
 // ---- Prompts ------------------------------------------------------------------------------
 
 const RESEARCH_SYSTEM = `You are the research step of Tastecraft, an assistant that writes an independent restaurant's plan for the coming week. The context below (location, forecast, holidays, events, the venues on the block) is already gathered. Your job is to collect from the live web, with web_search and read_pages:
-1. The restaurant's own website and its CURRENT menu with prices. If a website is given in the context, read it (and its menu page, e.g. /carta, /menu) directly with read_pages — do not search for it. Otherwise search (purpose "menu"), then read the best menu or site page (focus "menu dishes and prices").
+1. The restaurant's own website and its CURRENT menu with prices. If MENU PAGES (found by Tavily Map on the restaurant's site) are listed in the context, read the most likely one(s) first with read_pages. If only a website is given, read it directly — do not search for it. Otherwise search (purpose "menu"), then read the best menu or site page (focus "menu dishes and prices").
 2. What guests and critics say (purpose "reviews"): guides, press, review pages. Read the 1-2 most substantive ones (focus "what guests praise or complain about").
 3. What is on near the restaurant in the coming days (purpose "local_news", recent): festivals, matches, openings, works, strikes — anything that changes footfall. Use short, local queries in the city's language, e.g. "Madrid fin de semana eventos" or "Brooklyn street fair this weekend"; the EVENTS NEARBY list is already known, don't repeat it.
 4. One nearby competitor with the same cuisine, picked from THE BLOCK list (purpose "rival"; never the restaurant itself or its own sister venues): find its menu and read one page to learn its prices. If THE BLOCK is missing, search for the same cuisine in the same street or neighbourhood.
@@ -302,6 +302,16 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     });
     return { value: b, summary: `${b.total} venues`, sources: [src.id] };
   });
+  // Tavily Map: if we know the restaurant's site, list its pages so the agent can open the menu instead of guessing.
+  const MENU_PAGE = /(menu|men%C3%BA|menú|carta|food|drinks?|bebidas|comida|platos|dishes|brunch|lunch|dinner|cena|almuerzo|tapas|raciones)/i;
+  const menuPagesPromise = place.website
+    ? step<string[]>("site_map", `Mapping ${host(place.website)} for menu pages (Tavily Map)`, async () => {
+        const m = await siteMap(place.website as string, { limit: 40 });
+        tavilyCredits += m.credits ?? 0;
+        const pages = m.urls.filter((u) => MENU_PAGE.test(decodeURIComponent(new URL(u).pathname))).slice(0, 6);
+        return { value: pages, summary: m.urls.length ? `${m.urls.length} pages, ${pages.length} look like menus` : "No pages listed" };
+      })
+    : Promise.resolve(null);
   const [days, holidays, events, photoMenu] = await Promise.all([
     step<DayForecast[]>("forecast", "Reading the 7-day forecast (Open-Meteo)", async () => {
       const d = await weekForecast(place.lat, place.lon, { days: 7 });
@@ -351,6 +361,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
   ]);
 
   emit({ type: "week", days: days ?? [], holidays: holidays ?? [], events: events ?? [] });
+  const menuPages = await menuPagesPromise;
   if (photoMenu?.items.length) emit({ type: "menu", items: photoMenu.items, from: "photo" });
   // Research waits a few seconds at most for the block; if it is still loading, the writer gets it later.
   const emitBlock = (b: Awaited<typeof blockPromise>) => {
@@ -436,6 +447,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     return [
       `Restaurant: ${req.restaurant} — ${req.city}${place.address ? ` (${place.address})` : ""}${place.match === "city" ? " [not found on the map; city level]" : ""}`,
       place.website ? `Website: ${place.website}` : "Website: unknown",
+      menuPages?.length ? `MENU PAGES (Tavily Map): ${menuPages.join(" , ")}` : "",
       place.cuisine?.length ? `Cuisine (OpenStreetMap): ${place.cuisine.join(", ")}` : "",
       `Owner's goal: ${goal}`,
       `Today: ${today}`,

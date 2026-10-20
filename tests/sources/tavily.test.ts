@@ -226,3 +226,26 @@ describe("helpers", () => {
     expect(truncateText("alpha beta gamma", 12)).toBe("alpha beta");
   });
 });
+
+describe("map", () => {
+  it("maps a site on the same domain and reports credits", async () => {
+    const { calls } = mockFetch(() =>
+      jsonResponse({ base_url: "https://casalucio.es", results: ["https://casalucio.es/carta", "https://casalucio.es/historia", "https://casalucio.es/carta", 42], usage: { credits: 1 } }),
+    );
+    const { map } = await import("../../src/lib/sources/tavily");
+    const res = await map("casalucio.es", { limit: 20 });
+    expect(res).toEqual({ urls: ["https://casalucio.es/carta", "https://casalucio.es/historia"], credits: 1 });
+    expect(calls[0].url).toBe("https://api.tavily.com/map");
+    const body = bodyOf(calls[0].init);
+    expect(body).toMatchObject({ url: "https://casalucio.es/", limit: 20, max_depth: 1, allow_external: false, include_usage: true });
+    expect(body.instructions).toBeUndefined();
+  });
+
+  it("returns an empty list on upstream failure and still throws on a bad key", async () => {
+    mockFetch(() => jsonResponse({ detail: "boom" }, 500));
+    const { map } = await import("../../src/lib/sources/tavily");
+    expect(await map("https://example.com")).toEqual({ urls: [], credits: null });
+    mockFetch(() => jsonResponse({ detail: "bad key" }, 401));
+    await expect(map("https://example.com")).rejects.toMatchObject({ code: "CONFIG" });
+  });
+});

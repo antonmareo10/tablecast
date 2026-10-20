@@ -69,6 +69,7 @@ const PROVIDER: Record<string, string> = {
   events: "Ticketmaster",
   web_search: "Tavily",
   read_pages: "Tavily",
+  site_map: "Tavily",
   menu_photo: "Nemotron Super VL",
   draft_playbook: "Nemotron Ultra",
 };

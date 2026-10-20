@@ -227,3 +227,47 @@ export async function extract(urls: string[], opts: TavilyExtractOptions = {}): 
   }
   return { results, failed: [...new Set(failed)], credits: total };
 }
+
+export type TavilyMapOptions = {
+  /** Natural-language guidance for which pages matter, e.g. "menu, carta, food and drink pages". Doubles the credit rate. */
+  instructions?: string;
+  maxDepth?: number; // 1-5, default 1
+  limit?: number; // pages processed, default 30
+  timeoutMs?: number;
+};
+export type TavilyMapResponse = { urls: string[]; credits: number | null };
+
+type RawMap = { base_url?: string; results?: unknown[]; usage?: { credits?: number } };
+
+/**
+ * Tavily Map: the URLs of a site, so the agent can find the menu page instead of guessing it.
+ * Same-domain only (no external links). Empty list on any non-config failure.
+ */
+export async function map(url: string, opts: TavilyMapOptions = {}): Promise<TavilyMapResponse> {
+  apiKey();
+  let root: URL;
+  try {
+    root = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+  } catch {
+    return { urls: [], credits: null };
+  }
+  const body: Record<string, unknown> = {
+    url: root.toString(),
+    max_depth: Math.max(1, Math.min(5, Math.round(opts.maxDepth ?? 1))),
+    limit: Math.max(1, Math.min(200, Math.round(opts.limit ?? 30))),
+    allow_external: false,
+    include_usage: true,
+    timeout: 30,
+  };
+  const instructions = cleanText(opts.instructions);
+  if (instructions) body.instructions = instructions;
+  try {
+    const data = await post<RawMap>("/map", body, opts.timeoutMs ?? 35_000);
+    const urls = (data?.results ?? []).filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u));
+    return { urls: [...new Set(urls)], credits: credits(data?.usage) };
+  } catch (err) {
+    if (err instanceof SourceError && err.code === "CONFIG") throw err;
+    warnSource("tavily/map", err);
+    return { urls: [], credits: null };
+  }
+}

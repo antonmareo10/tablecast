@@ -43,8 +43,9 @@ Engineering details that came out of running it live:
 
 ## How it uses Tavily
 
-Tavily is the agent’s eyes on the live web, and its results change the plan:
+Tavily is the agent’s eyes on the live web — three endpoints, each with a job — and its results change the plan:
 
+- **Map** lists the pages of the restaurant’s own site (when known) so the agent opens the real menu page instead of guessing it.
 - **Search** (`topic`, `time_range: "week"`, `country`) finds the restaurant’s site and menu, what guests and critics say, what is happening locally this week, and a same-cuisine rival’s menu.
 - **Extract** (`query` + `chunks_per_source`, plain text) reads the chosen pages, focused on what is needed (“menu dishes and prices”).
 - Lightning decides the queries and which pages to read, within a budget (6 searches, 4 page reads). Every result becomes a numbered source the writer must quote, so web facts are verified exactly like the forecast or the map. Tavily credits per run are reported in the engine room (`include_usage`).

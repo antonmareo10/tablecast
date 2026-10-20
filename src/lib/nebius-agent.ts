@@ -22,6 +22,8 @@ import type { AgentEvent, EngineCall, Evidence, MenuItem } from "./types";
 
 export type Emit = (e: AgentEvent) => void;
 
+const MAX_ARGS_CHARS = 70_000;
+
 const BASE_URL = process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1/";
 
 export interface Routing {
@@ -356,6 +358,12 @@ export async function synthesize(opts: {
         if (tc.function?.arguments) {
           args += tc.function.arguments;
           outChars += tc.function.arguments.length;
+          // A whole plan is ~15-30k characters of JSON; far beyond that the output has run away.
+          if (args.length > MAX_ARGS_CHARS) {
+            finish = "loop";
+            stopper.abort();
+            break;
+          }
           if (opts.onDraft && Date.now() - lastDraft > 700) {
             lastDraft = Date.now();
             const partial = tolerantParse(args);
