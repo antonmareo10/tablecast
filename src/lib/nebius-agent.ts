@@ -161,9 +161,19 @@ export const cleanText = (t: string | null | undefined): string =>
 export function readableThought(thinking: string): string | undefined {
   // A sentence starts with a capital and ends at . ! or ? followed by a space (so "0.5" is not an end).
   const sentences = cleanText(thinking).match(/[A-Z][^\n]*?[.!?](?=\s|$)/g) ?? [];
-  const ok = (x: string) => x.length >= 30 && x.length <= 180 && x.split(/\s+/).length >= 5 && !/[{}[\]"=<>|]|\(S\d|\bS\d+\.\d/.test(x);
+  const ok = (x: string) => {
+    const words = x.split(/\s+/);
+    const capitalised = words.filter((w) => /^[A-Z]/.test(w)).length;
+    return (
+      x.length >= 30 &&
+      x.length <= 180 &&
+      words.length >= 5 &&
+      capitalised / words.length <= 0.5 && // a list of names or ingredients, not a thought
+      !/[{}[\]"=<>|?]|\(S\d|\bS\d+\.\d| - /.test(x)
+    );
+  };
   return sentences
-    .map((x) => x.trim().replace(/_/g, " "))
+    .map((x) => x.trim().replace(/\*+|`/g, "").replace(/_/g, " "))
     .filter(ok)
     .at(-1);
 }

@@ -21,6 +21,13 @@ describe("readableThought", () => {
     expect(readableThought("Now week_plan needs five to ten items for the owner. ")).toBe("Now week plan needs five to ten items for the owner.");
   });
 
+  it("skips lists of names and strips markdown", () => {
+    expect(readableThought("The rain moves the covers to lunch. Confit Garlic, Crème Fraîche, White Wine, Thyme - ? ")).toBe(
+      "The rain moves the covers to lunch.",
+    );
+    expect(readableThought("Owner's **goal**: win more lunch covers this week. ")).toBe("Owner's goal: win more lunch covers this week.");
+  });
+
   it("returns undefined when nothing is readable", () => {
     expect(readableThought('{"a": 1}')).toBeUndefined();
   });
