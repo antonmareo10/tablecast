@@ -1,0 +1,36 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# env files (secrets live in .env.local / the host's env settings)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Recorded runs hold third-party content (web pages, event listings): shipped with the
+# deployment, never committed.
+src/data/demos.json
+eval/results/
+*.ndjson

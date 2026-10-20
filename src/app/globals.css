@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f6f1e7;
+  --paper-2: #efe7d8;
+  --card: #fffdf8;
+  --ink: #1d1b17;
+  --ink-2: #4a4539;
+  --muted: #8a8273;
+  --line: #e2d8c4;
+  --olive: #2f4a35;
+  --olive-2: #46684d;
+  --terracotta: #c0532c;
+  --saffron: #dd9a2e;
+  --plum: #6b3b5a;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-olive: var(--olive);
+  --color-olive-2: var(--olive-2);
+  --color-terracotta: var(--terracotta);
+  --color-saffron: var(--saffron);
+  --color-plum: var(--plum);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-fraunces);
+}
+
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--saffron) 35%, transparent);
+}
+
+.font-display {
+  font-family: var(--font-fraunces), ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* Subtle paper grain so the page does not look like a template. */
+.grain {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--ink) 6%, transparent) 0.6px,
+    transparent 0.6px
+  );
+  background-size: 6px 6px;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .pulse-dot {
+    animation: none;
+  }
+}
+
+.leaflet-container {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  background: var(--paper-2);
+}
+
+/* OpenStreetMap tiles toned down to sit on our paper palette. */
+.taste-map .leaflet-tile-pane {
+  filter: grayscale(1) sepia(0.28) brightness(1.04) contrast(0.88);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  section {
+    break-inside: avoid;
+  }
+}
