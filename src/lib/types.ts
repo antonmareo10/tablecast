@@ -174,4 +174,5 @@ export type AgentRequest = {
   goal?: string;
   language?: "English" | "Español";
   menu_photo?: string; // optional data: URL (jpeg/png/webp), read by Nemotron VL
+  mode?: "quick" | "thorough"; // quick: Nemotron Ultra writes (~1 min); thorough: Nemotron Super (~2-3 min, most faithful)
 };

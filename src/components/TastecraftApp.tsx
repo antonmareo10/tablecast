@@ -8,6 +8,12 @@ import Timeline, { type Step, type TimelineItem } from "./Timeline";
 import PlaybookView, { type LiveState } from "./PlaybookView";
 import { IconArrow, IconSearch } from "./icons";
 
+// Routing measured in eval/SUMMARY.md: Ultra is the fastest writer; Super is the most faithful and cheapest, but slower.
+const MODES = [
+  { id: "quick", label: "Quick", hint: "Nemotron Ultra · about a minute" },
+  { id: "thorough", label: "Thorough", hint: "Nemotron Super · 2–3 min, most claims verified first time" },
+] as const;
+
 const GOALS = ["Fill quiet weeknights", "Make the most of this week’s weather", "Win more lunch covers", "Launch a seasonal special", "Grow takeaway orders"];
 
 const SAMPLES: AgentRequest[] = [
@@ -231,6 +237,24 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-2">
+              <span>Writer</span>
+              <div role="radiogroup" aria-label="Which Nemotron writes the plan" className="inline-flex rounded-full border border-line bg-paper/60 p-0.5">
+                {MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={(form.mode ?? "quick") === m.id}
+                    onClick={() => setForm({ ...form, mode: m.id })}
+                    className={`rounded-full px-3 py-1 transition ${(form.mode ?? "quick") === m.id ? "bg-ink text-paper" : "text-ink-2 hover:text-ink"}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-muted">{MODES.find((m) => m.id === (form.mode ?? "quick"))?.hint}</span>
             </div>
             <button
               type="submit"

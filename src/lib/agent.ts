@@ -184,6 +184,7 @@ function sourcesForPrompt(ledger: SourceLedger): string {
 
 export interface RunOptions {
   routing?: Routing;
+  deadline?: number; // epoch ms by which the run must have published (the host's function time limit)
   signal?: AbortSignal;
 }
 
@@ -546,10 +547,14 @@ export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOp
   emit({ type: "sources", sources: ledger.list().map(publicSource) });
   emit({ type: "note", text: `🧠 ${modelLabel(routing.reasoning)} is writing your week from ${ledger.size} sources…` });
   let draftId: string | null = null;
-  const write = (effort?: Routing["effort"]) =>
+  // Time left before the host cuts the function; Infinity outside a server deadline (scripts, eval).
+  const left = () => (opts.deadline ? opts.deadline - Date.now() : Infinity);
+  const write = (effort?: Routing["effort"], model?: string, maxMs?: number) =>
     synthesize({
       routing,
       effort,
+      model,
+      maxMs,
       system: WRITER_SYSTEM,
       user: `Write the plan in ${language === "Español" ? "Spanish (español de España)" : "English"} — every field, except verbatim quotes. Owner's goal: ${goal}.
 
@@ -569,8 +574,11 @@ ${sourcesForPrompt(ledger)}`,
         emit({ type: "playbook_draft", draft });
       },
     });
-  let { value: raw, finish } = await write();
-  if (!raw) {
+  // Keep ~75 s for a fast retry and the repair pass.
+  let { value: raw, finish } = await write(undefined, undefined, Math.max(45_000, left() - 75_000));
+  if (!raw && left() < 40_000) {
+    emit({ type: "note", text: "🧠 Out of time for a second attempt." });
+  } else if (!raw) {
     report.retried = true;
     // One retry, said out loud: lighter reasoning if the model spent its budget thinking or got stuck repeating
     // itself; otherwise (it ended without publishing) the same settings again.
@@ -584,8 +592,15 @@ ${sourcesForPrompt(ledger)}`,
             : finish === "slow"
               ? "was taking too long"
               : "stopped without publishing";
-    emit({ type: "note", text: `🧠 ${modelLabel(routing.reasoning)} ${why} — writing again (reasoning_effort "low").` });
-    ({ value: raw, finish } = await write("low"));
+    const retryModel = routing.fallback ?? routing.reasoning;
+    emit({
+      type: "note",
+      text:
+        retryModel === routing.reasoning
+          ? `🧠 ${modelLabel(routing.reasoning)} ${why} — writing again (reasoning_effort "low").`
+          : `🧠 ${modelLabel(routing.reasoning)} ${why} — ${modelLabel(retryModel)} takes over (reasoning_effort "low").`,
+    });
+    ({ value: raw, finish } = await write("low", retryModel, left() - 20_000));
   }
   if (draftId) emit({ type: "tool_end", id: draftId, tool: "draft_playbook", summary: raw ? "Draft complete" : "Draft incomplete" });
   report.finish = finish;
@@ -615,7 +630,7 @@ ${sourcesForPrompt(ledger)}`,
       type: "note",
       text: `🔎 Verifier: ${moved} quote${moved > 1 ? "s were" : " was"} found word for word in a different source than cited — re-attributed.`,
     });
-  report.repaired = await repairCitations({ groups, ledger, routing, emit, signal }).catch((err) => {
+  report.repaired = await repairCitations({ groups, ledger, routing, emit, signal, maxMs: left() - 5_000 }).catch((err) => {
     if (signal?.aborted) throw err;
     emit({ type: "note", text: "🔎 Verifier: the repair pass did not finish in time — claims that failed the check stay marked unverified." });
     return { failing: 0, fixed: 0, dropped: 0 };

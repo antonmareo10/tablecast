@@ -25,7 +25,9 @@ export type Emit = (e: AgentEvent) => void;
 const MAX_ARGS_CHARS = 70_000;
 const STALL_MS = Number(process.env.NEBIUS_STALL_MS || 60_000);
 // A whole writing attempt may not take longer than this (a slow trickle never trips the stall watchdog).
-const writerMaxMs = () => Number(process.env.NEBIUS_WRITER_MAX_MS || 150_000); // read per call, so scripts can raise it
+// Read per call, so scripts can raise it; a run's deadline can only lower it.
+const writerMaxMs = (routing: Routing, deadlineMs?: number) =>
+  Math.min(Number(process.env.NEBIUS_WRITER_MAX_MS) || routing.writerMaxMs || 150_000, deadlineMs ?? Infinity);
 
 const BASE_URL = process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1/";
 
@@ -35,6 +37,8 @@ export interface Routing {
   reasoning: string; // the playbook
   vision: string; // menu photos
   effort: "low" | "medium" | "high";
+  writerMaxMs?: number; // how long one writing attempt may take
+  fallback?: string; // model for the one retry, if not the writer itself
 }
 
 export function defaultRouting(): Routing {
@@ -44,7 +48,20 @@ export function defaultRouting(): Routing {
     repair: process.env.NEBIUS_REPAIR_MODEL || process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     reasoning: process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     vision: process.env.NEBIUS_VISION_MODEL || "nvidia/Nemotron-3.5-Super-VL",
-    effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "medium",
+    // Measured (eval/SUMMARY.md): low is as faithful as medium after repair, faster, and never looped.
+    effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "low",
+  };
+}
+
+/** "Thorough": Nemotron Super writes. Measured: most faithful first time and a third of Ultra's cost, but ~2 min to write. */
+export function thoroughRouting(): Routing {
+  const base = defaultRouting();
+  return {
+    ...base,
+    reasoning: process.env.NEBIUS_THOROUGH_MODEL || "nvidia/nemotron-3-super-120b-a12b",
+    effort: "medium",
+    writerMaxMs: 170_000,
+    fallback: base.reasoning, // if Super is cut short, Ultra (fast) takes over
   };
 }
 
@@ -139,6 +156,17 @@ export const cleanText = (t: string | null | undefined): string =>
     .replace(/<think>[\s\S]*?<\/think>/g, "")
     .replace(/<\/?think>/g, "")
     .trim();
+
+/** The latest whole, readable sentence of a reasoning stream (no JSON, source ids or half-sentences), for the agent log. */
+export function readableThought(thinking: string): string | undefined {
+  // A sentence starts with a capital and ends at . ! or ? followed by a space (so "0.5" is not an end).
+  const sentences = cleanText(thinking).match(/[A-Z][^\n]*?[.!?](?=\s|$)/g) ?? [];
+  const ok = (x: string) => x.length >= 30 && x.length <= 180 && x.split(/\s+/).length >= 5 && !/[{}[\]"=<>|]|\(S\d|\bS\d+\.\d/.test(x);
+  return sentences
+    .map((x) => x.trim().replace(/_/g, " "))
+    .filter(ok)
+    .at(-1);
+}
 
 export function toOpenAITool(spec: { name: string; description: string; schema: z.ZodType }) {
   return {
@@ -299,10 +327,13 @@ export async function synthesize(opts: {
   signal?: AbortSignal;
   onDraft?: (draft: Record<string, unknown>) => void;
   effort?: Routing["effort"];
+  model?: string; // overrides routing.reasoning (the retry fallback)
+  maxMs?: number; // what is left of the run's time budget for this attempt
   maxTokens?: number;
 }): Promise<{ value: unknown | null; finish: string | null }> {
   const { routing, emit, signal } = opts;
   const effort = opts.effort ?? routing.effort;
+  const model = opts.model ?? routing.reasoning;
   const started = Date.now();
   // Our own abort, so a reasoning loop can be cut without cancelling the whole run.
   const stopper = new AbortController();
@@ -318,15 +349,18 @@ export async function synthesize(opts: {
     }, STALL_MS);
   };
   kick();
-  const capTimer = setTimeout(() => {
-    finish = "slow";
-    stopper.abort();
-  }, writerMaxMs());
+  const capTimer = setTimeout(
+    () => {
+      finish = "slow";
+      stopper.abort();
+    },
+    writerMaxMs(routing, opts.maxMs),
+  );
   let stream: AsyncIterable<StreamChunk>;
   try {
     stream = await chatStream(
       {
-        model: routing.reasoning,
+        model,
         messages: [
           { role: "system", content: opts.system },
           { role: "user", content: opts.user },
@@ -377,8 +411,7 @@ export async function synthesize(opts: {
         }
         // Every few seconds, show the latest complete sentence of the model's reasoning.
         if (Date.now() - lastThought > 3500) {
-          const sentences = cleanText(thinking).match(/[^.!?\n]{25,}[.!?]/g);
-          const last = sentences?.at(-1)?.trim();
+          const last = readableThought(thinking);
           if (last && last !== lastNote) {
             emit({ type: "note", text: `🧠 ${last.slice(0, 200)}` });
             lastNote = last;
@@ -418,7 +451,7 @@ export async function synthesize(opts: {
   if (estimated) usage = { prompt_tokens: Math.round((opts.system.length + opts.user.length) / 4), completion_tokens: Math.round(outChars / 4) };
   emit({
     type: "engine",
-    call: measured("synthesize", routing.reasoning, Date.now() - started, usage, {
+    call: measured("synthesize", model, Date.now() - started, usage, {
       ...(ttft != null ? { ttft_ms: ttft } : {}),
       ...(estimated ? { usage_estimated: true } : {}),
       note: `reasoning_effort ${effort}${finish === "loop" ? " · cut: reasoning loop detected" : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
@@ -502,6 +535,7 @@ export async function repairCitations(opts: {
   routing: Routing;
   emit: Emit;
   signal?: AbortSignal;
+  maxMs?: number; // what is left of the run's time budget
 }): Promise<{ failing: number; fixed: number; dropped: number }> {
   const { groups, ledger, routing, emit } = opts;
   const repairModel = routing.repair || routing.fast;
@@ -520,7 +554,8 @@ export async function repairCitations(opts: {
   });
 
   // A slow repair never holds the plan back: after 45 s the claims simply stay marked unverified.
-  const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000);
+  const capMs = Math.max(5_000, Math.min(45_000, opts.maxMs ?? 45_000));
+  const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(capMs)]) : AbortSignal.timeout(capMs);
   const t0 = Date.now();
   const usage = { prompt_tokens: 0, completion_tokens: 0, completion_tokens_details: { reasoning_tokens: 0 } };
 

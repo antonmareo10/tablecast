@@ -1,6 +1,6 @@
 import { runTastecraft } from "@/lib/agent";
 import { acquireLiveRun, clientIp } from "@/lib/limits";
-import { defaultRouting, nebiusConfigured, type Routing } from "@/lib/nebius-agent";
+import { defaultRouting, nebiusConfigured, thoroughRouting, type Routing } from "@/lib/nebius-agent";
 import { encodeLine } from "@/lib/ndjson";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 
@@ -9,7 +9,12 @@ export const maxDuration = 300;
 const MAX_PHOTO_BYTES = 3_000_000; // ~2.2 MB image once base64-encoded
 
 function clean(s: unknown, max = 80): string {
-  return typeof s === "string" ? s.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max) : "";
+  return typeof s === "string"
+    ? s
+        .replace(/[\u0000-\u001f]/g, " ")
+        .trim()
+        .slice(0, max)
+    : "";
 }
 
 function cleanUrl(s: unknown): string | undefined {
@@ -55,6 +60,7 @@ export async function POST(request: Request) {
     goal: clean(body.goal, 120) || undefined,
     language: body.language === "Español" ? "Español" : "English",
     menu_photo: cleanPhoto(body.menu_photo),
+    mode: body.mode === "thorough" ? "thorough" : "quick",
   };
   if (!req.restaurant || !req.city) {
     return Response.json({ error: "restaurant and city are required" }, { status: 400 });
@@ -63,16 +69,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "The menu photo must be a JPEG, PNG or WebP under 2 MB." }, { status: 400 });
   }
   if (!nebiusConfigured() || !process.env.TAVILY_API_KEY) {
-    return Response.json(
-      { error: "Live mode is not configured on this server. Open one of the recorded real runs instead." },
-      { status: 503 },
-    );
+    return Response.json({ error: "Live mode is not configured on this server. Open one of the recorded real runs instead." }, { status: 503 });
   }
   const gate = acquireLiveRun(clientIp(request));
   if (!gate.ok) return Response.json({ error: gate.reason }, { status: 429 });
 
   const started = Date.now();
-  const routing = routingOverride(request);
+  const routing = routingOverride(request) ?? (req.mode === "thorough" ? thoroughRouting() : undefined);
+  // Publish before the platform's limit (maxDuration), leaving room to stream the end of the run.
+  const deadline = Date.now() + (maxDuration - 15) * 1000;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let closed = false;
@@ -85,7 +90,7 @@ export async function POST(request: Request) {
         }
       };
       try {
-        await runTastecraft(req, emit, { routing, signal: request.signal });
+        await runTastecraft(req, emit, { routing, deadline, signal: request.signal });
       } catch (err) {
         emit({ type: "error", message: err instanceof Error ? err.message : "Unexpected error" });
       }
