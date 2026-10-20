@@ -228,7 +228,7 @@ describe("nearbyVenues Nominatim fallback", () => {
     expect(s!.venues.find((v) => v.osm_id === "node/300")).toMatchObject({ name: "Café Comercial", kind: "cafe", distance_m: 140, opening_hours: "Mo-Su 08:00-24:00" });
     expect(s!.venues.some((v) => v.name === "Far Away Grill" || v.name === "Calle Café")).toBe(false);
     expect(blockLine(s!)).toBe(
-      "Within 600 m: at least 43 food & drink venues (OpenStreetMap via Nominatim; partial list) — 39+ restaurants, 1 bar, 1 cafe, 1 fast-food place, 1 pub; top cuisines: spanish 10, burger 1",
+      "Within 600 m: at least 43 food & drink venues — 39+ restaurants, 1 bar, 1 cafe, 1 fast-food place, 1 pub; top cuisines: spanish 10, burger 1 (OpenStreetMap via Nominatim; partial list)",
     );
   });
 
@@ -239,7 +239,7 @@ describe("nearbyVenues Nominatim fallback", () => {
     await vi.advanceTimersByTimeAsync(6_000);
     const s = await pending;
     expect(s).toMatchObject({ source: "nominatim", complete: true, total: 2 });
-    expect(blockLine(s!)).toBe("Within 600 m: 2 food & drink venues (OpenStreetMap via Nominatim) — 1 bar, 1 restaurant");
+    expect(blockLine(s!)).toBe("Within 600 m: 2 food & drink venues — 1 bar, 1 restaurant (OpenStreetMap via Nominatim)");
   });
 
   it("starts the fallback after 3 s of Overpass silence and aborts Overpass when it wins", async () => {
@@ -349,7 +349,7 @@ describe("canonical lines", () => {
         ],
         by_cuisine: [{ cuisine: "spanish", count: 9 }],
       }),
-    ).toBe("Within 600 m: at least 109 food & drink venues (OpenStreetMap via Nominatim; partial list) — 40+ restaurants, 40+ bars, 29 cafes; top cuisines: spanish 9");
+    ).toBe("Within 600 m: at least 109 food & drink venues — 40+ restaurants, 40+ bars, 29 cafes; top cuisines: spanish 9 (OpenStreetMap via Nominatim; partial list)");
     expect(blockLine({ radius_m: 600, total: 0, source: "nominatim", complete: false, by_kind: [], by_cuisine: [] })).toBe(
       "Within 600 m: no named food & drink venues found (OpenStreetMap via Nominatim; partial list)",
     );

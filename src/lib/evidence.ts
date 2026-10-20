@@ -16,7 +16,9 @@ export function normalizeText(s: string): string {
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/(\d)[.,](\d)/g, "$1d$2") // keep 6.2 / 6,2 as one token ("6d2") so it can't match "6 2"
+    .replace(/([a-z])(\d)/g, "$1 $2") // "Malai15.50" → "malai 15.50": a price glued to a name is still a number
+    .replace(/(\d)([a-z])/g, "$1 $2")
+    .replace(/(\d+)[.,](\d+)/g, (_m, a: string, b: string) => canonNumber(a, b)) // 6.2 / 6,2 → "6d2"; 142,00 → "142"
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -24,8 +26,14 @@ export function normalizeText(s: string): string {
 /** Numbers written with digits in a sentence, normalised the same way as the quote matcher. */
 export function numbersIn(s: string): string[] {
   const out = new Set<string>();
-  for (const m of s.matchAll(/\d+(?:[.,]\d+)?/g)) out.add(m[0].replace(/[.,]/, "d"));
+  for (const m of s.matchAll(/(\d+)(?:[.,](\d+))?/g)) out.add(m[2] ? canonNumber(m[1], m[2]) : m[1]);
   return [...out];
+}
+
+/** One token per decimal number, so "6.2" can't match "6 2"; trailing zeros dropped so "142,00" equals "142" and "37,50" equals "37.5". */
+function canonNumber(int: string, frac: string): string {
+  const f = frac.replace(/0+$/, "");
+  return f ? `${int}d${f}` : int;
 }
 
 const MIN_QUOTE_TOKENS = 2;
@@ -98,9 +106,25 @@ export class SourceLedger {
     if (q.split(" ").filter(Boolean).length < MIN_QUOTE_TOKENS || q.length < MIN_QUOTE_CHARS) {
       return { ok: false, reason: "quote too short to check" };
     }
-    const hay = ` ${this.norm.get(src.id) ?? ""} `;
-    if (!hay.includes(` ${q} `)) return { ok: false, reason: `quote not found in ${src.id}` };
+    if (!this.contains(src.id, c.quote ?? "")) return { ok: false, reason: `quote not found in ${src.id}` };
     return { ok: true };
+  }
+
+  /**
+   * True if `quote` appears word for word in the source, either whole or as a run of verbatim fragments
+   * (split at sentence punctuation or dashes) that each appear in that same source. Every fragment must be
+   * found — joining real sentences is allowed, changing a word is not.
+   */
+  private contains(id: string, quote: string): boolean {
+    const hay = ` ${this.norm.get(id) ?? ""} `;
+    const q = normalizeText(quote);
+    if (!q) return false;
+    if (hay.includes(` ${q} `)) return true;
+    const parts = quote
+      .split(/[.;!?…]+(?=\s|$)|\s[–—-]\s|\.{3}/)
+      .map((p) => normalizeText(p))
+      .filter(Boolean);
+    return parts.length > 1 && parts.every((p) => hay.includes(` ${p} `));
   }
 
   /** Verify one claim: every cite checks out, and every number in the sentence is in a cited source. */
@@ -136,7 +160,11 @@ export class SourceLedger {
     if (!src) return "";
     const text = src.text;
     if (text.length <= width) return text;
-    const words = new Set(normalizeText(quote).split(" ").filter((w) => w.length > 2 || /\d/.test(w)));
+    const words = new Set(
+      normalizeText(quote)
+        .split(" ")
+        .filter((w) => w.length > 2 || /\d/.test(w)),
+    );
     let best = 0;
     let bestAt = 0;
     const step = Math.max(40, Math.floor(width / 3));
@@ -156,7 +184,7 @@ export class SourceLedger {
   findQuote(quote: string): string | null {
     const q = normalizeText(quote);
     if (q.split(" ").filter(Boolean).length < MIN_QUOTE_TOKENS || q.length < MIN_QUOTE_CHARS) return null;
-    for (const s of this.sources) if (` ${this.norm.get(s.id) ?? ""} `.includes(` ${q} `)) return s.id;
+    for (const s of this.sources) if (this.contains(s.id, quote)) return s.id;
     return null;
   }
 
@@ -204,7 +232,11 @@ export class SourceLedger {
 
   /** Sources whose text shares the most words with `text` (for repair prompts), best first. */
   related(text: string, k = 2, exclude: string[] = []): string[] {
-    const words = new Set(normalizeText(text).split(" ").filter((w) => w.length > 3 || /\d/.test(w)));
+    const words = new Set(
+      normalizeText(text)
+        .split(" ")
+        .filter((w) => w.length > 3 || /\d/.test(w)),
+    );
     if (!words.size) return [];
     return this.sources
       .filter((s) => !exclude.includes(s.id))
@@ -223,7 +255,10 @@ export class SourceLedger {
   /** Compact "id — provider · title · url" lines plus text, for prompts. */
   forPrompt(maxCharsPerSource = 900): string {
     return this.sources
-      .map((s) => `[${s.id}] ${s.provider} · ${s.kind} · ${s.title}${s.url ? ` · ${s.url}` : ""}${s.published ? ` · ${s.published}` : ""}\n${s.text.slice(0, maxCharsPerSource)}`)
+      .map(
+        (s) =>
+          `[${s.id}] ${s.provider} · ${s.kind} · ${s.title}${s.url ? ` · ${s.url}` : ""}${s.published ? ` · ${s.published}` : ""}\n${s.text.slice(0, maxCharsPerSource)}`,
+      )
       .join("\n\n");
   }
 }

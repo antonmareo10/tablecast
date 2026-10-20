@@ -89,19 +89,37 @@ export function SourceChip({ cite }: { cite: Cite }) {
   const sources = useContext(SourcesContext);
   const src = sources.get(cite.source);
   const label = src ? (src.provider === "Tavily" ? hostOf(src.url) ?? src.title : src.provider) : cite.source;
-  const tip = [`${cite.source}${src ? ` · ${src.title}` : ""}`, `“${cite.quote}”`, cite.ok === false ? "(quote not found in this source)" : ""]
-    .filter(Boolean)
-    .join("\n");
-  const cls = `inline-flex max-w-[16rem] items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] ${
+  const [open, setOpen] = useState(false);
+  const cls = `inline-flex max-w-[16rem] items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] transition ${
     cite.ok === false ? "border-terracotta/30 text-terracotta" : "border-line text-ink-2 hover:border-ink-2/40 hover:text-ink"
   }`;
-  return src?.url ? (
-    <a href={src.url} target="_blank" rel="noopener noreferrer" title={tip} className={cls}>
-      <span className="tabular-nums text-muted">{cite.source}</span> {label}
-    </a>
-  ) : (
-    <span title={tip} className={cls}>
-      <span className="tabular-nums text-muted">{cite.source}</span> {label}
+  // A small card with the verbatim quote: on hover/focus on desktop, on tap on touch screens.
+  return (
+    <span className="group relative inline-flex" onMouseLeave={() => setOpen(false)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
+      <button type="button" className={cls} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="tabular-nums text-muted">{cite.source}</span> {label}
+      </button>
+      <span
+        role="tooltip"
+        className={`absolute left-0 top-full z-[1200] mt-1 w-72 max-w-[80vw] rounded-xl border border-line bg-card p-3 text-left text-[12px] leading-snug text-ink shadow-[0_12px_32px_-12px_rgba(29,27,23,0.35)] ${
+          open ? "block" : "hidden group-hover:block group-focus-within:block"
+        }`}
+      >
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+          {cite.source}
+          {src ? ` · ${src.provider}` : ""}
+        </span>
+        {src && <span className="mt-0.5 block font-medium text-ink-2">{src.title}</span>}
+        <span className="font-display mt-1.5 block text-[14px] leading-snug">“{cite.quote}”</span>
+        <span className={`mt-1.5 block text-[11px] ${cite.ok === false ? "text-terracotta" : "text-olive"}`}>
+          {cite.ok === false ? "✗ Not found in this source" : "✓ Found word for word in this source"}
+        </span>
+        {src?.url && (
+          <a href={src.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[11px] text-olive underline underline-offset-2">
+            Open source ↗
+          </a>
+        )}
+      </span>
     </span>
   );
 }

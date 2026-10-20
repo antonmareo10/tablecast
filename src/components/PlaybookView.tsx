@@ -2,32 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import type {
-  DayForecast,
-  EngineCall,
-  Evidence,
-  Holiday,
-  MenuItem,
-  NearbyEvent,
-  Place,
-  Playbook,
-  Source,
-  Venue,
-} from "@/lib/types";
+import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
-import {
-  IconAlert,
-  IconBasket,
-  IconCheck,
-  IconDownload,
-  IconMap,
-  IconMegaphone,
-  IconMusic,
-  IconPlate,
-  IconSpark,
-  IconTrend,
-  IconUsers,
-} from "./icons";
+import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
 
@@ -68,7 +45,10 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
         {(live.place || p) && <Hero live={live} running={running} />}
 
         {p && !running && (
-          <nav aria-label="Playbook sections" className="no-print sticky top-2 z-[1100] flex flex-wrap gap-2 rounded-full border border-line bg-card/90 p-1.5 backdrop-blur">
+          <nav
+            aria-label="Playbook sections"
+            className="no-print sticky top-2 z-[1100] flex flex-wrap gap-2 rounded-full border border-line bg-card/90 p-1.5 backdrop-blur"
+          >
             {[
               ["act-week", "1 · Your week"],
               ["act-moves", "2 · The moves"],
@@ -84,7 +64,12 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
 
         {live.week && (live.week.days.length > 0 || live.week.events.length > 0) && (
           <>
-            <ActHeader id="act-week" n={1} title="Your week" subtitle="What changes demand around you over the next 7 days — forecast, holidays, events and local news." />
+            <ActHeader
+              id="act-week"
+              n={1}
+              title="Your week"
+              subtitle="What changes demand around you over the next 7 days — forecast, holidays, events and local news."
+            />
             <WeekStrip days={live.week.days} holidays={live.week.holidays} events={live.week.events} />
           </>
         )}
@@ -128,7 +113,12 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
 
         {p && (
           <>
-            <ActHeader id="act-moves" n={2} title="The moves" subtitle="Three dishes to test this week, tied to the days they suit and to what your guests already love." />
+            <ActHeader
+              id="act-moves"
+              n={2}
+              title="The moves"
+              subtitle="Three dishes to test this week, tied to the days they suit and to what your guests already love."
+            />
             <MenuMoves playbook={p} />
 
             <div className="grid gap-5 lg:grid-cols-2">
@@ -174,7 +164,12 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
               </section>
             )}
 
-            <ActHeader id="act-proof" n={4} title="Proof & engine" subtitle="Every source this plan stands on, how each claim was checked, and what it cost to produce." />
+            <ActHeader
+              id="act-proof"
+              n={4}
+              title="Proof & engine"
+              subtitle="Every source this plan stands on, how each claim was checked, and what it cost to produce."
+            />
             {live.baseline && <Compare baseline={live.baseline} playbook={p} />}
             <SourcesLedger sources={live.sources} playbook={p} />
           </>
@@ -207,11 +202,11 @@ function Hero({ live, running }: { live: LiveState; running: boolean }) {
           )}
         </div>
         <h2 className="font-display mt-1 text-3xl leading-tight sm:text-4xl">{p?.restaurant.name ?? live.place?.name}</h2>
-        <p className="mt-1 text-sm text-paper/80">
-          {p ? `${p.restaurant.concept} · ${p.restaurant.city}` : live.place?.address ?? live.place?.city}
-        </p>
+        <p className="mt-1 text-sm text-paper/80">{p ? `${p.restaurant.concept} · ${p.restaurant.city}` : (live.place?.address ?? live.place?.city)}</p>
         {live.place?.match === "city" && (
-          <p className="mt-2 inline-block rounded-full bg-saffron/90 px-2 py-0.5 text-xs text-ink">Not found on OpenStreetMap — the block and forecast are for the city centre</p>
+          <p className="mt-2 inline-block rounded-full bg-saffron/90 px-2 py-0.5 text-xs text-ink">
+            Not found on OpenStreetMap — the block and forecast are for the city centre
+          </p>
         )}
         {p?.restaurant.website && (
           <a href={p.restaurant.website} target="_blank" rel="noopener noreferrer" className="mt-2 block text-xs text-paper/75 underline underline-offset-2">
@@ -276,9 +271,14 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
           const ev = byDate(d.date);
           const wet = d.precip_mm >= 1 || (d.precip_prob ?? 0) >= 60;
           return (
-            <li key={d.date} className={`flex min-h-[148px] flex-col rounded-xl border p-3 ${hol ? "border-saffron/60 bg-saffron/10" : "border-line bg-paper/40"}`}>
+            <li
+              key={d.date}
+              className={`flex min-h-[148px] flex-col rounded-xl border p-3 ${hol ? "border-saffron/60 bg-saffron/10" : "border-line bg-paper/40"}`}
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{d.weekday}</p>
-              <p className="text-[12px] text-ink-2">{d.date.slice(8, 10)}/{d.date.slice(5, 7)}</p>
+              <p className="text-[12px] text-ink-2">
+                {d.date.slice(8, 10)}/{d.date.slice(5, 7)}
+              </p>
               <p className="mt-1 text-2xl leading-none" aria-hidden>
                 {glyph(d.condition)}
               </p>
@@ -492,7 +492,11 @@ function DraftPreview({ draft }: { draft: Record<string, unknown> }) {
   return (
     <section aria-live="polite" className="rise rounded-2xl border border-dashed border-olive/40 bg-card p-5 sm:p-6">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">Drafting live · Nemotron Ultra</p>
-      {headline ? <p className="font-display mt-2 text-xl leading-snug sm:text-2xl">{headline}</p> : <p className="mt-2 text-sm text-muted">Writing your week…</p>}
+      {headline ? (
+        <p className="font-display mt-2 text-xl leading-snug sm:text-2xl">{headline}</p>
+      ) : (
+        <p className="mt-2 text-sm text-muted">Writing your week…</p>
+      )}
       {moves.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-2">
           {moves.map((m, i) =>
@@ -521,7 +525,11 @@ const WEEKDAYS: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 
 
 // The plan runs over the next 7 days; map "Thu…" / "Jueves…" to the next such date (today included).
 function dateForDay(label: string, from = new Date()): Date | null {
-  const key = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().slice(0, 3);
+  const key = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .slice(0, 3);
   const dow = WEEKDAYS[key];
   if (dow == null) return null;
   const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
@@ -598,9 +606,7 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
   const total = p.shopping_list.reduce((s, i) => s + (i.est_cost || 0), 0);
   const csv = [
     `item,qty,unit,supplier_category,est_cost_${p.currency.toLowerCase()}`,
-    ...p.shopping_list.map((i) =>
-      [i.item, i.qty, i.unit, i.supplier_category, i.est_cost].map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","),
-    ),
+    ...p.shopping_list.map((i) => [i.item, i.qty, i.unit, i.supplier_category, i.est_cost].map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")),
   ].join("\n");
   const bySupplier = p.shopping_list.reduce<Record<string, typeof p.shopping_list>>((acc, i) => {
     (acc[i.supplier_category] ??= []).push(i);
@@ -697,7 +703,8 @@ function Compare({ baseline, playbook: p }: { baseline: string; playbook: Playbo
           <ul className="mt-2 space-y-2 text-sm leading-relaxed">
             {p.menu_moves.map((m) => (
               <li key={m.dish}>
-                <span className="font-semibold">{m.dish}</span> <span className="text-muted">({m.when})</span> — {m.evidence.find((e) => e.verified)?.text ?? m.why}
+                <span className="font-semibold">{m.dish}</span> <span className="text-muted">({m.when})</span> —{" "}
+                {m.evidence.find((e) => e.verified)?.text ?? m.why}
               </li>
             ))}
           </ul>
@@ -754,12 +761,33 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
   return (
     <Section icon={<IconCheck size={16} />} kicker="Evidence ledger" title={`${sources.length} sources, ${ev.length} claims checked in code`}>
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Every claim cites a source and a verbatim quote. The server checks that each quote appears word for word in the source it fetched in this
-        run, and that every number in the sentence appears in a cited source. No model is asked whether a claim is true.
+        Every claim cites a source and a verbatim quote. The server checks that each quote appears word for word in the source it fetched in this run, and that
+        every number in the sentence appears in a cited source. No model is asked whether a claim is true.
       </p>
+      {p.verification?.first_pass != null && (
+        <ol className="mb-4 grid gap-2 sm:grid-cols-4" aria-label="How the verifier got there">
+          {[
+            [
+              "Matched as written",
+              `${p.verification.first_pass} / ${p.verification.written ?? p.verification.checked}`,
+              "quotes found word for word on the first pass",
+            ],
+            ["Re-pointed by code", String(p.verification.reattributed ?? 0), "right words, wrong source id — moved to the source that has them"],
+            ["Fixed or dropped", `${p.verification.fixed ?? 0} / ${p.verification.dropped ?? 0}`, "one Nemotron repair pass, re-checked by code"],
+            ["Verified now", `${p.verification.verified} / ${p.verification.checked}`, "what you see in this plan"],
+          ].map(([t, v, d]) => (
+            <li key={t} className="rounded-xl border border-line bg-paper/50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t}</p>
+              <p className="font-display mt-0.5 text-2xl tabular-nums">{v}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-muted">{d}</p>
+            </li>
+          ))}
+        </ol>
+      )}
       {failed.length > 0 && (
         <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-terracotta/30 bg-terracotta/5 px-3 py-1 text-[12px] text-terracotta">
-          <IconAlert size={13} /> {failed.length} claim{failed.length > 1 ? "s" : ""} could not be verified and {failed.length > 1 ? "are" : "is"} marked in place
+          <IconAlert size={13} /> {failed.length} claim{failed.length > 1 ? "s" : ""} could not be verified and {failed.length > 1 ? "are" : "is"} marked in
+          place
         </p>
       )}
       <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-paper/40">{cited.map(row)}</ul>
@@ -813,9 +841,8 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
       title={running ? "Model calls so far" : `This plan cost ≈ $${totalUsd.toFixed(3)} in inference`}
     >
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop and the citation repairs,
-        Super VL reads menu photos, Ultra writes the plan. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the
-        published per-token prices (
+        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu
+        photos, Ultra writes the plan and repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
         <a href={PRICES_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           catalog
         </a>
@@ -874,9 +901,18 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
               <span>· {c.label}</span>
               <span>· {fmtMs(c.ms)}</span>
               {c.ttft_ms != null && <span>· first token {fmtMs(c.ttft_ms)}</span>}
-              {c.tool_calls != null && <span>· {c.tool_calls} tool call{c.tool_calls === 1 ? "" : "s"}</span>}
+              {c.tool_calls != null && (
+                <span>
+                  · {c.tool_calls} tool call{c.tool_calls === 1 ? "" : "s"}
+                </span>
+              )}
               {c.tools_ms != null && <span>(tools {fmtMs(c.tools_ms)}, parallel)</span>}
-              {c.prompt_tokens != null && <span>· {c.prompt_tokens}→{c.completion_tokens ?? 0} tok</span>}
+              {c.prompt_tokens != null && (
+                <span>
+                  · {c.prompt_tokens}→{c.completion_tokens ?? 0} tok
+                </span>
+              )}
+              {c.usage_estimated && <span>· usage estimated</span>}
               {c.note && <span>· {c.note}</span>}
             </li>
           ))}
@@ -884,7 +920,10 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
       </details>
       <p className="mt-3 text-[12px] text-muted">
         {synth?.completion_tokens && synth.ms ? `Ultra streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. ` : ""}
-        {tavilyCredits ? `Web research used ${tavilyCredits} Tavily credit${tavilyCredits === 1 ? "" : "s"}.` : ""}
+        {tavilyCredits ? `Web research used ${tavilyCredits} Tavily credit${tavilyCredits === 1 ? "" : "s"}. ` : ""}
+        {calls.some((c) => c.usage_estimated)
+          ? "Calls cut by the loop guard never report usage; their tokens are estimated from the streamed text (~4 characters per token)."
+          : ""}
       </p>
     </Section>
   );

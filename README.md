@@ -31,7 +31,7 @@ Every model call goes to **Nebius Token Factory** (`https://api.tokenfactory.neb
 | Web research loop | **Nemotron 3.5 Lightning** (`nvidia/Nemotron-3_5-Lightning`) | tool calling, `reasoning_effort: "none"`, tools requested in one turn run **in parallel** | many short “what to look up next” decisions; ~0.5–2 s per turn at $0.06/M input tokens |
 | Menu photo | **Nemotron 3.5 Super VL** (`nvidia/Nemotron-3.5-Super-VL`) | image input → forced function call → structured menu (dish, price, section) | the only vision model in the family; grounds dishes in the real menu |
 | Writing the plan | **Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`) | one **forced, streamed function call** against a strict Zod/JSON schema; `reasoning_effort` routed; the UI drafts the plan live from partial JSON | the step that needs reasoning across ~30 sources |
-| Citation repair | **Nemotron 3.5 Lightning** | forced function call, only for claims that failed the code check | cheap, fast, and every fix is re-checked by code |
+| Citation repair | **Nemotron 3 Ultra** at `reasoning_effort: "low"` | forced function call, only for claims that failed the code check | we measured it: Lightning fixed almost none of the failed citations, Ultra-low fixes or drops them in ~10 s; every fix is re-checked by code |
 | Generic baseline | **Nemotron 3.5 Lightning** | no tools, no data | the honest “without the week” comparison shown in the app |
 
 Engineering details that came out of running it live:
@@ -57,7 +57,7 @@ Tavily is the agent’s eyes on the live web — three endpoints, each with a jo
 3. The server checks, deterministically ([`src/lib/evidence.ts`](src/lib/evidence.ts)):
    - the source exists in this run and the **quote appears word for word** in its fetched text (accents, case and punctuation ignored; decimals kept intact);
    - **every number in the sentence** appears in the text of a cited source (no invented temperatures, prices or distances).
-4. A quote found word for word in a *different* source than cited is re-attributed to it (code). Remaining failures go back to Lightning once, with the closest passages; a fix is kept only if it passes the same check. What still fails is shown to the owner as **unverified**, not hidden.
+4. A quote found word for word in a *different* source than cited is re-attributed to it (code). Remaining failures go back to Nemotron Ultra (low effort) once, with the closest passages; a fix is kept only if it passes the same check. What still fails is shown to the owner as **unverified**, not hidden.
 
 ## Architecture
 
@@ -109,7 +109,7 @@ Checks: `npx tsc --noEmit`, `npx eslint .`, `npm test` (unit tests for the verif
 
 ## Known limitations
 
-- Verification proves a claim is backed by a fetched source, not that the source is right, and nothing here measures sales: the plan is a set of bets to test for a week.
+- Verification proves that every quote is really in a fetched source and every number is backed — not that the source is right, nor that the sentence reads the quote correctly (a real quote can still be attributed to the wrong place; the source chip lets the owner check). Nothing here measures sales: the plan is a set of bets to test for a week.
 - Forecasts beyond ~3 days are uncertain; event listings come from one ticketing API and miss free or local events unless the web research finds them.
 - Public Overpass servers are often saturated; the app then falls back to Nominatim, which caps results, and says so (“at least N venues, partial list”).
 - Reviews found on the web are not a sample of all guests.

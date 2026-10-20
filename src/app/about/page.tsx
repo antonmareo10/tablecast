@@ -36,8 +36,8 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   },
   {
     step: "5 · Verify",
-    who: "Code, then Lightning once",
-    what: "The server checks that every quote appears word for word in the source it fetched, and that every number in a sentence appears in a cited source. Failures go back to Lightning once with the closest passage; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
+    who: "Code, then Ultra once",
+    what: "The server checks that every quote appears word for word in the source it fetched, and that every number in a sentence appears in a cited source. Failures go back to Nemotron Ultra (low effort) once with the closest passages; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
   },
 ];
 

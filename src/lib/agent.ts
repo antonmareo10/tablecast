@@ -157,7 +157,7 @@ What to write:
 - experience: one event or offer for this week tied to the evidence. marketing: a ready-to-post Instagram caption, when to post it and for whom.
 - shopping_list: ingredients to test the three dishes for one week in a small kitchen (realistic quantities, local-currency costs). week_plan: the next 7 days from today, with the supplier order early and the review of results at the end.
 - caveats: what the data cannot tell (forecasts beyond 3 days are uncertain; event listings may be incomplete; web reviews are not a sample of all guests; nothing here measures sales — test before scaling).
-Write warmly and practically for a busy owner, in the language requested. Keep proper names and quotes as they appear in the sources.`;
+Write warmly and practically for a busy owner. LANGUAGE: every text field (headline, moments, dishes, evidence sentences, the post, the plan, caveats) must be in the language requested; only the quotes stay exactly as written in the sources, in their original language. Keep proper names as they appear.`;
 
 function countryName(code?: string): string | undefined {
   if (!code) return undefined;
@@ -298,7 +298,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       provider: "OpenStreetMap",
       title: `Food & drink venues within ${BLOCK_RADIUS_M} m`,
       url: `https://www.openstreetmap.org/#map=17/${place.lat.toFixed(5)}/${place.lon.toFixed(5)}`,
-      text: [blockLine(b), ...b.venues.slice(0, 30).map(venueLine)].join("\n"),
+      text: [blockLine(b), ...b.venues.map(venueLine)].join("\n"),
     });
     return { value: b, summary: `${b.total} venues`, sources: [src.id] };
   });
@@ -531,7 +531,7 @@ export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOp
       routing,
       effort,
       system: WRITER_SYSTEM,
-      user: `Write the plan in ${language}. Owner's goal: ${goal}.
+      user: `Write the plan in ${language === "Español" ? "Spanish (español de España)" : "English"} — every field, except verbatim quotes. Owner's goal: ${goal}.
 
 CONTEXT
 ${context}
@@ -632,7 +632,17 @@ ${sourcesForPrompt(ledger)}`,
     shopping_list: pb.shopping_list,
     week_plan: pb.week_plan,
     caveats: pb.caveats,
-    verification: { checked: total, verified: ok, sources: ledger.size, providers },
+    verification: {
+      checked: total,
+      verified: ok,
+      sources: ledger.size,
+      providers,
+      written: report.claims,
+      first_pass: report.verifiedFirstPass,
+      reattributed: report.reattributed,
+      fixed: report.repaired.fixed,
+      dropped: report.repaired.dropped,
+    },
   };
   emit({ type: "sources", sources: ledger.list().map(publicSource) });
   emit({ type: "playbook", playbook });

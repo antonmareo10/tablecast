@@ -91,7 +91,19 @@ export type Playbook = {
   week_plan: { day: string; action: string; owner: string }[];
   caveats: string[];
   // Set by the server after checking every claim against the sources fetched in this run.
-  verification?: { checked: number; verified: number; sources: number; providers: string[] };
+  verification?: {
+    checked: number;
+    verified: number;
+    sources: number;
+    providers: string[];
+    // How the verifier got there: claims that matched as written, quotes code re-pointed to the source that
+    // really contains them, and claims the repair pass fixed or dropped.
+    written?: number;
+    first_pass?: number;
+    reattributed?: number;
+    fixed?: number;
+    dropped?: number;
+  };
 };
 
 // ---- Context the server gathers deterministically (rendered without the model) ---------

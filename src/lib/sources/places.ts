@@ -449,9 +449,10 @@ export function blockLine(
   if (!summary.total) {
     return partial ? `${where}: no named food & drink venues found${note}` : `${where}: no named food & drink venues mapped in OpenStreetMap${note}`;
   }
-  let line = `${where}: ${partial ? "at least " : ""}${summary.total} food & drink ${summary.total === 1 && !partial ? "venue" : "venues"}${note}`;
+  // The provenance note goes last, so the counts read as one quotable run of words.
+  let line = `${where}: ${partial ? "at least " : ""}${summary.total} food & drink ${summary.total === 1 && !partial ? "venue" : "venues"}`;
   if (summary.by_kind.length) line += ` — ${summary.by_kind.map((k) => kindCount(k.kind, k.count, !!k.at_least)).join(", ")}`;
   const top = summary.by_cuisine.slice(0, 5);
   if (top.length) line += `; top cuisines: ${top.map((c) => `${c.cuisine} ${c.count}`).join(", ")}`;
-  return line;
+  return line + note;
 }

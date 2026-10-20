@@ -7,9 +7,9 @@
 //   • VISION     — Nemotron Super VL reads the owner's menu photo into structured items.
 //   • SYNTHESIZE — a REASONING Nemotron writes the playbook through a forced function call,
 //                  streamed so the UI drafts it live.
-//   • REPAIR     — if the output breaks its schema, or a cited quote is not in its source, the
-//                  FAST Nemotron gets one chance to fix it. The fix is re-checked by code; nothing
-//                  is accepted on the model's word.
+//   • REPAIR     — if the output breaks its schema, the FAST Nemotron fixes it; if a cited quote is
+//                  not in its source, the reasoning Nemotron (low effort) gets one chance to fix or
+//                  drop the claim. Every fix is re-checked by code; nothing is accepted on the model's word.
 //
 // Every call is measured (Token Factory `usage` + wall clock) and emitted as an `engine` event.
 
@@ -27,7 +27,8 @@ const MAX_ARGS_CHARS = 70_000;
 const BASE_URL = process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1/";
 
 export interface Routing {
-  fast: string; // tool loop, repairs, baseline
+  fast: string; // tool loop, baseline
+  repair?: string; // citation repair (defaults to the reasoning model at low effort)
   reasoning: string; // the playbook
   vision: string; // menu photos
   effort: "low" | "medium" | "high";
@@ -36,6 +37,8 @@ export interface Routing {
 export function defaultRouting(): Routing {
   return {
     fast: process.env.NEBIUS_FAST_MODEL || "nvidia/Nemotron-3_5-Lightning",
+    // Measured: Ultra at low effort fixes far more failed citations than Lightning (see eval/SUMMARY.md).
+    repair: process.env.NEBIUS_REPAIR_MODEL || process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     reasoning: process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     vision: process.env.NEBIUS_VISION_MODEL || "nvidia/Nemotron-3.5-Super-VL",
     effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "medium",
@@ -469,6 +472,8 @@ export async function repairCitations(opts: {
   signal?: AbortSignal;
 }): Promise<{ failing: number; fixed: number; dropped: number }> {
   const { groups, ledger, routing, emit } = opts;
+  const repairModel = routing.repair || routing.fast;
+  const repairEffort = repairModel === routing.fast ? "none" : "low";
   const failing: { ref: string; g: EvidenceGroup; e: Evidence; issue: string }[] = [];
   groups.forEach((g, gi) =>
     g.list.forEach((e, i) => {
@@ -480,7 +485,7 @@ export async function repairCitations(opts: {
 
   emit({
     type: "note",
-    text: `🔎 Verifier: ${failing.length} claim${failing.length > 1 ? "s" : ""} did not match ${failing.length > 1 ? "their" : "its"} sources word for word — sending ${failing.length > 1 ? "them" : "it"} back to ${modelLabel(routing.fast)} to correct or drop.`,
+    text: `🔎 Verifier: ${failing.length} claim${failing.length > 1 ? "s" : ""} did not match ${failing.length > 1 ? "their" : "its"} sources word for word — sending ${failing.length > 1 ? "them" : "it"} back to ${modelLabel(repairModel)} to correct or drop.`,
   });
 
   const payload = failing.map(({ ref, e, issue }) => {
@@ -506,10 +511,10 @@ export async function repairCitations(opts: {
   const t0 = Date.now();
   const res = await chat(
     {
-      model: routing.fast,
-      reasoning_effort: "none",
+      model: repairModel,
+      reasoning_effort: repairEffort,
       temperature: 0,
-      max_tokens: 4000,
+      max_tokens: repairEffort === "none" ? 4000 : 12000,
       tools: [toOpenAITool({ name: "fix_claims", description: "A fix or drop decision for every claim.", schema: FixSchema })],
       tool_choice: { type: "function", function: { name: "fix_claims" } },
       messages: [
@@ -556,7 +561,7 @@ ${JSON.stringify(payload)}`,
     }
   }
   const note = `fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified`;
-  emit({ type: "engine", call: measured("verify", routing.fast, Date.now() - t0, res.usage, { note }) });
+  emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, res.usage, { note }) });
   emit({ type: "note", text: `🔎 Verifier: ${note}.` });
   return { failing: failing.length, fixed, dropped };
 }

@@ -24,6 +24,11 @@ describe("normalizeText", () => {
     expect(normalizeText("Jamón Ibérico, 6.2 mm!")).toBe("jamon iberico 6d2 mm");
     expect(normalizeText("6,2 mm")).toBe("6d2 mm");
   });
+  it("treats 142,00 as 142 and 37,50 as 37.5", () => {
+    expect(normalizeText("Menú 142,00€")).toBe("menu 142");
+    expect(numbersIn("37.50 € and 142 €")).toEqual(["37d5", "142"]);
+    expect(normalizeText("37,5 €")).toBe("37d5");
+  });
   it("extracts numbers in the same normal form", () => {
     expect(numbersIn("Rain of 6.2 mm on Thu 23 Oct (80%)")).toEqual(["6d2", "23", "80"]);
   });
