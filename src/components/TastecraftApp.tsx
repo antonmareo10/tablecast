@@ -136,9 +136,30 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
                 <span className="h-1.5 w-1.5 rounded-full bg-olive" />
                 Runs on <strong className="font-medium text-ink-2">NVIDIA Nemotron</strong> · Nebius Token Factory
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">⚡ Lightning researches · 👁 Super VL reads menus · 🧠 Ultra writes</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">⚡ Lightning researches · 👁 Super VL reads menus · 🧠 Ultra or Super writes</span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">🔎 Live web by Tavily</span>
             </div>
+            {!started && (
+              <div className="mt-6 flex max-w-xl items-center gap-5 rounded-2xl border border-line bg-card p-4 sm:p-5">
+                <div className="shrink-0 text-center">
+                  <div className="font-display text-5xl leading-none text-olive tabular-nums">96%</div>
+                  <div className="mt-1 text-[11px] text-muted">claims verified</div>
+                </div>
+                <p className="text-[13px] leading-snug text-ink-2">
+                  <span className="font-semibold text-ink">Measured, not promised.</span> Across 32 plans for 8 restaurants, 96% of
+                  claims (98% with Thorough) passed the code check against the sentences they cite; what fails is marked, not hidden. A
+                  plan costs a few cents of inference ·{" "}
+                  <a
+                    href="https://github.com/antonmareo10/tastecraft-open/blob/main/eval/SUMMARY.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-line underline-offset-2 hover:text-ink"
+                  >
+                    routing eval
+                  </a>
+                </p>
+              </div>
+            )}
           </div>
 
           <form
