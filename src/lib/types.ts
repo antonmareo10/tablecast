@@ -133,6 +133,7 @@ export type EngineCall = {
   model: string; // exact Token Factory model id
   label: string; // "Nemotron Lightning", "Nemotron Ultra"…
   ms: number;
+  started_at?: number; // epoch ms when the call started (server clock)
   ttft_ms?: number;
   prompt_tokens?: number;
   completion_tokens?: number;

@@ -115,7 +115,8 @@ function chatStream(body: Record<string, unknown>, signal?: AbortSignal): Promis
 }
 
 export function measured(phase: EngineCall["phase"], model: string, ms: number, usage: Usage | null | undefined, extra: Partial<EngineCall> = {}): EngineCall {
-  const call: EngineCall = { phase, model, label: modelLabel(model), ms: Math.round(ms), ...extra };
+  // started_at lets the UI draw a real timeline of where the run's time went.
+  const call: EngineCall = { phase, model, label: modelLabel(model), ms: Math.round(ms), started_at: Date.now() - Math.round(ms), ...extra };
   if (usage) {
     if (typeof usage.prompt_tokens === "number") call.prompt_tokens = usage.prompt_tokens;
     if (typeof usage.completion_tokens === "number") call.completion_tokens = usage.completion_tokens;
@@ -271,6 +272,7 @@ export async function gather(opts: {
     emit({
       type: "engine",
       call: measured("gather", routing.fast, callMs, res.usage, {
+        started_at: t0,
         tool_calls: calls.length,
         ...(calls.length ? { tools_ms: Date.now() - toolsStart } : {}),
       }),
@@ -473,7 +475,7 @@ export async function repairCitations(opts: {
 }): Promise<{ failing: number; fixed: number; dropped: number }> {
   const { groups, ledger, routing, emit } = opts;
   const repairModel = routing.repair || routing.fast;
-  const repairEffort = repairModel === routing.fast ? "none" : "low";
+  const repairEffort = process.env.NEBIUS_REPAIR_EFFORT || (repairModel === routing.fast ? "none" : "low");
   const failing: { ref: string; g: EvidenceGroup; e: Evidence; issue: string }[] = [];
   groups.forEach((g, gi) =>
     g.list.forEach((e, i) => {
@@ -529,7 +531,8 @@ ${JSON.stringify(payload)}`,
         },
       ],
     },
-    opts.signal,
+    // A slow repair never holds the plan back: after 45 s the claims simply stay marked unverified.
+    opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000),
   );
   const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
   const parsed = FixSchema.safeParse(raw ? tolerantParse(raw) : null);

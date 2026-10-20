@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { IconAlert, IconCheck, IconCopy } from "./icons";
 import type { Cite, Evidence, Source } from "@/lib/types";
 
@@ -151,4 +151,26 @@ export function EvidenceLine({ evidence }: { evidence: Evidence }) {
       </div>
     </li>
   );
+}
+
+/** A number that counts up to its value when it first appears or changes (instant with reduced motion). */
+export function CountUp({ value, duration = 900 }: { value: number; duration?: number }) {
+  const [shown, setShown] = useState(0);
+  const from = useRef(0);
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const step = (now: number) => {
+      const k = reduce ? 1 : Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - k, 3);
+      setShown(Math.round(a + (value - a) * eased));
+      if (k < 1) raf = requestAnimationFrame(step);
+      else from.current = value;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return <span className="tabular-nums">{shown}</span>;
 }

@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
 import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
-import { CopyButton, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
+import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
 
 const BlockMap = dynamic(() => import("./BlockMap"), {
@@ -217,7 +217,9 @@ function Hero({ live, running }: { live: LiveState; running: boolean }) {
         {v && v.checked > 0 ? (
           <div className="mt-5 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-paper/25 bg-paper/10 px-4 py-2.5">
             <div className="flex items-baseline gap-1">
-              <span className="font-display text-4xl leading-none">{v.verified}</span>
+              <span className="font-display text-4xl leading-none">
+                <CountUp value={v.verified} />
+              </span>
               <span className="text-sm text-paper/70">/ {v.checked}</span>
             </div>
             <div className="leading-tight">
@@ -266,14 +268,15 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
   return (
     <section aria-label="The next 7 days" className="rise rounded-2xl border border-line bg-card p-4 sm:p-5">
       <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-        {days.map((d) => {
+        {days.map((d, i) => {
           const hol = holidays.find((h) => h.date === d.date);
           const ev = byDate(d.date);
           const wet = d.precip_mm >= 1 || (d.precip_prob ?? 0) >= 60;
           return (
             <li
               key={d.date}
-              className={`flex min-h-[148px] flex-col rounded-xl border p-3 ${hol ? "border-saffron/60 bg-saffron/10" : "border-line bg-paper/40"}`}
+              style={{ animationDelay: `${i * 70}ms` }}
+              className={`rise flex min-h-[148px] flex-col rounded-xl border p-3 ${hol ? "border-saffron/60 bg-saffron/10" : "border-line bg-paper/40"}`}
             >
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{d.weekday}</p>
               <p className="text-[12px] text-ink-2">
@@ -332,7 +335,7 @@ function Moments({ playbook: p }: { playbook: Playbook }) {
     <Section icon={<IconTrend size={16} />} kicker="Demand moments" title="What changes your week">
       <ol className="grid gap-3 md:grid-cols-2">
         {p.moments.map((m, i) => (
-          <li key={i} className="rounded-xl border border-line bg-paper/40 p-4">
+          <li key={i} style={{ animationDelay: `${i * 90}ms` }} className="rise rounded-xl border border-line bg-paper/40 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-terracotta">{m.when}</p>
             <p className="font-display mt-0.5 text-lg leading-tight">{m.title}</p>
             <p className="mt-1.5 text-sm leading-snug">
@@ -365,7 +368,7 @@ function CuisineBars({ data, highlight }: { data: { cuisine: string; count: numb
             <li key={d.cuisine} className="grid grid-cols-[96px_1fr_28px] items-center gap-2 text-[12px]">
               <span className={`truncate capitalize ${you ? "font-semibold text-terracotta" : "text-ink-2"}`}>{d.cuisine}</span>
               <span className="h-2 overflow-hidden rounded-full bg-paper-2">
-                <span className={`block h-full rounded-full ${you ? "bg-terracotta" : "bg-olive-2"}`} style={{ width: `${(d.count / max) * 100}%` }} />
+                <span className={`grow-x block h-full rounded-full ${you ? "bg-terracotta" : "bg-olive-2"}`} style={{ width: `${(d.count / max) * 100}%` }} />
               </span>
               <span className="text-right tabular-nums text-muted">{d.count}</span>
             </li>
@@ -775,8 +778,8 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
             ["Re-pointed by code", String(p.verification.reattributed ?? 0), "right words, wrong source id — moved to the source that has them"],
             ["Fixed or dropped", `${p.verification.fixed ?? 0} / ${p.verification.dropped ?? 0}`, "one Nemotron repair pass, re-checked by code"],
             ["Verified now", `${p.verification.verified} / ${p.verification.checked}`, "what you see in this plan"],
-          ].map(([t, v, d]) => (
-            <li key={t} className="rounded-xl border border-line bg-paper/50 p-3">
+          ].map(([t, v, d], i) => (
+            <li key={t} style={{ animationDelay: `${i * 120}ms` }} className="rise rounded-xl border border-line bg-paper/50 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t}</p>
               <p className="font-display mt-0.5 text-2xl tabular-nums">{v}</p>
               <p className="mt-0.5 text-[11px] leading-snug text-muted">{d}</p>
@@ -841,13 +844,14 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
       title={running ? "Model calls so far" : `This plan cost ≈ $${totalUsd.toFixed(3)} in inference`}
     >
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu
-        photos, Ultra writes the plan and repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
+        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra writes the plan
+        and repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
         <a href={PRICES_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           catalog
         </a>
         , {PRICES_RETRIEVED}).
       </p>
+      <EngineTimeline calls={calls} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] text-[13px]">
           <thead>
@@ -926,5 +930,74 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
           : ""}
       </p>
     </Section>
+  );
+}
+
+const MODEL_TONE: [RegExp, string][] = [
+  [/lightning/i, "bg-saffron"],
+  [/vl/i, "bg-plum"],
+  [/ultra/i, "bg-olive"],
+  [/super/i, "bg-terracotta"],
+];
+const toneOf = (label: string) => MODEL_TONE.find(([re]) => re.test(label))?.[1] ?? "bg-ink-2";
+
+// Where the run's time went: every Nemotron call on a real time axis (server clock), with the tools
+// each research turn asked for drawn hatched right after it.
+function EngineTimeline({ calls }: { calls: EngineCall[] }) {
+  const timed = calls.filter((c) => c.started_at);
+  if (timed.length < 2) return null;
+  const t0 = Math.min(...timed.map((c) => c.started_at as number));
+  const t1 = Math.max(...timed.map((c) => (c.started_at as number) + c.ms + (c.tools_ms ?? 0)));
+  const span = Math.max(1, t1 - t0);
+  const pct = (x: number) => `${Math.max(0, Math.min(100, (x / span) * 100))}%`;
+  const legend = [...new Map(timed.map((c) => [c.label, toneOf(c.label)])).entries()];
+  return (
+    <figure className="mb-5 rounded-xl border border-line bg-paper/40 p-3 sm:p-4" aria-label="Timeline of model calls">
+      <figcaption className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
+        <span className="font-semibold uppercase tracking-[0.12em]">Where the time went</span>
+        {legend.map(([label, tone]) => (
+          <span key={label} className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-3 rounded-sm ${tone}`} /> {label}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="hatch h-2 w-3 rounded-sm border border-line" /> tools (parallel)
+        </span>
+      </figcaption>
+      <ol className="space-y-1">
+        {timed.map((c, i) => {
+          const start = (c.started_at as number) - t0;
+          return (
+            <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-2 text-[11px] sm:grid-cols-[130px_1fr]">
+              <span className="truncate text-ink-2" title={`${PHASE_LABEL[c.phase]} · ${c.label}`}>
+                {PHASE_LABEL[c.phase]}
+              </span>
+              <span className="relative h-3.5">
+                <span
+                  className={`grow-x absolute top-0 h-full rounded-[3px] ${toneOf(c.label)}`}
+                  style={{ left: pct(start), width: pct(Math.max(c.ms, span * 0.004)), animationDelay: `${i * 60}ms` }}
+                  title={`${c.label} · ${fmtMs(c.ms)}`}
+                />
+                {c.tools_ms ? (
+                  <span
+                    className="hatch grow-x absolute top-0 h-full rounded-[3px] border border-line"
+                    style={{ left: pct(start + c.ms), width: pct(c.tools_ms), animationDelay: `${i * 60 + 120}ms` }}
+                    title={`tools · ${fmtMs(c.tools_ms)}`}
+                  />
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-1 grid grid-cols-[96px_1fr] text-[10px] tabular-nums text-muted sm:grid-cols-[130px_1fr]">
+        <span />
+        <span className="flex justify-between">
+          <span>0 s</span>
+          <span>{fmtMs(span / 2)}</span>
+          <span>{fmtMs(span)}</span>
+        </span>
+      </div>
+    </figure>
   );
 }

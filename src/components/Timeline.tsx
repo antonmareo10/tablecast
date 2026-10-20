@@ -103,7 +103,7 @@ function StepRow({ step }: { step: Step }) {
           {step.summary && <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{step.summary}</p>}
           {step.sources && step.sources.length > 0 && (
             <ul className="mt-1.5 flex flex-wrap gap-1" aria-label="Sources added">
-              {step.sources.slice(0, 8).map((id) => (
+              {[...new Set(step.sources)].slice(0, 8).map((id) => (
                 <li key={id} className="rounded-full border border-line bg-paper px-1.5 py-px text-[10px] tabular-nums text-muted">
                   {id}
                 </li>

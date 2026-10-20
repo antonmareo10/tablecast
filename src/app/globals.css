@@ -89,9 +89,49 @@ body {
   animation: pulse-dot 1.2s ease-in-out infinite;
 }
 
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Bars that draw themselves from the left (engine timeline, cuisine bars). */
+.grow-x {
+  transform-origin: left center;
+  animation: grow-x 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pop {
+  animation: pop 0.35s ease-out both;
+}
+
+/* Diagonal hatching for "tools running" segments on the engine timeline. */
+.hatch {
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 22%, transparent) 0 2px, transparent 2px 6px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise,
-  .pulse-dot {
+  .pulse-dot,
+  .grow-x,
+  .pop {
     animation: none;
   }
 }

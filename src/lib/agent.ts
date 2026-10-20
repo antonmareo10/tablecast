@@ -229,7 +229,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     emit({ type: "tool_start", id, tool, label, input: {} });
     try {
       const { value, summary, sources } = await fn();
-      emit({ type: "tool_end", id, tool, summary, ...(sources?.length ? { sources } : {}) });
+      emit({ type: "tool_end", id, tool, summary, ...(sources?.length ? { sources: [...new Set(sources)] } : {}) });
       return value;
     } catch (err) {
       emit({ type: "tool_end", id, tool, summary: err instanceof Error ? err.message.slice(0, 140) : "failed", error: true });
@@ -589,6 +589,7 @@ ${sourcesForPrompt(ledger)}`,
     });
   report.repaired = await repairCitations({ groups, ledger, routing, emit, signal }).catch((err) => {
     if (signal?.aborted) throw err;
+    emit({ type: "note", text: "🔎 Verifier: the repair pass did not finish in time — claims that failed the check stay marked unverified." });
     return { failing: 0, fixed: 0, dropped: 0 };
   });
 
