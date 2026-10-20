@@ -574,7 +574,14 @@ ${sourcesForPrompt(ledger)}`,
     report.retried = true;
     // One retry, said out loud: lighter reasoning if the model spent its budget thinking or got stuck repeating
     // itself; otherwise (it ended without publishing) the same settings again.
-    const why = finish === "loop" ? "got stuck repeating itself" : finish === "length" ? "ran out of room while reasoning" : "stopped without publishing";
+    const why =
+      finish === "loop"
+        ? "got stuck repeating itself"
+        : finish === "length"
+          ? "ran out of room while reasoning"
+          : finish === "stall"
+            ? "stopped responding for a minute"
+            : "stopped without publishing";
     emit({ type: "note", text: `🧠 ${modelLabel(routing.reasoning)} ${why} — writing again (reasoning_effort "low").` });
     ({ value: raw, finish } = await write("low"));
   }

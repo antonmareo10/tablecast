@@ -23,6 +23,7 @@ import type { AgentEvent, EngineCall, Evidence, MenuItem } from "./types";
 export type Emit = (e: AgentEvent) => void;
 
 const MAX_ARGS_CHARS = 70_000;
+const STALL_MS = Number(process.env.NEBIUS_STALL_MS || 60_000);
 
 const BASE_URL = process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1/";
 
@@ -99,7 +100,7 @@ type StreamChunk = {
 
 let sharedClient: OpenAI | null = null;
 function client(): OpenAI {
-  sharedClient ??= new OpenAI({ baseURL: BASE_URL, apiKey: process.env.NEBIUS_API_KEY, maxRetries: 2 });
+  sharedClient ??= new OpenAI({ baseURL: BASE_URL, apiKey: process.env.NEBIUS_API_KEY, maxRetries: 2, timeout: 240_000 }) // no request may hang a run;
   return sharedClient;
 }
 
@@ -302,23 +303,41 @@ export async function synthesize(opts: {
   // Our own abort, so a reasoning loop can be cut without cancelling the whole run.
   const stopper = new AbortController();
   const combined = signal ? AbortSignal.any([signal, stopper.signal]) : stopper.signal;
-  const stream = await chatStream(
-    {
-      model: routing.reasoning,
-      messages: [
-        { role: "system", content: opts.system },
-        { role: "user", content: opts.user },
-      ],
-      tools: [toOpenAITool(opts.tool)],
-      tool_choice: { type: "function", function: { name: opts.tool.name } },
-      reasoning_effort: effort,
-      temperature: 0.4,
-      max_tokens: opts.maxTokens ?? 28000,
-    },
-    combined,
-  );
-  let args = "";
   let finish: string | null = null;
+  // Stall watchdog: a stream that sends nothing for a minute is cut (and the caller retries once).
+  let stallTimer: ReturnType<typeof setTimeout> | undefined;
+  const kick = () => {
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => {
+      finish = "stall";
+      stopper.abort();
+    }, STALL_MS);
+  };
+  kick();
+  let stream: AsyncIterable<StreamChunk>;
+  try {
+    stream = await chatStream(
+      {
+        model: routing.reasoning,
+        messages: [
+          { role: "system", content: opts.system },
+          { role: "user", content: opts.user },
+        ],
+        tools: [toOpenAITool(opts.tool)],
+        tool_choice: { type: "function", function: { name: opts.tool.name } },
+        reasoning_effort: effort,
+        temperature: 0.4,
+        max_tokens: opts.maxTokens ?? 28000,
+      },
+      combined,
+    );
+  } catch (err) {
+    clearTimeout(stallTimer);
+    // The connection never answered: let the caller retry once.
+    if (finish === "stall" && !signal?.aborted) return { value: null, finish };
+    throw err;
+  }
+  let args = "";
   let ttft: number | null = null;
   let usage: Usage | undefined;
   let lastDraft = 0;
@@ -329,6 +348,7 @@ export async function synthesize(opts: {
   let outChars = 0; // streamed characters, to estimate tokens if a cut stream never reports usage
   try {
     for await (const chunk of stream) {
+      kick();
       if (chunk.usage) usage = chunk.usage;
       if (chunk.choices?.[0]?.finish_reason) finish = chunk.choices[0].finish_reason;
       const delta = chunk.choices?.[0]?.delta;
@@ -379,9 +399,10 @@ export async function synthesize(opts: {
     }
   } catch (err) {
     // Only our loop guard may end the stream early; anything else (incl. the caller's abort) propagates.
-    if (!(finish === "loop" && stopper.signal.aborted && !signal?.aborted)) throw err;
+    if (!((finish === "loop" || finish === "stall") && stopper.signal.aborted && !signal?.aborted)) throw err;
   }
-  if (finish === "loop") args = ""; // a plan written by a looping model is not trusted
+  clearTimeout(stallTimer);
+  if (finish === "loop" || finish === "stall") args = ""; // a cut-off or looping plan is not trusted
   // A stream cut by us never reports usage: estimate it (~4 characters per token) and say so.
   const estimated = !usage;
   if (estimated) usage = { prompt_tokens: Math.round((opts.system.length + opts.user.length) / 4), completion_tokens: Math.round(outChars / 4) };
