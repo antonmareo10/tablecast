@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { IconAlert, IconCheck } from "./icons";
 
 export type Step = {
@@ -25,6 +26,16 @@ export default function Timeline({
   running: boolean;
   elapsedMs: number;
 }) {
+  // While the agent runs, follow the newest step, unless the reader has scrolled up to read.
+  const list = useRef<HTMLOListElement>(null);
+  const follow = useRef(true);
+  const autoUntil = useRef(0); // our own smooth scroll is not the reader scrolling away
+  useEffect(() => {
+    const el = list.current;
+    if (!el || !running || !follow.current) return;
+    autoUntil.current = Date.now() + 700;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [items.length, running]);
   return (
     <section aria-label="What the agent is doing" className="rounded-2xl border border-line bg-card">
       <header className="flex items-center justify-between border-b border-line px-5 py-4">
@@ -43,7 +54,15 @@ export default function Timeline({
           ) : null}
         </span>
       </header>
-      <ol className="max-h-[70vh] space-y-1 overflow-y-auto px-3 py-3">
+      <ol
+        ref={list}
+        onScroll={(e) => {
+          if (Date.now() < autoUntil.current) return;
+          const el = e.currentTarget;
+          follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+        className="max-h-[70vh] space-y-1 overflow-y-auto px-3 py-3"
+      >
         {items.length === 0 && running && (
           <li className="px-2 py-3 text-sm text-muted">Waking up the agent…</li>
         )}
