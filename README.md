@@ -52,6 +52,12 @@ Engineering details that came out of running it live:
 
   Switching from copied quotes to cited sentence ids took Ultra’s first pass from 35% to 73% on the same restaurants. Lightning copies faithfully but rarely ties its dishes to the week, so it stays the research model.
 
+### Where Token Factory accelerated our workflow
+
+- **One endpoint, four Nemotrons.** Because Token Factory is OpenAI-compatible, the official `openai` SDK worked unchanged, and switching the writer between Ultra, Super and Lightning is a one-line routing change. That is what made the routing eval cheap enough to run three times while we changed the verifier.
+- **Measured decisions for a few dollars.** Three eval rounds (93 plans: 8 restaurants × 4 writer settings, each round after a change to the verifier) cost **$3.73** of inference in total at published Token Factory prices. The Quick/Thorough routing, the low reasoning effort and the switch to sentence-id citations all came out of those numbers.
+- **Cost visible per call.** `usage` (with `reasoning_tokens`) plus the public price catalog let the app show what every plan cost, call by call, while it runs.
+
 ## How it uses Tavily
 
 Tavily is the agent’s eyes on the live web — three endpoints, each with a job — and its results change the plan:
