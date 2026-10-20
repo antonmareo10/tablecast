@@ -141,7 +141,7 @@ export function toOpenAITool(spec: { name: string; description: string; schema: 
     function: {
       name: spec.name,
       description: spec.description,
-      parameters: z.toJSONSchema(spec.schema, { target: "draft-7" }) as Record<string, unknown>,
+      parameters: z.toJSONSchema(spec.schema, { target: "draft-7", io: "input" }) as Record<string, unknown>,
     },
   };
 }
@@ -451,20 +451,19 @@ export async function ensureSchema<T>(opts: {
 export type EvidenceGroup = { label: string; list: Evidence[]; minKeep: number };
 
 const FixSchema = z.object({
-  items: z.array(
-    z.object({
-      ref: z.string(),
-      action: z.enum(["fix", "drop"]),
-      text: z.string().optional(),
-      cites: z.array(z.object({ source: z.string(), quote: z.string() })).optional(),
-    }),
-  ),
+  action: z.enum(["fix", "drop"]),
+  text: z.string().optional().describe("The rewritten claim (for fix)"),
+  cites: z
+    .array(z.object({ span: z.string() }))
+    .optional()
+    .describe("1-3 candidate sentence ids that state the fact (for fix)"),
 });
 
 /**
- * Claims whose quotes are not in their sources (or whose numbers no cited source contains) go
- * back to the fast model once, with the closest passage of each cited source, to be corrected
- * or dropped. A correction is kept only if it passes the same deterministic check.
+ * Claims that fail the code check (unknown sentence id, a number no cited sentence contains, or a
+ * citation that doesn't talk about the claim) go back to the repair model once — one small call per
+ * claim, all in parallel — with candidate sentences, to be corrected or dropped. A correction is kept
+ * only if it passes the same check.
  */
 export async function repairCitations(opts: {
   groups: EvidenceGroup[];
@@ -476,96 +475,93 @@ export async function repairCitations(opts: {
   const { groups, ledger, routing, emit } = opts;
   const repairModel = routing.repair || routing.fast;
   const repairEffort = process.env.NEBIUS_REPAIR_EFFORT || (repairModel === routing.fast ? "none" : "low");
-  const failing: { ref: string; g: EvidenceGroup; e: Evidence; issue: string }[] = [];
-  groups.forEach((g, gi) =>
-    g.list.forEach((e, i) => {
+  const failing: { g: EvidenceGroup; e: Evidence; issue: string }[] = [];
+  for (const g of groups)
+    for (const e of g.list) {
       const v = ledger.verifyEvidence(e);
-      if (!v.verified) failing.push({ ref: `g${gi}i${i}`, g, e, issue: v.issue ?? "unverified" });
-    }),
-  );
+      if (!v.verified) failing.push({ g, e, issue: v.issue ?? "unverified" });
+    }
   if (!failing.length) return { failing: 0, fixed: 0, dropped: 0 };
 
   emit({
     type: "note",
-    text: `🔎 Verifier: ${failing.length} claim${failing.length > 1 ? "s" : ""} did not match ${failing.length > 1 ? "their" : "its"} sources word for word — sending ${failing.length > 1 ? "them" : "it"} back to ${modelLabel(repairModel)} to correct or drop.`,
+    text: `🔎 Verifier: ${failing.length} claim${failing.length > 1 ? "s" : ""} failed the check against ${failing.length > 1 ? "their" : "its"} cited sentences — sending ${failing.length > 1 ? "them" : "it"} to ${modelLabel(repairModel)} to correct or drop, in parallel.`,
   });
 
-  const payload = failing.map(({ ref, e, issue }) => {
-    const cited = [...new Set((e.cites ?? []).map((c) => c.source))];
-    const missing = ledger.missingNumbers(e);
-    const withNums = ledger.withNumbers(missing, 3, cited);
-    const others = ledger.related(`${e.text} ${(e.cites ?? []).map((c) => c.quote).join(" ")}`, 2, [...cited, ...withNums]);
-    const hint = `${e.text} ${(e.cites ?? []).map((c) => c.quote).join(" ")}`;
-    return {
-      ref,
-      text: e.text,
-      cites: e.cites,
-      problem: issue,
-      source_passages: [
-        ...cited.map((id) => ({ source: id, passage: ledger.excerpt(id, hint) })),
-        // Where the sentence's unbacked numbers actually appear, centred on them.
-        ...withNums.map((id) => ({ source: id, passage: ledger.excerpt(id, missing.map((n) => n.replace("d", ".")).join(" ")) })),
-        ...others.map((id) => ({ source: id, passage: ledger.excerpt(id, hint) })),
-      ],
-    };
-  });
-
+  // A slow repair never holds the plan back: after 45 s the claims simply stay marked unverified.
+  const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000);
   const t0 = Date.now();
-  const res = await chat(
-    {
-      model: repairModel,
-      reasoning_effort: repairEffort,
-      temperature: 0,
-      max_tokens: repairEffort === "none" ? 4000 : 12000,
-      tools: [toOpenAITool({ name: "fix_claims", description: "A fix or drop decision for every claim.", schema: FixSchema })],
-      tool_choice: { type: "function", function: { name: "fix_claims" } },
-      messages: [
-        {
-          role: "user",
-          content: `Each claim below cites a source, but its quote is not found word for word in that source, or the sentence has a number that the cited source does not contain. For each claim:
-- "fix": cite any of the given passages (use its source id) with a quote of 3-20 words copied EXACTLY as written there (same words, same order), up to 3 cites, and rewrite the sentence so every number in it appears in a passage you cite. Drop numbers you cannot back.
-- "drop": if the passage does not support the claim.
-Never invent wording that is not in the passage.
+  const usage = { prompt_tokens: 0, completion_tokens: 0, completion_tokens_details: { reasoning_tokens: 0 } };
 
-${JSON.stringify(payload)}`,
+  const decisions = await mapLimit(failing, 6, async ({ e, issue }) => {
+    const cited = (e.cites ?? []).map((c) => c.span).filter((x): x is string => !!x);
+    // Candidates: what it cited, where its unbacked numbers really appear, and the closest sentences by content.
+    const candidates = [...new Set([...cited, ...ledger.spansWithNumbers(ledger.missingNumbers(ledger.resolve(e)), 4), ...ledger.relatedSpans(e.text, 6)])]
+      .slice(0, 10)
+      .map((id) => ({ id, text: ledger.span(id)?.text ?? "" }))
+      .filter((c) => c.text);
+    try {
+      const res = await chat(
+        {
+          model: repairModel,
+          reasoning_effort: repairEffort,
+          temperature: 0,
+          max_tokens: repairEffort === "none" ? 2000 : 6000,
+          tools: [toOpenAITool({ name: "fix_claim", description: "Fix or drop this claim.", schema: FixSchema })],
+          tool_choice: { type: "function", function: { name: "fix_claim" } },
+          messages: [
+            {
+              role: "user",
+              content: `This claim failed the check (${issue}).
+- "fix": cite 1-3 ids from candidate_sentences that really state the fact, and rewrite the claim so every number in it appears in those sentences (drop numbers you cannot back; never add computed totals or ranges).
+- "drop": if no candidate sentence supports the claim.
+Never cite an id that is not listed.
+
+${JSON.stringify({ claim: e.text, cited, candidate_sentences: candidates })}`,
+            },
+          ],
         },
-      ],
-    },
-    // A slow repair never holds the plan back: after 45 s the claims simply stay marked unverified.
-    opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000),
-  );
-  const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
-  const parsed = FixSchema.safeParse(raw ? tolerantParse(raw) : null);
+        signal,
+      );
+      usage.prompt_tokens += res.usage?.prompt_tokens ?? 0;
+      usage.completion_tokens += res.usage?.completion_tokens ?? 0;
+      usage.completion_tokens_details.reasoning_tokens += res.usage?.completion_tokens_details?.reasoning_tokens ?? 0;
+      const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+      const parsed = FixSchema.safeParse(raw ? tolerantParse(raw) : null);
+      return parsed.success ? parsed.data : null;
+    } catch (err) {
+      if (opts.signal?.aborted) throw err;
+      return null; // timed out or failed: the claim stays marked unverified
+    }
+  });
+
   let fixed = 0;
   let dropped = 0;
-  if (parsed.success) {
-    const byRef = new Map(parsed.data.items.map((it) => [it.ref, it] as const));
-    const toDrop: { g: EvidenceGroup; e: Evidence }[] = [];
-    for (const f of failing) {
-      const it = byRef.get(f.ref);
-      if (!it) continue;
-      if (it.action === "fix" && it.text && it.cites?.length) {
-        const candidate = ledger.verifyEvidence({ text: it.text, cites: it.cites });
-        if (candidate.verified) {
-          const idx = f.g.list.indexOf(f.e);
-          if (idx >= 0) f.g.list[idx] = { text: it.text, cites: it.cites };
-          fixed += 1;
-          continue;
-        }
+  const toDrop: { g: EvidenceGroup; e: Evidence }[] = [];
+  failing.forEach((f, i) => {
+    const it = decisions[i];
+    if (!it) return;
+    if (it.action === "fix" && it.text && it.cites?.length) {
+      const fixedCites = it.cites.map((c) => ({ source: c.span.split(".")[0].toUpperCase(), quote: "", span: c.span }));
+      if (ledger.verifyEvidence({ text: it.text, cites: fixedCites }).verified) {
+        const idx = f.g.list.indexOf(f.e);
+        if (idx >= 0) f.g.list[idx] = { text: it.text, cites: fixedCites };
+        fixed += 1;
+        return;
       }
-      if (it.action === "drop") toDrop.push({ g: f.g, e: f.e });
     }
-    for (const { g, e } of toDrop) {
-      const idx = g.list.indexOf(e);
-      if (idx >= 0 && g.list.length > g.minKeep) {
-        g.list.splice(idx, 1);
-        dropped += 1;
-      }
+    if (it.action === "drop") toDrop.push({ g: f.g, e: f.e });
+  });
+  for (const { g, e } of toDrop) {
+    const idx = g.list.indexOf(e);
+    if (idx >= 0 && g.list.length > g.minKeep) {
+      g.list.splice(idx, 1);
+      dropped += 1;
     }
   }
-  const note = `fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified`;
-  emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, res.usage, { note }) });
-  emit({ type: "note", text: `🔎 Verifier: ${note}.` });
+  const note = `fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified (${failing.length} parallel calls)`;
+  emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, usage, { note }) });
+  emit({ type: "note", text: `🔎 Verifier: fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified.` });
   return { failing: failing.length, fixed, dropped };
 }
 

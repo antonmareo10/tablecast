@@ -33,7 +33,8 @@ export type Source = {
   text: string; // the text quotes are checked against, exactly as fetched
 };
 
-export type Cite = { source: string; quote: string; ok?: boolean };
+// The writer cites sentence ids (span "S9.4"); the server fills in `source` and the exact `quote`.
+export type Cite = { source: string; quote: string; span?: string; ok?: boolean };
 
 export type Evidence = {
   text: string; // one owner-friendly sentence

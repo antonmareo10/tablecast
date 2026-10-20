@@ -2,15 +2,19 @@
 // results from Tavily, the forecast from Open-Meteo, venues from OpenStreetMap, events from
 // Ticketmaster, holidays from Nager.Date, the owner's menu photo as read by Nemotron VL).
 //
-// The model may only support a claim by citing a source id plus a verbatim quote from it. The
-// server then checks, deterministically, that (1) the source exists in this run, (2) the quote
-// appears word for word in that source's text, and (3) every number in the claim's sentence
-// appears in the text of a source it cites. A claim is "verified" only if all three hold.
-// No model is asked whether a claim is true — code decides.
+// Each source is cut into numbered sentences ("spans": S9.1, S9.2…). The writer supports a claim by
+// citing span ids — it never types a quote — and the server fills in the exact text of each cited span.
+// A claim is "verified" only if, deterministically:
+//   1. every cited span exists in this run's sources;
+//   2. every number in the claim's sentence appears in a cited span (or the line right next to it, for
+//      menus that put a dish and its price on separate lines);
+//   3. the claim and its cited spans share at least one content word or number (an irrelevant citation fails).
+// No model is asked whether a claim is true — code decides. (Older quote-style cites are still checked:
+// the quote must appear word for word in the cited source.)
 
 import type { Cite, Evidence, Source, SourceKind } from "./types";
 
-/** Word-level normal form used for quote matching: accents folded, case and punctuation ignored. */
+/** Word-level normal form used for matching: accents folded, case and punctuation ignored. */
 export function normalizeText(s: string): string {
   return s
     .normalize("NFKD")
@@ -23,7 +27,7 @@ export function normalizeText(s: string): string {
     .trim();
 }
 
-/** Numbers written with digits in a sentence, normalised the same way as the quote matcher. */
+/** Numbers written with digits in a sentence, normalised the same way as the matcher. */
 export function numbersIn(s: string): string[] {
   const out = new Set<string>();
   for (const m of s.matchAll(/(\d+)(?:[.,](\d+))?/g)) out.add(m[2] ? canonNumber(m[1], m[2]) : m[1]);
@@ -36,6 +40,47 @@ function canonNumber(int: string, frac: string): string {
   return f ? `${int}d${f}` : int;
 }
 
+const STOP = new Set(
+  "this that with from have will your their there they them what when which while where into over under about after before more most very also than then just only each such week weeks day days near nearby around guests guest restaurant restaurants menu menus dish dishes plan para pero como este esta estos estas desde hasta sobre entre cada todo toda todos todas muy mas menos porque cuando donde".split(
+    " ",
+  ),
+);
+
+/** Content words (4+ letters, not stopwords) and numbers of a text, for the relevance check. */
+function contentTokens(s: string): Set<string> {
+  return new Set(
+    normalizeText(s)
+      .split(" ")
+      .filter((w) => (/\d/.test(w) && w.length > 0) || (w.length >= 4 && !STOP.has(w))),
+  );
+}
+
+const MAX_SPAN = 240;
+
+/**
+ * Cuts a source's text into short, citable spans: one per line, long lines split into sentences, and
+ * anything still too long split at a clause boundary or a word boundary. Deterministic, so span ids are stable.
+ */
+export function segment(text: string, max = MAX_SPAN): string[] {
+  const out: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    for (const sentence of line.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑÜ0-9"“(¡¿])/)) {
+      let rest = sentence.trim();
+      while (rest.length > max) {
+        const window = rest.slice(0, max);
+        const cut = Math.max(window.lastIndexOf("; "), window.lastIndexOf(" · "), window.lastIndexOf(" | "), window.lastIndexOf(" — "), window.lastIndexOf(", "));
+        const at = cut > max * 0.4 ? cut + 1 : window.lastIndexOf(" ") > max * 0.4 ? window.lastIndexOf(" ") : max;
+        out.push(rest.slice(0, at).trim());
+        rest = rest.slice(at).trim();
+      }
+      if (rest) out.push(rest);
+    }
+  }
+  return out;
+}
+
 const MIN_QUOTE_TOKENS = 2;
 const MIN_QUOTE_CHARS = 6;
 
@@ -45,6 +90,7 @@ export class SourceLedger {
   private sources: Source[] = [];
   private byKey = new Map<string, Source>();
   private norm = new Map<string, string>();
+  private spanCache = new Map<string, string[]>();
 
   /** Rebuild a ledger from a saved source list, keeping every id as it was. */
   static from(list: Source[]): SourceLedger {
@@ -61,8 +107,7 @@ export class SourceLedger {
 
   /**
    * Register a source and get its id. The same URL (or the same structured item) registered twice
-   * keeps one id and accumulates text, so a quote from the search snippet or from the full page
-   * both verify against it.
+   * keeps one id and accumulates text (search snippet first, then the full page).
    */
   add(src: Omit<Source, "id">): Source {
     const key = `${src.kind}|${src.url ?? src.title}`;
@@ -71,6 +116,7 @@ export class SourceLedger {
       if (src.text && !existing.text.includes(src.text)) {
         existing.text = `${existing.text}\n${src.text}`;
         this.norm.set(existing.id, normalizeText(existing.text));
+        this.spanCache.delete(existing.id);
       }
       if (!existing.published && src.published) existing.published = src.published;
       return existing;
@@ -84,7 +130,8 @@ export class SourceLedger {
   }
 
   get(id: string): Source | undefined {
-    return this.sources.find((s) => s.id === id.trim().toUpperCase());
+    const sid = id.trim().toUpperCase().split(".")[0];
+    return this.sources.find((s) => s.id === sid);
   }
 
   list(): Source[] {
@@ -99,7 +146,54 @@ export class SourceLedger {
     return this.sources.filter((s) => s.kind === kind).length;
   }
 
+  // ---- spans --------------------------------------------------------------------------------
+
+  spansOf(id: string): string[] {
+    const src = this.get(id);
+    if (!src) return [];
+    let spans = this.spanCache.get(src.id);
+    if (!spans) {
+      spans = segment(src.text);
+      this.spanCache.set(src.id, spans);
+    }
+    return spans;
+  }
+
+  /** "S9.4" → the 4th span of S9 (1-based), or null. */
+  span(spanId: string): { source: Source; index: number; text: string } | null {
+    const m = spanId.trim().toUpperCase().match(/^(S\d+)\.(\d+)$/);
+    if (!m) return null;
+    const source = this.get(m[1]);
+    if (!source) return null;
+    const index = Number(m[2]) - 1;
+    const text = this.spansOf(source.id)[index];
+    return text == null ? null : { source, index, text };
+  }
+
+  /** A span plus its immediate neighbours (menus often put a dish and its price on separate lines). */
+  private spanWithNeighbours(spanId: string): string {
+    const s = this.span(spanId);
+    if (!s) return "";
+    const all = this.spansOf(s.source.id);
+    return [all[s.index - 1], s.text, all[s.index + 1]].filter(Boolean).join(" ");
+  }
+
+  /** Turn writer cites ({ span }) into display cites ({ source, span, quote = the span's exact text }). */
+  resolve(e: Evidence): Evidence {
+    return {
+      ...e,
+      cites: (e.cites ?? []).map((c) => {
+        if (!c.span) return c;
+        const s = this.span(c.span);
+        return s ? { source: s.source.id, span: c.span.toUpperCase(), quote: s.text } : { source: c.span.split(".")[0].toUpperCase(), span: c.span, quote: "" };
+      }),
+    };
+  }
+
+  // ---- verification -------------------------------------------------------------------------
+
   checkCite(c: Cite): CiteCheck {
+    if (c.span) return this.span(c.span) ? { ok: true } : { ok: false, reason: `unknown sentence ${c.span}` };
     const src = this.get(c.source ?? "");
     if (!src) return { ok: false, reason: `unknown source ${c.source}` };
     const q = normalizeText(c.quote ?? "");
@@ -112,8 +206,7 @@ export class SourceLedger {
 
   /**
    * True if `quote` appears word for word in the source, either whole or as a run of verbatim fragments
-   * (split at sentence punctuation or dashes) that each appear in that same source. Every fragment must be
-   * found — joining real sentences is allowed, changing a word is not.
+   * (split at sentence punctuation or dashes) that each appear in that same source.
    */
   private contains(id: string, quote: string): boolean {
     const hay = ` ${this.norm.get(id) ?? ""} `;
@@ -127,9 +220,22 @@ export class SourceLedger {
     return parts.length > 1 && parts.every((p) => hay.includes(` ${p} `));
   }
 
-  /** Verify one claim: every cite checks out, and every number in the sentence is in a cited source. */
+  /** The text each cite stands on: its span (+ neighbours) for span cites, the whole source for quote cites. */
+  private citedText(c: Cite): string {
+    if (c.span) return this.spanWithNeighbours(c.span);
+    return this.get(c.source ?? "")?.text ?? "";
+  }
+
+  /** Numbers in the claim's sentence that none of its cites contains. */
+  missingNumbers(e: Evidence): string[] {
+    const tokens = new Set(normalizeText((e.cites ?? []).map((c) => this.citedText(c)).join(" ")).split(" "));
+    return numbersIn(e.text).filter((n) => !tokens.has(n));
+  }
+
+  /** Verify one claim (see the header of this file). */
   verifyEvidence(e: Evidence): Evidence {
-    const checks = (e.cites ?? []).map((c) => ({ c, r: this.checkCite(c) }));
+    const resolved = this.resolve(e);
+    const checks = resolved.cites.map((c) => ({ c, r: this.checkCite(c) }));
     const cites = checks.map(({ c, r }) => ({ ...c, ok: r.ok }));
     let issue: string | undefined;
     if (cites.length === 0) issue = "no source cited";
@@ -138,12 +244,15 @@ export class SourceLedger {
       if (bad && !bad.ok) issue = bad.reason;
     }
     if (!issue) {
-      const cited = cites.map((c) => this.norm.get(this.get(c.source)?.id ?? "") ?? "").join(" ");
-      const tokens = new Set(cited.split(" "));
-      const missing = numbersIn(e.text).filter((n) => !tokens.has(n));
-      if (missing.length) issue = `number${missing.length > 1 ? "s" : ""} ${missing.join(", ").replace(/d/g, ".")} not in the cited sources`;
+      const missing = this.missingNumbers(resolved);
+      if (missing.length) issue = `number${missing.length > 1 ? "s" : ""} ${missing.join(", ").replace(/d/g, ".")} not in the cited sentences`;
     }
-    return { ...e, cites, verified: !issue, ...(issue ? { issue } : {}) };
+    if (!issue && cites.some((c) => c.span)) {
+      const claim = contentTokens(e.text);
+      const cited = contentTokens(cites.map((c) => this.citedText(c)).join(" "));
+      if (claim.size && ![...claim].some((t) => cited.has(t))) issue = "the cited sentences don't mention anything in the claim";
+    }
+    return { ...resolved, cites, verified: !issue, ...(issue ? { issue } : {}) };
   }
 
   verifyAll(list: Evidence[]): { items: Evidence[]; checked: number; verified: number } {
@@ -151,54 +260,59 @@ export class SourceLedger {
     return { items, checked: items.length, verified: items.filter((e) => e.verified).length };
   }
 
-  /**
-   * The part of a source most likely meant by a failed quote (best word overlap), so a repair
-   * step can copy the exact wording. Returns the original text, not the normalised one.
-   */
-  excerpt(id: string, quote: string, width = 360): string {
-    const src = this.get(id);
-    if (!src) return "";
-    const text = src.text;
-    if (text.length <= width) return text;
-    const words = new Set(
-      normalizeText(quote)
-        .split(" ")
-        .filter((w) => w.length > 2 || /\d/.test(w)),
-    );
-    let best = 0;
-    let bestAt = 0;
-    const step = Math.max(40, Math.floor(width / 3));
-    for (let at = 0; at < text.length; at += step) {
-      const win = normalizeText(text.slice(at, at + width)).split(" ");
-      let score = 0;
-      for (const w of win) if (words.has(w)) score += 1;
-      if (score > best) {
-        best = score;
-        bestAt = at;
-      }
+  // ---- helpers for the repair pass ------------------------------------------------------------
+
+  /** Span ids whose text best matches `text` (shared content words; numbers weigh more), best first. */
+  relatedSpans(text: string, k = 5, exclude: string[] = []): string[] {
+    const want = contentTokens(text);
+    if (!want.size) return [];
+    const scored: { id: string; score: number }[] = [];
+    for (const s of this.sources) {
+      this.spansOf(s.id).forEach((t, i) => {
+        const id = `${s.id}.${i + 1}`;
+        if (exclude.includes(id)) return;
+        let score = 0;
+        for (const w of contentTokens(t)) if (want.has(w)) score += /\d/.test(w) ? 3 : 1;
+        if (score > 0) scored.push({ id, score });
+      });
     }
-    return text.slice(bestAt, bestAt + width);
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, k)
+      .map((x) => x.id);
   }
 
-  /** The first source whose text contains `quote` word for word (null if none, or if the quote is too short). */
-  findQuote(quote: string): string | null {
-    const q = normalizeText(quote);
-    if (q.split(" ").filter(Boolean).length < MIN_QUOTE_TOKENS || q.length < MIN_QUOTE_CHARS) return null;
-    for (const s of this.sources) if (this.contains(s.id, quote)) return s.id;
-    return null;
+  /** Span ids that contain any of the given numbers (normalised form), most matches first. */
+  spansWithNumbers(nums: string[], k = 4, exclude: string[] = []): string[] {
+    if (!nums.length) return [];
+    const scored: { id: string; hits: number }[] = [];
+    for (const s of this.sources) {
+      this.spansOf(s.id).forEach((t, i) => {
+        const id = `${s.id}.${i + 1}`;
+        if (exclude.includes(id)) return;
+        const toks = new Set(normalizeText(t).split(" "));
+        const hits = nums.filter((n) => toks.has(n)).length;
+        if (hits) scored.push({ id, hits });
+      });
+    }
+    return scored
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, k)
+      .map((x) => x.id);
   }
 
   /**
-   * A cite whose quote is not in the source it names, but IS word for word in another source fetched in
-   * this run, is pointed at that source (the model copied the right words and mislabelled the id).
-   * Returns how many cites were re-attributed. The claim still has to pass verifyEvidence afterwards.
+   * Legacy quote mode: a cite whose quote is word for word in a different source than the one it names
+   * is pointed at that source. Returns how many cites moved. (Span cites never need this.)
    */
   reattribute(list: Evidence[]): number {
     let moved = 0;
     for (const e of list) {
       for (const c of e.cites ?? []) {
-        if (this.checkCite(c).ok) continue;
-        const found = this.findQuote(c.quote ?? "");
+        if (c.span || this.checkCite(c).ok) continue;
+        const q = c.quote ?? "";
+        if (normalizeText(q).split(" ").filter(Boolean).length < MIN_QUOTE_TOKENS) continue;
+        const found = this.sources.find((s) => this.contains(s.id, q))?.id;
         if (found && found !== c.source) {
           c.source = found;
           moved += 1;
@@ -208,57 +322,19 @@ export class SourceLedger {
     return moved;
   }
 
-  /** Numbers in the claim's sentence that none of its cited sources contains. */
-  missingNumbers(e: Evidence): string[] {
-    const cited = (e.cites ?? []).map((c) => this.norm.get(this.get(c.source ?? "")?.id ?? "") ?? "").join(" ");
-    const tokens = new Set(cited.split(" "));
-    return numbersIn(e.text).filter((n) => !tokens.has(n));
-  }
-
-  /** Sources that contain the given numbers (normalised form), most matches first. */
-  withNumbers(nums: string[], k = 3, exclude: string[] = []): string[] {
-    if (!nums.length) return [];
+  /** Sources rendered for a prompt: a header, then numbered spans up to `maxChars` of text. */
+  forPrompt(maxCharsFor: (s: Source) => number): string {
     return this.sources
-      .filter((s) => !exclude.includes(s.id))
       .map((s) => {
-        const toks = new Set((this.norm.get(s.id) ?? "").split(" "));
-        return { id: s.id, hits: nums.filter((n) => toks.has(n)).length };
+        const lines: string[] = [];
+        let used = 0;
+        for (const [i, t] of this.spansOf(s.id).entries()) {
+          if (used > maxCharsFor(s)) break;
+          lines.push(`${s.id}.${i + 1} ${t}`);
+          used += t.length;
+        }
+        return `[${s.id}] ${s.provider} · ${s.kind} · ${s.title}${s.url ? ` · ${s.url}` : ""}${s.published ? ` · published ${s.published}` : ""}\n${lines.join("\n")}`;
       })
-      .filter((x) => x.hits > 0)
-      .sort((a, b) => b.hits - a.hits)
-      .slice(0, k)
-      .map((x) => x.id);
-  }
-
-  /** Sources whose text shares the most words with `text` (for repair prompts), best first. */
-  related(text: string, k = 2, exclude: string[] = []): string[] {
-    const words = new Set(
-      normalizeText(text)
-        .split(" ")
-        .filter((w) => w.length > 3 || /\d/.test(w)),
-    );
-    if (!words.size) return [];
-    return this.sources
-      .filter((s) => !exclude.includes(s.id))
-      .map((s) => {
-        const toks = new Set((this.norm.get(s.id) ?? "").split(" "));
-        let score = 0;
-        for (const w of words) if (toks.has(w)) score += /\d/.test(w) ? 3 : 1;
-        return { id: s.id, score };
-      })
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, k)
-      .map((x) => x.id);
-  }
-
-  /** Compact "id — provider · title · url" lines plus text, for prompts. */
-  forPrompt(maxCharsPerSource = 900): string {
-    return this.sources
-      .map(
-        (s) =>
-          `[${s.id}] ${s.provider} · ${s.kind} · ${s.title}${s.url ? ` · ${s.url}` : ""}${s.published ? ` · ${s.published}` : ""}\n${s.text.slice(0, maxCharsPerSource)}`,
-      )
       .join("\n\n");
   }
 }
