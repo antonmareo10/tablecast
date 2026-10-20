@@ -114,8 +114,8 @@ export const PlaybookSchema = z.object({
     evidence: z.array(EvidenceSchema).max(3),
   }),
   experience: z.object({
-    event_idea: z.string(),
-    event_why: z.string(),
+    event_idea: z.string().describe('The event as a short title, max 12 words, e.g. "Pre-show pastrami: free pickle with any show ticket"'),
+    event_why: z.string().describe("When it runs, how it works and why it fits this week — the details go here, not in the title"),
     evidence: z.array(EvidenceSchema).max(2),
   }),
   marketing: z.object({

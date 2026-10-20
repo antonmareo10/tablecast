@@ -28,7 +28,7 @@ export function Section({
           )}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{kicker}</p>
-            <h3 className="font-display text-xl leading-tight sm:text-2xl">{title}</h3>
+            <h3 className={`font-display leading-tight ${title.length > 80 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"}`}>{title}</h3>
           </div>
         </div>
         {aside}
@@ -85,19 +85,23 @@ function hostOf(url?: string): string | null {
   }
 }
 
-export function SourceChip({ cite }: { cite: Cite }) {
+/** One chip per source; its card lists every sentence the claim cites from that source. */
+export function SourceChip({ cites }: { cites: Cite[] }) {
+  const cite = cites[0];
+  const bad = cites.some((c) => c.ok === false);
   const sources = useContext(SourcesContext);
   const src = sources.get(cite.source);
   const label = src ? (src.provider === "Tavily" ? hostOf(src.url) ?? src.title : src.provider) : cite.source;
   const [open, setOpen] = useState(false);
   const cls = `inline-flex max-w-[16rem] items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] transition ${
-    cite.ok === false ? "border-terracotta/30 text-terracotta" : "border-line text-ink-2 hover:border-ink-2/40 hover:text-ink"
+    bad ? "border-terracotta/30 text-terracotta" : "border-line text-ink-2 hover:border-ink-2/40 hover:text-ink"
   }`;
   // A small card with the exact cited sentence: on hover/focus on desktop, on tap on touch screens.
   return (
     <span className="group relative inline-flex" onMouseLeave={() => setOpen(false)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
       <button type="button" className={cls} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <span className="tabular-nums text-muted">{cite.source}</span> {label}
+        {cites.length > 1 && <span className="tabular-nums text-muted">×{cites.length}</span>}
       </button>
       <span
         role="tooltip"
@@ -110,9 +114,13 @@ export function SourceChip({ cite }: { cite: Cite }) {
           {src ? ` · ${src.provider}` : ""}
         </span>
         {src && <span className="mt-0.5 block font-medium text-ink-2">{src.title}</span>}
-        <span className="font-display mt-1.5 block text-[14px] leading-snug">“{cite.quote}”</span>
-        <span className={`mt-1.5 block text-[11px] ${cite.ok === false ? "text-terracotta" : "text-olive"}`}>
-          {cite.ok === false ? "✗ Not found in this source" : "✓ Exact sentence from this source"}
+        {cites.map((c, i) => (
+          <span key={i} className="font-display mt-1.5 block text-[14px] leading-snug">
+            “{c.quote}”{c.ok === false && <span className="font-sans text-[11px] text-terracotta"> ✗</span>}
+          </span>
+        ))}
+        <span className={`mt-1.5 block text-[11px] ${bad ? "text-terracotta" : "text-olive"}`}>
+          {bad ? "✗ Not found in this source" : cites.length > 1 ? "✓ Exact sentences from this source" : "✓ Exact sentence from this source"}
         </span>
         {src?.url && (
           <a href={src.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[11px] text-olive underline underline-offset-2">
@@ -122,6 +130,12 @@ export function SourceChip({ cite }: { cite: Cite }) {
       </span>
     </span>
   );
+}
+
+function groupBySource(cites: Cite[]): Cite[][] {
+  const groups = new Map<string, Cite[]>();
+  for (const c of cites) groups.set(c.source, [...(groups.get(c.source) ?? []), c]);
+  return [...groups.values()];
 }
 
 export function EvidenceLine({ evidence }: { evidence: Evidence }) {
@@ -141,8 +155,8 @@ export function EvidenceLine({ evidence }: { evidence: Evidence }) {
           <span>{evidence.text}</span>
           {evidence.cites?.length > 0 && (
             <span className="mt-1 flex flex-wrap gap-1">
-              {evidence.cites.map((c, i) => (
-                <SourceChip key={`${c.source}-${i}`} cite={c} />
+              {groupBySource(evidence.cites).map((group) => (
+                <SourceChip key={group[0].source} cites={group} />
               ))}
             </span>
           )}
