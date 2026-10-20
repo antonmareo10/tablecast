@@ -107,8 +107,10 @@ function client(): OpenAI {
 }
 
 // The SDK's types don't know Nemotron's extra params (reasoning_effort), so we call it loosely.
+// Non-streamed calls (research turns, repairs, vision, baseline) never wait more than 90 s each.
 function chat(body: Record<string, unknown>, signal?: AbortSignal): Promise<ChatResponse> {
-  return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<ChatResponse>)(body, { signal });
+  const capped = signal ? AbortSignal.any([signal, AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000);
+  return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<ChatResponse>)(body, { signal: capped, maxRetries: 1 });
 }
 function chatStream(body: Record<string, unknown>, signal?: AbortSignal): Promise<AsyncIterable<StreamChunk>> {
   return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<AsyncIterable<StreamChunk>>)(
@@ -460,7 +462,7 @@ export async function ensureSchema<T>(opts: {
           },
         ],
       },
-      opts.signal,
+      opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
     );
     const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const second = raw ? opts.tool.schema.safeParse(tolerantParse(raw)) : null;
