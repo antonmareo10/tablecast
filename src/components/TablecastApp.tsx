@@ -377,23 +377,34 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                 <div className="flex shrink-0 items-baseline gap-3 sm:block sm:text-center">
                   <div className="font-display text-5xl leading-none text-olive tabular-nums">
                     <span aria-hidden>
-                      <span className="css-count" style={{ "--to": 84, "--d": "500ms" } as CSSProperties} />%
+                      <span className="css-count" style={{ "--to": 94, "--d": "500ms" } as CSSProperties} />
+                      <span className="text-2xl text-muted">/100</span>
                     </span>
-                    <span className="sr-only">84%</span>
+                    <span className="sr-only">94 of 100</span>
                   </div>
-                  <div className="mt-1 text-[11px] text-muted">claims verified · Quick</div>
+                  <div className="mt-1 text-[11px] text-muted">verified claims right · audit</div>
                 </div>
                 <p className="text-[13px] leading-snug text-ink-2">
-                  <span className="font-semibold text-ink">Measured, not promised.</span> In my latest routing eval of 8 restaurants, 84% of Quick claims (Nemotron Ultra; 89% the round before)
-                  passed a strict code check after one repair pass: every number and nearly every word must be in the sentences they cite,
-                  and every price in the plan must match a dish or a checked claim. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
+                  <span className="font-semibold text-ink">Measured, not promised.</span> I read 100 verified claims against their sources: 94 were right,
+                  4 had a minor slip, 2 were wrong. On 8 restaurants never used for tuning, 73% of Quick claims (Nemotron Ultra) passed the strict code
+                  check after one repair pass (84% on the 8 I tuned on): every number and nearly every word must be in the sentences they cite, and every
+                  price and date in the plan is checked. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
                   <a
-                    href="https://github.com/antonmareo10/tablecast/blob/main/eval/SUMMARY.md"
+                    href="https://github.com/antonmareo10/tablecast/blob/main/eval/AUDIT.md"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline decoration-line underline-offset-2 hover:text-ink"
                   >
-                    routing eval
+                    audit
+                  </a>{" "}
+                  ·{" "}
+                  <a
+                    href="https://github.com/antonmareo10/tablecast/blob/main/eval/SUMMARY.md#v7-held-out-round"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-line underline-offset-2 hover:text-ink"
+                  >
+                    eval
                   </a>
                 </p>
               </div>
