@@ -11,7 +11,9 @@
 //      name it. Research labels are not trusted for this (the research model filed Zuni Café's own reviews as
 //      "rival"), only names are. A claim that openly names the street, neighbourhood or city instead of the
 //      restaurant ("Cava Baja has about 50 tapas bars") may cite a page about the area;
-//   4. a price is not a combo or add-on price ("As a Reuben, $33.95" under "Combos") stated as the item's own.
+//   4. a price is not a combo or add-on price ("As a Reuben, $33.95" under "Combos") stated as the item's own;
+//   5. an add-on ("Add egg $3", "+ avocado $4") belongs to the dish right above it on the menu: a claim that pairs
+//      it with another dish fails (addOnIssue).
 // "Loved for" and "watch-outs" also may not name another city themselves. Moments and rivals are exempt: events,
 // news and competitors are what they are about. Forecasts, events, holidays and the block are never checked.
 
@@ -106,6 +108,60 @@ export function subjectIssue(claim: string, field: string, cites: CitedLines[], 
             return `${n.replace("d", ".")} on ${c.id} is a combo or add-on price (${quote(heading ? `${heading} … ${lines[i]}` : lines[i])}), not the item's own price`;
         }
       }
+    }
+  }
+  return addOnIssue(claim, cites.filter((c) => PAGE_KINDS.has(c.source.kind)));
+}
+
+// ---- add-ons ------------------------------------------------------------------------------------
+
+// A menu line that offers an add-on: "Add egg $3", "+ avocado $4", "Extra shot 1 €", "With pastrami, add $1.00".
+// It belongs to the dish directly above it. Lines for a whole section ("Add to any salad…") are left alone.
+const ADD_ON_LINE = /^\s*(?:\+|add\b|adds\b|extra\b|supplement\b|with\s[^,]{1,40},\s*add\b)/i;
+const WHOLE_SECTION = /\b(any|all|each|every)\b/i;
+const NOT_A_NAME = new Set(
+  "add adds added adding extra option options with and for the menu menus shows show lists list offers offer serves served comes come plus also can guests guest price".split(" "),
+);
+
+/** Comparable words of a line that could name a dish or ingredient (3+ letters, plurals folded). */
+function nameWords(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of normalizeText(s).split(" ")) if (w.length >= 3 && !/\d/.test(w) && !NOT_A_NAME.has(w)) out.add(w.replace(/(ies|es|s)$/, ""));
+  return out;
+}
+
+/**
+ * Why a claim pairs a menu add-on with the wrong dish, or null: the add-on line the claim uses (by its price or
+ * its item) belongs to the dish right above it (up to 3 lines up), and the claim names none of that dish's words
+ * while naming another item from the lines it cites. Real case: "Vegetable Sandwich … and an add-egg option for
+ * $3", where "Add egg $3" sits under the BLT on Gjelina's menu.
+ */
+export function addOnIssue(claim: string, cites: CitedLines[]): string | null {
+  const claimWords = nameWords(claim);
+  const claimNumbers = new Set(numbersIn(claim));
+  for (const c of cites) {
+    const lines = [...c.before, c.sentence, ...c.after];
+    const start = Math.max(0, c.before.length - 1); // the line above the cited one can hold the claim's number
+    for (let k = start; k < lines.length; k++) {
+      const line = lines[k];
+      if (!ADD_ON_LINE.test(line) || WHOLE_SECTION.test(line)) continue;
+      const item = nameWords(line);
+      const uses = numbersIn(line).some((n) => claimNumbers.has(n)) || [...item].some((w) => claimWords.has(w));
+      if (!uses) continue;
+      let top = Math.max(0, k - 3);
+      for (let j = k - 1; j >= top; j--) if (ADD_ON_LINE.test(lines[j])) top = j + 1;
+      const owner = lines.slice(top, k).filter((l) => nameWords(l).size > 0);
+      if (!owner.length) continue; // nothing above it in view: can't tell whose it is
+      const ownerWords = nameWords(owner.join(" "));
+      if ([...claimWords].some((w) => ownerWords.has(w) && !item.has(w))) continue; // the claim names its dish
+      // Words of the claim found on the other lines it cites (another dish), not on the add-on or its dish.
+      const elsewhere = cites
+        .flatMap((x) => (x === c ? [...lines.slice(0, top), ...lines.slice(k + 1)] : [...x.before, x.sentence, ...x.after]))
+        .filter((l) => !owner.includes(l) && l !== line);
+      const otherWords = nameWords(elsewhere.join(" "));
+      const other = [...claimWords].filter((w) => otherWords.has(w) && !item.has(w) && !ownerWords.has(w));
+      if (other.length)
+        return `${quote(line.trim(), 40)} on ${c.id} is an add-on of the dish above it (${quote(owner.join(" · "), 60)}), not of the ${other.slice(0, 2).join(" ")} the claim pairs it with`;
     }
   }
   return null;

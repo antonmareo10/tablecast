@@ -64,6 +64,54 @@ describe("subject check: real cases from the eval", () => {
   });
 });
 
+describe("subject check: an add-on belongs to the dish above it", () => {
+  // gjelina.com/los-angeles-menus as Tavily Extract returned it on 21 Oct (span ids as in the recorded replay).
+  const laMenu = { kind: "menu" as const, url: "https://www.gjelina.com/los-angeles-menus", title: "gjelina.com/los-angeles-menus" };
+  const price = cite("S2", laMenu, "$19", ["$24", "Tomato Sauce, Parmesan, Sourdough Toast", "Vegetable Sandwich"], ["Avocado, Pickled Turnip, Sprouts, Fennel, Tahini", "BLT"]);
+  const toppings = cite("S2", laMenu, "Avocado, Pickled Turnip, Sprouts, Fennel, Tahini", ["Tomato Sauce, Parmesan, Sourdough Toast", "Vegetable Sandwich", "$19"], ["BLT", "$19"]);
+  const egg = cite("S2", laMenu, "Add egg $3", ["BLT", "$19", "Bacon, Arugula, Tomato, Lemon Aioli"], ["Blackened Vermilion Rockfish Sandwich", "$25"]);
+
+  it("Gjelina: “Add egg $3” under the BLT is not an option of the Vegetable Sandwich (the showcase claim)", () => {
+    const showcase = "The menu shows a Vegetable Sandwich with avocado, pickled turnip, sprouts, fennel, tahini at $19 and an add-egg option for $3.";
+    expect(subjectIssue(showcase, "dish 1", [price, toppings, egg], gjelina)).toMatch(/“Add egg \$3” on S2 is an add-on of the dish above it \(“BLT · Bacon, Arugula, Tomato, Lemon Aioli”\), not of the vegetable sandwich/);
+    // The same add-on, paired with its own dish, is fine; so is the sandwich without the egg.
+    expect(subjectIssue("The BLT with bacon, arugula, tomato and lemon aioli takes an added egg for $3.", "dish 1", [egg], gjelina)).toBeNull();
+    expect(subjectIssue("The Vegetable Sandwich with avocado, pickled turnip, sprouts, fennel and tahini is $19.", "dish 1", [price, toppings], gjelina)).toBeNull();
+    // Pairing it with the dish below it is wrong too.
+    expect(subjectIssue("The Blackened Vermilion Rockfish Sandwich has an add-egg option for $3.", "dish 2", [egg], gjelina)).toMatch(/add-on of the dish above it/);
+  });
+
+  it("in the verifier: the showcase claim fails with the reason, on the page as recorded", () => {
+    const text = [
+      " Braised Pork Meatball", "$24", "Tomato Sauce, Parmesan, Sourdough Toast",
+      " Vegetable Sandwich", "$19", "Avocado, Pickled Turnip, Sprouts, Fennel, Tahini",
+      " BLT", "$19", "Bacon, Arugula, Tomato, Lemon Aioli",
+      "Add egg $3",
+      " Blackened Vermilion Rockfish Sandwich", "$25", "Napa Cabbage Slaw, Fermented Chili Aioli",
+    ].join("\n");
+    const pack = {
+      req: { restaurant: "Gjelina", city: "Los Angeles" },
+      place: { name: "Gjelina", city: "Los Angeles", lat: 33.99, lon: -118.46, address: "Abbot Kinney Boulevard 1429, 90291 Los Angeles", website: "https://www.gjelina.com/", match: "exact" as const },
+      language: "English",
+      sources: [{ id: "S1", kind: "menu", provider: "Tavily", title: laMenu.title, url: laMenu.url, text }] as Source[],
+    };
+    const ledger = verifierFor(pack);
+    const v = ledger.verifyEvidence(
+      { text: "The menu shows a Vegetable Sandwich with avocado, pickled turnip, sprouts, fennel, tahini at $19 and an add-egg option for $3.", cites: ["S1.5", "S1.6", "S1.10"].map((span) => ({ source: "S1", quote: "", span })) },
+      "dish 1",
+    );
+    expect(v.verified).toBe(false);
+    expect(v.across).toBeUndefined();
+    expect(v.issue).toMatch(/add-on of the dish above it \(“BLT · Bacon, Arugula, Tomato, Lemon Aioli”\)/);
+  });
+
+  it("leaves add-ons for a whole section, and claims that don't use the add-on, alone", () => {
+    const salads = cite("S3", laMenu, "Add to any salad: grilled chicken $8", ["Little Gem", "$22", "Apple, Crispy Prosciutto, Chive, Blue Cheese Dressing"]);
+    expect(subjectIssue("You can add grilled chicken to the Smoked Trout salad for $8.", "dish 1", [salads, cite("S3", laMenu, "Smoked Trout", [], ["$22"])], gjelina)).toBeNull();
+    expect(subjectIssue("The Vegetable Sandwich is $19 with avocado and tahini.", "dish 1", [price, toppings, egg], gjelina)).toBeNull();
+  });
+});
+
 describe("subject check: no false alarms on the restaurant's own pages", () => {
   it("trusts names, not research labels: Zuni's own reviews filed as 'rival' still count", () => {
     const zuni = subjectProfile({ restaurant: "Zuni Café", city: "San Francisco", address: "Market Street 1658, 94143 San Francisco", website: "https://zunicafe.com/" });
