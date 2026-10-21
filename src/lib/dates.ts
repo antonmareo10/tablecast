@@ -47,7 +47,7 @@ const MONTH_INDEX: Record<string, number> = {
   jun: 5, june: 5, junio: 5,
   jul: 6, july: 6, julio: 6,
   aug: 7, august: 7, ago: 7, agosto: 7,
-  sep: 8, sept: 8, september: 8, septiembre: 8, set: 8, setiembre: 8,
+  sep: 8, sept: 8, september: 8, septiembre: 8, setiembre: 8, // not "set": "Pastrami Set 17:00"
   oct: 9, october: 9, octubre: 9,
   nov: 10, november: 10, noviembre: 10,
   dec: 11, december: 11, dic: 11, diciembre: 11,
@@ -58,8 +58,8 @@ const DAY = "(\\d{1,2})(?:st|nd|rd|th)?";
 const TO = "\\s*(?:[–—-]|to|al|y|and)\\s*";
 // "20 Oct", "Wed 21–Thu 22 Oct", "21-22 October", "20 de octubre"
 const DAY_MONTH = new RegExp(`\\b${DAY}(?:${TO}(?:${WEEKDAY}\\s*)?${DAY})?\\s+(?:de\\s+)?${MONTH}\\b\\.?`, "gi");
-// "Oct 20", "October 20–22", "Oct. 20th"
-const MONTH_DAY = new RegExp(`\\b${MONTH}\\.?\\s+${DAY}(?:${TO}${DAY})?\\b`, "gi");
+// "Oct 20", "October 20–22", "Oct. 20th" (not a time: "May 17:00")
+const MONTH_DAY = new RegExp(`\\b${MONTH}\\.?\\s+${DAY}(?![:.]\\d)(?:${TO}${DAY})?\\b`, "gi");
 const ISO = /\b(20\d\d)-(\d\d)-(\d\d)\b/g;
 
 /** The date with this day and month nearest to `today` (so late-December plans can name early January). */

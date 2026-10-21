@@ -39,6 +39,8 @@ describe("dates in the plan", () => {
     expect(datesIn("Thursday, Oct. 22nd at lunch; review on 2026-10-27", today)).toEqual(["2026-10-22", "2026-10-27"]);
     expect(datesIn("mar 20 oct: pedido al proveedor; jueves 22 de octubre, cena", today)).toEqual(["2026-10-20", "2026-10-22"]);
     expect(datesIn("Rain on Thursday: 39.2 mm, 19/15°C, 49% chance; post at 11 AM", today)).toEqual([]);
+    // Times are not dates (a real line from the eval: "Set 17:00" is not 17 September).
+    expect(datesIn("Run Pre-Show Pastrami Set 17:00–18:15 ($28). Run Encore Pastrami 20:30–21:00 ($18).", today)).toEqual([]);
   });
 
   it("picks the year nearest to today across New Year", () => {
