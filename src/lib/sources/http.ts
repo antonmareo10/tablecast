@@ -5,7 +5,7 @@
 // "CONFIG"; upstream trouble (5xx, timeouts, rate limits, bad payloads) is logged with console.warn and the
 // client returns empty / null, so one flaky source never sinks a whole playbook run.
 
-export const USER_AGENT = "Tastecraft/1.0 (hackathon demo; contact antonmareo@gmail.com)";
+export const USER_AGENT = "Tablecast/1.0 (hackathon demo; contact antonmareo@gmail.com)";
 export const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_BACKOFF_MS = 600;
 /** A Retry-After longer than this is not worth waiting for inside a request: fail fast instead. */

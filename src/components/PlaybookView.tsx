@@ -563,7 +563,7 @@ function icsEscape(s: string): string {
 
 function WeekPlan({ playbook: p }: { playbook: Playbook }) {
   const download = () => {
-    const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Tastecraft//Week plan//EN"];
+    const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Tablecast//Week plan//EN"];
     const stamp = icsDate(new Date());
     p.week_plan.forEach((it, i) => {
       const day = dateForDay(it.day);
@@ -572,12 +572,12 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
       end.setDate(day.getDate() + 1);
       lines.push(
         "BEGIN:VEVENT",
-        `UID:tastecraft-${i}-${icsDate(day)}@tastecraft`,
+        `UID:tablecast-${i}-${icsDate(day)}@tablecast`,
         `DTSTAMP:${stamp}T000000Z`,
         `DTSTART;VALUE=DATE:${icsDate(day)}`,
         `DTEND;VALUE=DATE:${icsDate(end)}`,
         `SUMMARY:${icsEscape(`${p.restaurant.name}: ${it.action}`)}`,
-        `DESCRIPTION:${icsEscape(`Owner: ${it.owner}. From your Tastecraft weekly playbook.`)}`,
+        `DESCRIPTION:${icsEscape(`Owner: ${it.owner}. From your Tablecast weekly playbook.`)}`,
         "END:VEVENT",
       );
     });
@@ -586,7 +586,7 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "tastecraft-week.ics";
+    a.download = "tablecast-week.ics";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -643,7 +643,7 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
           <CopyButton text={emailText} label="Copy order email" />
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`}
-            download="tastecraft-shopping-list.csv"
+            download="tablecast-shopping-list.csv"
             className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
           >
             <IconDownload size={14} /> CSV
@@ -740,7 +740,7 @@ function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-2">{baseline}</p>
         </div>
         <div className="rounded-xl border border-olive/30 bg-olive/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-olive">{writer} in Tastecraft, grounded in this week</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-olive">{writer} in Tablecast, grounded in this week</p>
           {v && (
             <p className="mt-1 text-[11px] font-semibold text-olive">
               {v.sources} live sources · {v.verified}/{v.checked} claims verified in code

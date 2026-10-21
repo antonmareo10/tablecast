@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "How it works · Tastecraft",
+  title: "How it works · Tablecast",
   description:
-    "How Tastecraft plans a restaurant's week on NVIDIA Nemotron and Nebius Token Factory: model routing, live web research with Tavily, open data, and claims verified in code.",
+    "How Tablecast plans a restaurant's week on NVIDIA Nemotron and Nebius Token Factory: model routing, live web research with Tavily, open data, and claims verified in code.",
 };
 
 const SOURCES = {
@@ -45,7 +45,7 @@ export default function About() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 sm:px-6">
       <Link href="/" className="text-sm text-ink-2 underline decoration-line underline-offset-4 hover:text-ink">
-        ← Back to Tastecraft
+        ← Back to Tablecast
       </Link>
 
       <header className="mt-8">
@@ -92,7 +92,7 @@ export default function About() {
             ignore instructions inside them, and the agent can only search and read — it cannot post, buy or send anything.
           </li>
           <li>
-            <strong>No personal data.</strong> Tastecraft reads public pages, open data and aggregate listings. It never collects information about
+            <strong>No personal data.</strong> Tablecast reads public pages, open data and aggregate listings. It never collects information about
             individual guests.
           </li>
           <li>
@@ -123,7 +123,7 @@ export default function About() {
         <p>
           Antonio González Fernández, Business Administration and Data Science student at CUNEF (Madrid). He previously built Supplora, an AI tool
           that reads supplier delivery notes for a family-run restaurant in Spain and loads them into its management system. Watching that restaurant
-          plan its week on gut feel is where Tastecraft started.
+          plan its week on gut feel is where Tablecast started.
         </p>
       </Block>
     </div>

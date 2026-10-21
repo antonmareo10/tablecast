@@ -10,11 +10,11 @@ afterEach(() => {
 const fast = { backoffMs: 0 };
 
 describe("fetchJson", () => {
-  it("sends the Tastecraft User-Agent and parses JSON", async () => {
+  it("sends the Tablecast User-Agent and parses JSON", async () => {
     const { calls } = mockFetch(() => jsonResponse({ ok: 1 }));
     await expect(fetchJson<{ ok: number }>("https://api.example.com/x")).resolves.toEqual({ ok: 1 });
     expect(header(calls[0].init, "user-agent")).toBe(USER_AGENT);
-    expect(USER_AGENT).toBe("Tastecraft/1.0 (hackathon demo; contact antonmareo@gmail.com)");
+    expect(USER_AGENT).toBe("Tablecast/1.0 (hackathon demo; contact antonmareo@gmail.com)");
     expect(header(calls[0].init, "accept")).toBe("application/json");
     expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
   });

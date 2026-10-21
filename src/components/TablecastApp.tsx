@@ -42,7 +42,7 @@ async function photoToDataUrl(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
-export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] }) {
+export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) {
   const [form, setForm] = useState<AgentRequest>({ restaurant: "", city: "", goal: GOALS[0], language: "English" });
   const [photoName, setPhotoName] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -116,9 +116,9 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
   return (
     <div className="flex min-h-screen flex-col">
       <header className="no-print mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5" aria-label="Tastecraft home">
+        <Link href="/" className="flex items-center gap-2.5" aria-label="Tablecast home">
           <Logo />
-          <span className="font-display text-xl tracking-tight">Tastecraft</span>
+          <span className="font-display text-xl tracking-tight">Tablecast</span>
         </Link>
         <nav className="flex items-center gap-4 text-xs text-muted">
           <span className="hidden sm:inline">Live local data × NVIDIA Nemotron</span>
@@ -134,7 +134,7 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">For independent restaurants</p>
             <h1 className="font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-6xl">Plan this week with what’s happening around you.</h1>
             <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-2">
-              Rain on Thursday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tastecraft reads your week —
+              Rain on Thursday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tablecast reads your week —
               forecast, events, your block, your menu and what guests say online — and turns it into three dishes to test, an event, a post and a
               supplier order. Every claim links to the exact sentence it stands on, checked in code.
             </p>
@@ -180,7 +180,7 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
                   passed a strict code check after one repair pass: every number and nearly every word must be in the sentences they cite,
                   and every price in the plan must match a dish or a checked claim. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
                   <a
-                    href="https://github.com/antonmareo10/tastecraft-open/blob/main/eval/SUMMARY.md"
+                    href="https://github.com/antonmareo10/tablecast/blob/main/eval/SUMMARY.md"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline decoration-line underline-offset-2 hover:text-ink"

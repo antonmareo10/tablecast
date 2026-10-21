@@ -42,7 +42,7 @@ export default function Timeline({
       <header className="flex items-center justify-between border-b border-line px-5 py-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Agent log</p>
-          <h2 className="font-display text-lg leading-tight">How Tastecraft read your week</h2>
+          <h2 className="font-display text-lg leading-tight">How Tablecast read your week</h2>
         </div>
         <span className="tabular-nums text-xs text-muted">
           {running ? (

@@ -1,4 +1,4 @@
-import { runTastecraft } from "@/lib/agent";
+import { runTablecast } from "@/lib/agent";
 import { acquireLiveRun, clientIp } from "@/lib/limits";
 import { defaultRouting, economyRouting, nebiusConfigured, type Routing } from "@/lib/nebius-agent";
 import { encodeLine } from "@/lib/ndjson";
@@ -36,7 +36,7 @@ function cleanPhoto(s: unknown): string | undefined {
 // Local evaluation only: lets scripts/eval.mjs pin the model routing per request.
 function routingOverride(request: Request): Routing | undefined {
   if (process.env.TASTECRAFT_ALLOW_ROUTING_OVERRIDE !== "1") return undefined;
-  const raw = request.headers.get("x-tastecraft-routing");
+  const raw = request.headers.get("x-tablecast-routing");
   if (!raw) return undefined;
   try {
     const r = JSON.parse(raw) as Partial<Routing>;
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         }
       };
       try {
-        await runTastecraft(req, emit, { routing, deadline, signal: request.signal });
+        await runTablecast(req, emit, { routing, deadline, signal: request.signal });
       } catch (err) {
         emit({ type: "error", message: err instanceof Error ? err.message : "Unexpected error" });
       }

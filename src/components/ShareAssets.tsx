@@ -32,7 +32,7 @@ const PALETTE = {
 const LABELS = {
   English: {
     kicker: "This week",
-    footer: "Planned with live local data · Tastecraft",
+    footer: "Planned with live local data · Tablecast",
     comingUp: "Coming up",
     onTheMenu: "On the menu",
     fresh: "New",
@@ -42,7 +42,7 @@ const LABELS = {
   },
   Español: {
     kicker: "Esta semana",
-    footer: "Planificado con datos locales en vivo · Tastecraft",
+    footer: "Planificado con datos locales en vivo · Tablecast",
     comingUp: "Próximamente",
     onTheMenu: "En la carta",
     fresh: "Novedad",
