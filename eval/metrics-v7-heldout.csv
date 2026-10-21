@@ -1,0 +1,17 @@
+restaurant,writer,published,retried,claims,verified_first_pass,verified_final,amounts_checked,amounts_unbacked_first,amounts_unbacked_final,dates_checked,dates_past_first,dates_past_final,dates_dropped,writer_ms,write_and_verify_ms,gather_ms,usd_writer,usd_research,tavily_credits
+franklin-barbecue-austin,ultra-medium,true,false,23,5,12,15,2,0,23,0,0,0,24882,51009,24394,0.147992,0.002103,6
+franklin-barbecue-austin,super-medium,true,false,17,9,11,0,0,0,17,0,0,0,151474,159277,24394,0.060625,0.002103,6
+commander-s-palace-new-orleans,ultra-medium,true,false,18,12,17,14,2,0,23,0,0,0,17870,28698,33368,0.061231,0.001891,7
+commander-s-palace-new-orleans,super-medium,true,false,17,10,14,0,0,0,19,0,0,0,127218,132048,33368,0.039808,0.001891,7
+pai-northern-thai-kitchen-toronto,ultra-medium,true,false,12,2,9,5,3,0,19,0,0,0,14137,33321,22667,0.099039,0.001427,7
+pai-northern-thai-kitchen-toronto,super-medium,true,false,15,13,14,0,0,0,20,0,0,0,127427,131413,22667,0.026631,0.001427,7
+hawksmoor-manchester-manchester,ultra-medium,true,false,25,11,18,24,0,0,20,0,0,0,21354,38541,22198,0.107120,0.002202,7
+hawksmoor-manchester-manchester,super-medium,true,false,19,4,6,3,2,0,19,0,0,0,124642,134623,22198,0.059285,0.002202,7
+chin-chin-melbourne,ultra-medium,true,false,13,4,8,4,0,0,21,0,0,0,19090,33920,22663,0.092234,0.001628,6
+chin-chin-melbourne,super-medium,true,true,13,11,13,0,0,0,20,0,0,0,178028,180515,22663,0.041322,0.001628,6
+cervejaria-ramiro-lisbon,ultra-medium,true,false,23,9,19,13,5,0,20,0,0,0,20327,47518,24300,0.127441,0.002007,9
+cervejaria-ramiro-lisbon,super-medium,true,true,14,6,8,0,0,0,18,0,0,0,48148,58622,24300,0.050118,0.002007,9
+contramar-mexico-city,ultra-medium,true,false,16,7,16,17,0,0,19,0,0,0,20258,31543,22208,0.080348,0.001502,6
+contramar-mexico-city,super-medium,true,false,15,14,15,0,0,0,23,0,0,0,73291,78470,22208,0.022680,0.001502,6
+salumeria-roscioli-rome,ultra-medium,true,false,13,5,6,7,0,0,20,0,0,0,20466,27719,22193,0.064958,0.002326,8
+salumeria-roscioli-rome,super-medium,true,false,14,11,11,0,0,0,18,0,0,0,130262,134304,22193,0.027433,0.002326,8

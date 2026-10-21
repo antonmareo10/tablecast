@@ -1,0 +1,17 @@
+restaurant,writer,published,retried,claims,verified_first_pass,verified_final,amounts_checked,amounts_unbacked_first,amounts_unbacked_final,writer_ms,usd
+franklin-barbecue-austin,ultra-medium,true,false,23,5,12,15,2,0,24882,0.147992
+franklin-barbecue-austin,super-medium,true,false,17,9,11,0,0,0,151474,0.060625
+commander-s-palace-new-orleans,ultra-medium,true,false,18,12,17,14,2,0,17870,0.061231
+commander-s-palace-new-orleans,super-medium,true,false,17,10,14,0,0,0,127218,0.039808
+pai-northern-thai-kitchen-toronto,ultra-medium,true,false,12,2,9,5,3,0,14137,0.099039
+pai-northern-thai-kitchen-toronto,super-medium,true,false,15,13,14,0,0,0,127427,0.026631
+hawksmoor-manchester-manchester,ultra-medium,true,false,25,11,18,24,0,0,21354,0.107120
+hawksmoor-manchester-manchester,super-medium,true,false,19,4,6,3,2,0,124642,0.059285
+chin-chin-melbourne,ultra-medium,true,false,13,4,8,4,0,0,19090,0.092234
+chin-chin-melbourne,super-medium,true,true,13,11,13,0,0,0,178028,0.041322
+cervejaria-ramiro-lisbon,ultra-medium,true,false,23,9,19,13,5,0,20327,0.127441
+cervejaria-ramiro-lisbon,super-medium,true,true,14,6,8,0,0,0,48148,0.050118
+contramar-mexico-city,ultra-medium,true,false,16,7,16,17,0,0,20258,0.080348
+contramar-mexico-city,super-medium,true,false,15,14,15,0,0,0,73291,0.022680
+salumeria-roscioli-rome,ultra-medium,true,false,13,5,6,7,0,0,20466,0.064958
+salumeria-roscioli-rome,super-medium,true,false,14,11,11,0,0,0,130262,0.027433

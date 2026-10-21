@@ -1,0 +1,35 @@
+{
+  "_how": "Read by hand, 21 Oct 2026, next to each restaurant's week in its evidence pack (forecast, events, holidays). dishes: the three dish names as the baseline wrote them, without its descriptions. week: true only if the dish is tied to something specific in this week's data (a day's weather, an event or a holiday that is really there); a generic season or an assumed weather doesn't count. Matched against the fetched menu by code (eval-heldout.ts).",
+  "franklin-barbecue-austin": {
+    "ultra-medium": { "dishes": ["Smoked brisket tacos", "Jalapeño cheddar cornbread muffins", "Bourbon glazed pork belly bites"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Smoked Brisket Tacos", "Pork Belly Fried Rice", "Sweet Potato & Black Bean Chili"], "week": [false, false, false], "note": "a chili in a dry 27–30 °C week" }
+  },
+  "commander-s-palace-new-orleans": {
+    "ultra-medium": { "dishes": ["Creole chicken and sausage gumbo", "Blackened catfish", "Beignets"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Gulf shrimp gazpacho", "Crawfish étouffée", "Peach-and-bourbon glazed pork chop"], "week": [false, false, false], "note": "\"for hot afternoons\", \"when evenings cool\", \"for humid days\": assumed weather, no day named" }
+  },
+  "pai-northern-thai-kitchen-toronto": {
+    "ultra-medium": { "dishes": ["Khao Soi", "Sai Oua", "Sticky rice with mango"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Spicy Khao Soi Curry Noodles", "Crispy Pork Belly with Tamarind Glaze", "Mango Sticky Rice Spring Rolls"], "week": [false, false, false] }
+  },
+  "hawksmoor-manchester-manchester": {
+    "ultra-medium": { "dishes": ["Smoked brisket sandwich", "Charred cauliflower steak", "Pea & mint risotto"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Beef & Ale Pie", "Smoked Salmon & Avocado Salad", "Mushroom & Thyme Risotto"], "week": [false, false, false] }
+  },
+  "chin-chin-melbourne": {
+    "ultra-medium": { "dishes": ["Grilled king prawns", "Charred corn & miso risotto", "Coconut-lime panna cotta"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Spiced Pumpkin Gnocchi", "Miso-Glazed Barramundi", "Charred Eggplant & Peanut Satay Skewers"], "week": [false, false, false] }
+  },
+  "cervejaria-ramiro-lisbon": {
+    "ultra-medium": { "dishes": ["Grilled octopus", "Clams in white-wine chorizo broth", "Chestnut-mushroom risotto"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Spicy Garlic Shrimp Piri-Piri bowl", "Smoked Sardine & Tomato Tart", "Grilled Halloumi & Fig Salad"], "week": [false, false, false] }
+  },
+  "contramar-mexico-city": {
+    "ultra-medium": { "dishes": ["Mango-chili ceviche tostada", "Grilled corn-stuffed poblano", "Chipotle-braised short-rib tacos"], "week": [false, false, false] },
+    "super-medium": { "dishes": ["Grilled fish taco", "Cucumber-mint gazpacho", "Quinoa salad"], "week": [false, false, false] }
+  },
+  "salumeria-roscioli-rome": {
+    "ultra-medium": { "dishes": ["Chilled tomato-basil gazpacho with burrata", "Grilled zucchini, eggplant, and pepper antipasto", "Lemon-mint sorbet with fresh figs"], "week": [false, false, false], "note": "\"Assuming hot sunny days\" in a week that opens with a hailstorm (27.6 mm)" },
+    "super-medium": { "dishes": ["Cucumber-mint gazpacho", "Grilled peach and burrata salad", "Rosemary-infused lamb kebabs"], "week": [false, false, false], "note": "an al fresco patio hour \"daily\" in a week with two thunderstorm days" }
+  }
+}
