@@ -2,7 +2,7 @@
 // without it the source is simply off (null). Quota on the free tier: 5 requests/s, 5,000/day.
 
 import { fetchJson, SourceError, warnSource } from "./http";
-import { cleanText, compareText, dayLabel, isValidLatLon, normalizeKey, parseIsoDate } from "./format";
+import { addDaysIso, cleanText, compareText, dayLabel, isValidLatLon, normalizeKey, parseIsoDate } from "./format";
 
 export type NearbyEvent = {
   id: string;
@@ -45,13 +45,15 @@ const meaningful = (s: string | undefined) => {
 
 /**
  * Events within `radiusKm` (default 5) over the next `days` (default 7), date order, one entry per
- * name + date, at most `size` (default and max 25). Null when no API key is configured or the listing
+ * name + date, at most `size` (default and max 25). With `from` (the place's local date, YYYY-MM-DD), events
+ * dated outside [from, from + days) are dropped: the listing can return season passes and stray items
+ * ("Sat 25 May", "Fri 25 Sep" in the held-out eval). Null when no API key is configured or the listing
  * is unavailable; [] when nothing is on. Throws SourceError CONFIG if the key is rejected.
  */
 export async function eventsNear(
   lat: number,
   lon: number,
-  opts: { days?: number; radiusKm?: number; size?: number } = {},
+  opts: { days?: number; radiusKm?: number; size?: number; from?: string } = {},
 ): Promise<NearbyEvent[] | null> {
   const key = process.env.TICKETMASTER_API_KEY?.trim();
   if (!key) return null;
@@ -61,6 +63,7 @@ export async function eventsNear(
   const size = Math.max(1, Math.min(MAX_EVENTS, Math.round(opts.size ?? MAX_EVENTS)));
   const now = new Date();
   const end = new Date(now.getTime() + days * 86_400_000);
+  const window = opts.from && parseIsoDate(opts.from) ? { from: opts.from, to: addDaysIso(opts.from, days) as string } : null;
 
   const url = new URL(TM_EVENTS);
   url.searchParams.set("apikey", key);
@@ -91,6 +94,7 @@ export async function eventsNear(
     const date = e.dates?.start?.localDate ?? "";
     const status = e.dates?.status?.code ?? "";
     if (!e.id || !name || !parseIsoDate(date) || NOT_AN_EVENT.test(name)) continue;
+    if (window && (date < window.from || date >= window.to)) continue;
     if (/^(cancelled|canceled|postponed)$/i.test(status) || e.dates?.start?.dateTBA || e.dates?.start?.dateTBD) continue;
     const k = `${normalizeKey(name)}|${date}`;
     if (seen.has(k)) continue;

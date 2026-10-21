@@ -109,6 +109,24 @@ describe("eventsNear", () => {
     ]);
   });
 
+  it("keeps only the week's dates when given the local date (the listing can return season passes)", async () => {
+    mockFetch(() =>
+      jsonResponse({
+        _embedded: {
+          events: [
+            ev("s", "Abono viernes Orquesta Sinfónica Nacional", "2026-09-25", "20:00:00"),
+            ev("m", "Row C Start", "2026-05-25", "19:30:00"),
+            ev("w", "Jesse & Joy", "2026-10-21", "20:30:00"),
+            ev("l", "Last night of the week", "2026-10-27", "21:00:00"),
+            ev("n", "Next week", "2026-10-28", "21:00:00"),
+          ],
+        },
+      }),
+    );
+    const list = await eventsNear(19.42, -99.17, { from: "2026-10-21", days: 7 });
+    expect(list!.map((e) => e.id)).toEqual(["w", "l"]);
+  });
+
   it("caps the list at 25 (or the requested size)", async () => {
     const events = Array.from({ length: 40 }, (_, i) => ev(`e${i}`, `Show ${i}`, "2025-10-24", `${String(10 + (i % 12)).padStart(2, "0")}:00:00`));
     mockFetch(() => jsonResponse({ _embedded: { events } }));

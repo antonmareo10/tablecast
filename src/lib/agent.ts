@@ -381,7 +381,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       return { value: h, summary: h.length ? `${h.length} in the next 10 days` : "None in the next 10 days", sources: ids };
     }),
     step<NearbyEvent[]>("events", "Events near the restaurant (Ticketmaster)", async () => {
-      const ev = (await eventsNear(place.lat, place.lon, { days: 7, radiusKm: 5 })) ?? [];
+      const ev = (await eventsNear(place.lat, place.lon, { days: 7, radiusKm: 5, from: today })) ?? [];
       const ids = ev.slice(0, 12).map((e) => ledger.add({ kind: "event", provider: "Ticketmaster", title: e.name, url: e.url, text: eventLine(e) }).id);
       return { value: ev, summary: ev.length ? `${ev.length} within 5 km` : "None listed", sources: ids };
     }),
