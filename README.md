@@ -11,7 +11,7 @@ Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and
 
 ## Judge in 60 seconds
 
-1. Open the [live demo](https://tastecraft-open.vercel.app) and click one of the **instant replays** under the form (real recorded runs, labelled as recorded — no waiting).
+1. Open the [live demo](https://tastecraft-open.vercel.app) and click one of the **instant replays** under the form — on a phone, right below the intro (real recorded runs, labelled as recorded — no waiting).
 2. Look at **Your week**: the 7-day forecast, holidays and events within 5 km, then the **demand moments** the agent drew from them.
 3. In the green header, read **“N / N claims checked against their sources”**. Hover or tap any source chip (`S3 gjelina.com ×3`) to see the exact sentences it cites, with a link to open the page. A claim that failed the check is marked in place, with the reason.
 4. Jump to **Proof & engine**: the evidence ledger (every source fetched in that run), Nemotron answering *without* data, and the **engine room** — every Nemotron call with its tokens, latency and cost.

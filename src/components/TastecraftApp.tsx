@@ -103,6 +103,13 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
     }
   }
 
+  function startReplay(d: DemoSummary) {
+    const req: AgentRequest = { restaurant: d.restaurant, city: d.city, goal: d.goal, language: "English" };
+    setForm(req);
+    setPhotoName(null);
+    run(req, d);
+  }
+
   const started = phase !== "idle";
   const inputCls = "w-full rounded-lg border border-line bg-paper/60 px-3 py-2.5 text-[15px] outline-none transition focus:border-olive focus:bg-card";
 
@@ -127,10 +134,33 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">For independent restaurants</p>
             <h1 className="font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-6xl">Plan this week with what’s happening around you.</h1>
             <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-2">
-              Rain on Thursday, a match two streets away, a holiday on Sunday, a rival that just raised its prices. Tastecraft reads your week —
+              Rain on Thursday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tastecraft reads your week —
               forecast, events, your block, your menu and what guests say online — and turns it into three dishes to test, an event, a post and a
               supplier order. Every claim links to the exact sentence it stands on, checked in code.
             </p>
+            {!started && demos.length > 0 && (
+              <div className="mt-5 max-w-xl rounded-2xl border border-olive/25 bg-olive/5 p-4 lg:hidden">
+                <p className="flex items-center gap-2 text-[14px] font-semibold text-olive">
+                  <span aria-hidden className="grid h-5 w-5 place-items-center rounded-full bg-olive text-[9px] text-paper">
+                    ▶
+                  </span>
+                  Watch a real recorded run — no wait
+                </p>
+                <p className="mt-1 text-[12px] text-ink-2">Instant replays of live runs, labelled as recorded.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {demos.map((d) => (
+                    <button
+                      key={d.slug}
+                      type="button"
+                      onClick={() => startReplay(d)}
+                      className="inline-flex items-center gap-1 rounded-full border border-line bg-card px-3 py-1.5 text-[13px] text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
+                    >
+                      {d.restaurant}, {d.city} <IconArrow size={12} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-5 flex flex-wrap items-center gap-2 text-[12px] text-muted">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-olive" />
@@ -143,12 +173,12 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
               <div className="mt-6 flex max-w-xl items-center gap-5 rounded-2xl border border-line bg-card p-4 sm:p-5">
                 <div className="shrink-0 text-center">
                   <div className="font-display text-5xl leading-none text-olive tabular-nums">96%</div>
-                  <div className="mt-1 text-[11px] text-muted">claims verified</div>
+                  <div className="mt-1 text-[11px] text-muted">claims verified · Quick</div>
                 </div>
                 <p className="text-[13px] leading-snug text-ink-2">
-                  <span className="font-semibold text-ink">Measured, not promised.</span> Across 32 plans for 8 restaurants, 96% of
-                  claims (98% with Thorough) passed the code check against the sentences they cite; what fails is marked, not hidden. A
-                  plan costs a few cents of inference ·{" "}
+                  <span className="font-semibold text-ink">Measured, not promised.</span> In our routing eval of 8 restaurants, 96% of Quick
+                  claims (Nemotron Ultra) and 98% of Thorough ones (Nemotron Super) passed the code check against the sentences they cite,
+                  after one repair pass. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
                   <a
                     href="https://github.com/antonmareo10/tastecraft-open/blob/main/eval/SUMMARY.md"
                     target="_blank"
@@ -180,7 +210,7 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
                 <input
                   value={form.website ?? ""}
                   onChange={(e) => setForm({ ...form, website: e.target.value || undefined })}
-                  placeholder="casalucio.es"
+                  placeholder="e.g. yourrestaurant.com"
                   inputMode="url"
                   className={inputCls}
                 />
@@ -299,10 +329,11 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
                   key={s.restaurant}
                   type="button"
                   onClick={() => {
+                    if ("slug" in s) return startReplay(s);
                     const req: AgentRequest = { restaurant: s.restaurant, city: s.city, goal: s.goal, language: "English" };
                     setForm(req);
                     setPhotoName(null);
-                    run(req, "slug" in s ? s : undefined);
+                    run(req);
                   }}
                   disabled={phase === "running"}
                   className="inline-flex items-center gap-1 text-ink-2 underline decoration-line underline-offset-4 hover:text-ink hover:decoration-ink-2"
@@ -345,11 +376,7 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
                             <button
                               key={d.slug}
                               type="button"
-                              onClick={() => {
-                                const req: AgentRequest = { restaurant: d.restaurant, city: d.city, goal: d.goal };
-                                setForm(req);
-                                run(req, d);
-                              }}
+                              onClick={() => startReplay(d)}
                               className="rounded-full border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink-2 hover:text-ink"
                             >
                               {d.restaurant} →
