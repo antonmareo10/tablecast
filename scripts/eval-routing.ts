@@ -5,7 +5,7 @@
 // plan from that SAME evidence pack, so the only thing that varies is the writer model / reasoning effort.
 // Every claim is verified in code exactly as in production.
 //
-// Usage: npx tsx scripts/eval-routing.ts [--only slug1,slug2] [--configs a,b]
+// Usage: npx tsx scripts/eval-routing.ts [--only slug1,slug2] [--configs a,b] [--restaurants eval/heldout.json]
 // Needs NEBIUS_API_KEY, TAVILY_API_KEY (and optionally TICKETMASTER_API_KEY) in the environment.
 // Raw packs and runs go to eval/results/ (gitignored: they hold third-party page text);
 // only the aggregate eval/SUMMARY.md is meant to be committed.
@@ -59,10 +59,12 @@ async function packFor(req: AgentRequest, slug: string): Promise<{ pack: Evidenc
     if (e.type === "engine") calls.push(e.call);
     if (e.type === "tool_end" && e.error) console.log(`   ! ${e.tool}: ${e.summary}`);
   };
+  const started = Date.now();
   const pack = await gatherEvidence(req, emit, { routing: defaultRouting() });
   if (!pack) return null;
+  const gatherMs = Date.now() - started; // context + research, wall clock
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ pack, calls }));
+  fs.writeFileSync(file, JSON.stringify({ pack, calls, gatherMs }));
   return { pack, calls };
 }
 
@@ -96,7 +98,7 @@ async function runConfig(slug: string, config: string, pack: EvidencePack): Prom
 }
 
 async function main() {
-  const list = loadRestaurants();
+  const list = loadRestaurants(argOne("restaurants") ?? undefined);
   const only = arg("only");
   const configs = arg("configs") ?? Object.keys(CONFIGS);
   const results: RunResult[] = [];

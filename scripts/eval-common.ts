@@ -20,8 +20,9 @@ export function slugOf(r: AgentRequest): string {
     .replace(/(^-|-$)/g, "");
 }
 
-export function loadRestaurants(): AgentRequest[] {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, "eval", "restaurants.json"), "utf8")) as AgentRequest[];
+/** The eval's restaurants: eval/restaurants.json (the 8 used since v3), or another list such as eval/heldout.json. */
+export function loadRestaurants(file = path.join("eval", "restaurants.json")): AgentRequest[] {
+  return JSON.parse(fs.readFileSync(path.resolve(ROOT, file), "utf8")) as AgentRequest[];
 }
 
 /** A cached evidence pack (eval/results/packs/<slug>.json), or null if it was never gathered. */
