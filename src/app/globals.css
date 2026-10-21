@@ -6,13 +6,20 @@
   --card: #fffdf8;
   --ink: #1d1b17;
   --ink-2: #4a4539;
-  --muted: #8a8273;
+  /* Muted and terracotta are a shade deeper than before so small text reads at ≥ 4.5:1 on paper and card. */
+  --muted: #6f6759;
   --line: #e2d8c4;
   --olive: #2f4a35;
   --olive-2: #46684d;
-  --terracotta: #c0532c;
+  --terracotta: #ad4823;
   --saffron: #dd9a2e;
   --plum: #6b3b5a;
+
+  /* One motion language: a long, soft ease-out for entrances; a light overshoot for interactive feedback. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-reveal: 560ms;
+  --stagger: 60ms;
 }
 
 @theme inline {
@@ -46,6 +53,15 @@ body {
   background: color-mix(in srgb, var(--saffron) 35%, transparent);
 }
 
+/* A visible focus ring on every interactive element; saffron on the dark olive surfaces. */
+:where(a, button, summary, [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--olive);
+  outline-offset: 2px;
+}
+.on-dark :where(a, button, summary, [tabindex]):focus-visible {
+  outline-color: var(--saffron);
+}
+
 .font-display {
   font-family: var(--font-fraunces), ui-serif, Georgia, serif;
   font-optical-sizing: auto;
@@ -53,17 +69,32 @@ body {
 
 /* Subtle paper grain so the page does not look like a template. */
 .grain {
-  background-image: radial-gradient(
-    color-mix(in srgb, var(--ink) 6%, transparent) 0.6px,
-    transparent 0.6px
-  );
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 0.6px, transparent 0.6px);
   background-size: 6px 6px;
 }
+
+/* ---- Smooth scroll (Lenis, desktop only) ------------------------------------------------------- */
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* ---- Entrances ------------------------------------------------------------------------------------ */
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -71,8 +102,81 @@ body {
   }
 }
 
+/* CSS entrance for content that is on screen before hydration (no wait for JavaScript). */
 .rise {
-  animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: rise var(--dur-reveal) var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Headline words slide up out of a mask, one after another. */
+.kinetic .w {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0.08em 0.02em 0.14em;
+  margin: -0.08em -0.02em -0.14em;
+}
+.kinetic .w > span {
+  display: inline-block;
+  animation: word-up 640ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger) + var(--d, 60ms));
+}
+@keyframes word-up {
+  from {
+    transform: translateY(108%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Hand-drawn underline that draws itself after the headline lands. */
+.draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 900ms var(--ease-out) forwards;
+  animation-delay: var(--d, 700ms);
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A number that counts up to its real value in CSS, so it starts on first paint (no hydration wait). */
+@property --n {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+.css-count {
+  --n: var(--to);
+  counter-reset: n var(--n);
+  animation: count-up 1400ms var(--ease-out) both;
+  animation-delay: var(--d, 300ms);
+}
+.css-count::after {
+  content: counter(n);
+}
+@keyframes count-up {
+  from {
+    --n: 0;
+  }
+}
+
+/* Week-strip tiles: rise in sequence; rain bars grow from the ground; event dots pop. */
+.bar-grow {
+  transform-origin: bottom center;
+  animation: grow-y 700ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: none;
+  }
 }
 
 @keyframes pulse-dot {
@@ -89,6 +193,36 @@ body {
   animation: pulse-dot 1.2s ease-in-out infinite;
 }
 
+/* A calm ring that breathes out of the active step (the element itself must be positioned). */
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ring, var(--terracotta));
+  animation: ring 1.8s var(--ease-out) infinite;
+  pointer-events: none;
+}
+@keyframes ring {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
 @keyframes grow-x {
   from {
     transform: scaleX(0);
@@ -98,10 +232,15 @@ body {
   }
 }
 
-/* Bars that draw themselves from the left (engine timeline, cuisine bars). */
+/* Bars that draw themselves from the left (engine timeline, cuisine bars, claim bar). */
 .grow-x {
   transform-origin: left center;
-  animation: grow-x 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: grow-x 0.7s var(--ease-out) both;
+}
+/* Inside a SeenGate, bars wait (at zero) until the reader reaches the figure, then draw. */
+[data-inview="false"] .grow-x {
+  animation: none;
+  transform: scaleX(0);
 }
 
 @keyframes pop {
@@ -120,6 +259,26 @@ body {
 
 .pop {
   animation: pop 0.35s ease-out both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Skeleton shimmer: a light band sweeps across (transform only). */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card) 70%, transparent), transparent);
+  animation: sweep 1.6s var(--ease-out) infinite;
+}
+@keyframes sweep {
+  to {
+    transform: translateX(100%);
+  }
 }
 
 /* Diagonal hatching for "tools running" segments on the engine timeline. */
@@ -127,12 +286,158 @@ body {
   background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 22%, transparent) 0 2px, transparent 2px 6px);
 }
 
+/* ---- Interactive depth ---------------------------------------------------------------------------- */
+
+/* Cards lift on hover; the shadow lives on a pseudo-element so only opacity and transform animate. */
+.lift {
+  position: relative;
+  isolation: isolate;
+  transition:
+    translate 380ms var(--ease-out),
+    border-color 200ms ease,
+    background-color 200ms ease;
+}
+.lift::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: 0 18px 36px -22px rgba(29, 27, 23, 0.35);
+  opacity: 0;
+  transition: opacity 380ms var(--ease-out);
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .lift:hover {
+    translate: 0 -3px;
+  }
+  .lift:hover::before {
+    opacity: 1;
+  }
+}
+
+/* Magnetic buttons: JS sets --mx/--my (≤ 6 px) from the pointer; CSS springs back. */
+.magnetic {
+  transform: translate3d(var(--mx, 0px), var(--my, 0px), 0);
+  transition:
+    transform 420ms var(--ease-spring),
+    scale 160ms var(--ease-out),
+    background-color 200ms ease,
+    color 200ms ease;
+}
+.magnetic:active:not(:disabled) {
+  scale: 0.97;
+}
+.nudge {
+  transition: transform 300ms var(--ease-out);
+}
+.group:hover .nudge,
+.group:focus-visible .nudge {
+  transform: translateX(3px);
+}
+
+/* Sliding pill: a duplicate row in the accent colour, clipped to the active item. */
+.pill-layer {
+  clip-path: inset(0 var(--pr, 100%) 0 var(--pl, 0px) round 999px);
+}
+[data-ready="true"] > .pill-layer {
+  transition: clip-path 480ms var(--ease-out);
+}
+/* Until measured (or without JavaScript) the active item carries the accent itself. */
+:not([data-ready="true"]) > .pill-layer {
+  visibility: hidden;
+}
+:not([data-ready="true"]) > * > [data-pill-item][data-active="true"] {
+  background: var(--olive);
+  color: var(--paper);
+}
+
+/* Bigger touch targets for small inline chips, without changing their look. */
+@media (pointer: coarse) {
+  .hit {
+    position: relative;
+  }
+  .hit::before {
+    content: "";
+    position: absolute;
+    inset: -12px 0;
+  }
+}
+
+/* Footer marquee of the data and model providers. */
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.marquee-track {
+  animation: marquee 38s linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Cursor light behind the hero (moved by JS with transforms; static where there is no fine pointer). */
+.cursor-light {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--size, 640px);
+  height: var(--size, 640px);
+  border-radius: 999px;
+  pointer-events: none;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise,
   .pulse-dot,
   .grow-x,
-  .pop {
+  .pop,
+  .bar-grow,
+  .spin,
+  .shimmer::after,
+  .pulse-ring::after,
+  .kinetic .w > span,
+  .css-count {
     animation: none;
+  }
+  .draw-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .pulse-ring::after,
+  .shimmer::after {
+    display: none;
+  }
+  .lift,
+  .lift::before,
+  .magnetic,
+  .nudge,
+  [data-ready="true"] > .pill-layer {
+    transition: none;
+  }
+  .lift:hover {
+    translate: none;
+  }
+  .magnetic {
+    transform: none;
+  }
+  .marquee {
+    mask-image: none;
+  }
+  .marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto !important;
+  }
+  .marquee-copy {
+    display: none;
   }
 }
 
@@ -160,5 +465,15 @@ body {
   }
   section {
     break-inside: avoid;
+  }
+  /* Everything a reveal has not reached yet still prints. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .grow-x,
+  .bar-grow,
+  .rise {
+    animation: none !important;
   }
 }
