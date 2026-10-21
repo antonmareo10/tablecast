@@ -54,7 +54,7 @@ export function defaultRouting(): Routing {
   };
 }
 
-/** "Economy": Nemotron Super writes. Measured (v5, v6): as faithful as Ultra (82%, 88%) at a third to half its cost per plan, but ~2 min to write. */
+/** "Economy": Nemotron Super writes. Measured (v5, v6): as faithful as Ultra (82%, 88%) at a third to half its cost per plan, but ~2 min to write (2–3 min end to end). */
 export function economyRouting(): Routing {
   const base = defaultRouting();
   return {
