@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Routing: which Nemotron writes the plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f6f1e7; --card: #fffdf8; --ink: #1d1b17; --ink-2: #4a4539; --muted: #6f6759; --line: #e2d8c4; --olive: #2f4a35; --terracotta: #ad4823;
+    --s-quick: #1f8a5b; --s-ulow: #2a78d6; --s-econ: #c4512a; --s-light: #9a4fb0;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1500px; height: 1000px; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; padding: 44px 56px 36px; }
+  .kicker { font-size: 14px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--terracotta); }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 40px; line-height: 1.1; margin-top: 8px; letter-spacing: -.01em; }
+  .sub { margin-top: 10px; font-size: 17px; color: var(--ink-2); max-width: 1300px; line-height: 1.45; }
+  .grid { display: grid; grid-template-columns: 900px 1fr; gap: 28px; margin-top: 22px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px 12px; }
+  .panel h2 { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .panel p.note { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  svg text { font-family: Inter, system-ui, sans-serif; }
+  .foot { margin-top: 16px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .foot b { color: var(--ink-2); font-weight: 600; }
+</style>
+</head>
+<body>
+  <p class="kicker">Tablecast · routing eval</p>
+  <h1>Which Nemotron should write the plan?</h1>
+  <p class="sub">Each writer setting wrote a plan for the same 8 restaurants from the same evidence, in two rounds (v5 and v6), and code checked every cited claim. The two rounds of one setting differ by up to 6 points: that is the noise.</p>
+  <div class="grid">
+    <div class="panel">
+      <h2>Claims verified × cost per plan</h2>
+      <p class="note">Filled = after the one repair pass (what the owner sees) · hollow = the writer alone (first pass) · one stem per round</p>
+      <svg id="scatter" width="858" height="610"></svg>
+    </div>
+    <div class="panel">
+      <h2>Time to write one plan</h2>
+      <p class="note">Seconds, writer only · dot = median of 8 · bar end = slowest</p>
+      <svg id="time" width="418" height="610"></svg>
+    </div>
+  </div>
+  <p class="foot"><b>Quick</b> = Nemotron 3 Ultra at medium effort (best average, fast). <b>Economy</b> = Nemotron 3 Super at medium effort (as faithful, a third to half the cost, ~2 min). Lightning stays the research model: it ties few dishes to the week, and 2 of 8 v6 plans stalled. Cost = writer + repair calls at published Token Factory prices (median per plan). Data: eval/SUMMARY.md, eval/metrics-runs-v5-coverage.csv, eval/metrics-runs-v6-languages.csv.</p>
+<script>
+const S = [
+  { name: "Ultra · medium", role: "Quick", color: "var(--s-quick)", shape: "circle",
+    v5: { first: 46.7, final: 88.6, usd: 0.1052, med: 27.2, max: 36.5 }, v6: { first: 44.8, final: 84.2, usd: 0.0947, med: 31.4, max: 41.6 } },
+  { name: "Ultra · low", role: "", color: "var(--s-ulow)", shape: "square",
+    v5: { first: 40.9, final: 81.0, usd: 0.1045, med: 25.5, max: 47.5 }, v6: { first: 43.9, final: 84.1, usd: 0.0849, med: 22.2, max: 52.9 } },
+  { name: "Super · medium", role: "Economy", color: "var(--s-econ)", shape: "diamond",
+    v5: { first: 55.6, final: 82.2, usd: 0.0487, med: 118.1, max: 177.2 }, v6: { first: 64.2, final: 88.1, usd: 0.0333, med: 123.2, max: 223.3 } },
+  { name: "Lightning · low", role: "", color: "var(--s-light)", shape: "triangle",
+    v5: { first: 71.1, final: 87.5, usd: 0.0233, med: 99.8, max: 199.3 }, v6: { first: 58.9, final: 81.1, usd: 0.0248, med: 67.0, max: 193.8 } },
+];
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+const txt = (parent, x, y, s, attrs = {}) => { const t = el("text", { x, y, "font-size": 13, fill: "var(--ink-2)", ...attrs }, parent); t.textContent = s; return t; };
+
+function marker(g, shape, x, y, r, fill, stroke) {
+  const a = { fill, stroke, "stroke-width": 2 };
+  if (shape === "circle") return el("circle", { cx: x, cy: y, r, ...a }, g);
+  if (shape === "square") return el("rect", { x: x - r * 0.88, y: y - r * 0.88, width: r * 1.76, height: r * 1.76, rx: 2, ...a }, g);
+  if (shape === "diamond") return el("path", { d: `M${x},${y - r * 1.2} L${x + r * 1.2},${y} L${x},${y + r * 1.2} L${x - r * 1.2},${y} Z`, ...a }, g);
+  return el("path", { d: `M${x},${y - r * 1.25} L${x + r * 1.15},${y + r * 0.85} L${x - r * 1.15},${y + r * 0.85} Z`, ...a }, g);
+}
+
+// ---- scatter: x = cost, y = verified share ----
+{
+  const svg = document.getElementById("scatter");
+  const m = { l: 58, r: 24, t: 18, b: 52 }, W = 858, H = 610;
+  const X = (usd) => m.l + (usd / 0.12) * (W - m.l - m.r);
+  const Y = (p) => m.t + ((100 - p) / (100 - 35)) * (H - m.t - m.b);
+  const grid = el("g", {}, svg);
+  for (let p = 40; p <= 100; p += 10) {
+    el("line", { x1: m.l, x2: W - m.r, y1: Y(p), y2: Y(p), stroke: "var(--line)", "stroke-width": 1 }, grid);
+    txt(grid, m.l - 10, Y(p) + 4, `${p}%`, { "text-anchor": "end", fill: "var(--muted)" });
+  }
+  for (let c = 0; c <= 0.12001; c += 0.02) {
+    txt(grid, X(c), H - m.b + 22, `$${c.toFixed(2)}`, { "text-anchor": "middle", fill: "var(--muted)" });
+    el("line", { x1: X(c), x2: X(c), y1: H - m.b, y2: H - m.b + 6, stroke: "var(--muted)", "stroke-width": 1 }, grid);
+  }
+  el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--muted)", "stroke-width": 1 }, grid);
+  txt(grid, (m.l + W - m.r) / 2, H - 8, "Cost per plan (median, US$, writer + repairs)", { "text-anchor": "middle", fill: "var(--ink-2)", "font-size": 14 });
+  const yl = txt(grid, 16, (m.t + H - m.b) / 2, "Claims verified (pooled share)", { "text-anchor": "middle", fill: "var(--ink-2)", "font-size": 14 });
+  yl.setAttribute("transform", `rotate(-90 16 ${(m.t + H - m.b) / 2})`);
+
+  const g = el("g", {}, svg);
+  for (const s of S) {
+    // noise link between the two rounds' final points
+    el("line", { x1: X(s.v5.usd), y1: Y(s.v5.final), x2: X(s.v6.usd), y2: Y(s.v6.final), stroke: s.color, "stroke-width": 2, "stroke-dasharray": "2 5", "stroke-linecap": "round", opacity: 0.8 }, g);
+    for (const [round, v] of [["v5", s.v5], ["v6", s.v6]]) {
+      el("line", { x1: X(v.usd), x2: X(v.usd), y1: Y(v.first), y2: Y(v.final), stroke: s.color, "stroke-width": 2, opacity: 0.45 }, g);
+      marker(g, s.shape, X(v.usd), Y(v.first), 6, "var(--card)", s.color);
+    }
+  }
+  for (const s of S) for (const [round, v] of [["v5", s.v5], ["v6", s.v6]]) {
+    marker(g, s.shape, X(v.usd), Y(v.final), 8, s.color, "var(--card)");
+  }
+  // labels
+  const lab = el("g", {}, svg);
+  const label = (x, y, lines, anchor = "start") => lines.forEach(([s, a], i) => txt(lab, x, y + i * 17, s, { "text-anchor": anchor, ...a }));
+  const pct = (n) => `${Math.round(n)}%`;
+  // Quick (Ultra · medium)
+  label(X(0.1052) - 14, Y(88.6) - 34, [[`Quick · Ultra, medium`, { "font-weight": 600, fill: "var(--ink)", "font-size": 15 }], [`v5 ${pct(88.6)} · v6 ${pct(84.2)} after repair`, {}]], "end");
+  // Ultra low
+  label(X(0.0849) - 14, Y(84.1) + 34, [[`Ultra, low effort`, { "font-weight": 600, fill: "var(--ink)", "font-size": 15 }], [`v5 ${pct(81.0)} · v6 ${pct(84.1)}`, {}]], "end");
+  // Economy (Super)
+  label(X(0.0333) + 16, Y(88.1) - 30, [[`Economy · Super, medium`, { "font-weight": 600, fill: "var(--ink)", "font-size": 15 }], [`v5 ${pct(82.2)} · v6 ${pct(88.1)} · a third to half the cost`, {}]]);
+  // Lightning
+  label(X(0.0233) - 14, Y(76) , [[`Lightning, low`, { "font-weight": 600, fill: "var(--ink)", "font-size": 15 }], [`v5 ${pct(87.5)} · v6 ${pct(81.1)}`, {}], [`2 of 8 v6 plans stalled`, {}]], "end");
+  // round tags
+  for (const s of S) for (const [round, v] of [["v5", s.v5], ["v6", s.v6]]) txt(lab, X(v.usd) + 11, Y(v.final) + 4, round, { "font-size": 11, fill: "var(--muted)" });
+  // first-pass hint
+  txt(lab, X(0.0849) - 12, Y(44.8) + 4, "first pass: v5 47% · v6 45%", { "font-size": 12, fill: "var(--muted)", "text-anchor": "end" });
+  txt(lab, X(0.0487) + 12, Y(55.6) + 4, "first pass: v5 56% · v6 64%", { "font-size": 12, fill: "var(--muted)" });
+}
+
+// ---- time: median dot + slowest bar ----
+{
+  const svg = document.getElementById("time");
+  const m = { l: 112, r: 8, t: 18, b: 52 }, W = 418, H = 610;
+  const X = (s) => m.l + (s / 330) * (W - m.l - m.r);
+  const g = el("g", {}, svg);
+  for (let s = 0; s <= 300; s += 60) {
+    el("line", { x1: X(s), x2: X(s), y1: m.t, y2: H - m.b, stroke: "var(--line)", "stroke-width": 1 }, g);
+    txt(g, X(s), H - m.b + 22, `${s} s`, { "text-anchor": "middle", fill: "var(--muted)" });
+  }
+  txt(g, (m.l + W - m.r) / 2, H - 8, "Seconds to write (median · slowest)", { "text-anchor": "middle", fill: "var(--ink-2)", "font-size": 14 });
+  const band = (H - m.t - m.b) / S.length;
+  S.forEach((s, i) => {
+    const y0 = m.t + i * band;
+    txt(g, m.l - 14, y0 + band / 2 - 8, s.role || s.name.split(" ·")[0], { "text-anchor": "end", "font-weight": 600, fill: "var(--ink)", "font-size": 14 });
+    txt(g, m.l - 14, y0 + band / 2 + 10, s.role ? s.name.replace(" · ", ", ") : s.name.split("· ")[1] + " effort", { "text-anchor": "end", fill: "var(--muted)", "font-size": 12 });
+    [["v5", s.v5], ["v6", s.v6]].forEach(([round, v], k) => {
+      const y = y0 + band / 2 - 14 + k * 28;
+      el("rect", { x: X(0), y: y - 5, width: X(v.max) - X(0), height: 10, rx: 4, fill: s.color, opacity: 0.22 }, g);
+      el("line", { x1: X(v.max), x2: X(v.max), y1: y - 7, y2: y + 7, stroke: s.color, "stroke-width": 2 }, g);
+      marker(g, s.shape, X(v.med), y, 6, s.color, "var(--card)");
+      txt(g, X(v.max) + 8, y + 4, `${round}  ${Math.round(v.med)} / ${Math.round(v.max)} s`, { "font-size": 12, fill: "var(--ink-2)" });
+    });
+  });
+}
+</script>
+</body>
+</html>

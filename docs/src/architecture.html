@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tablecast architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+  :root { --paper: #f6f1e7; --paper-2: #efe7d8; --card: #fffdf8; --ink: #1d1b17; --ink-2: #4a4539; --muted: #6f6759; --line: #e2d8c4; --olive: #2f4a35; --olive-2: #46684d; --terracotta: #ad4823; --saffron: #dd9a2e; }
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1500px; height: 1000px; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; position: relative; overflow: hidden; }
+  header { position: absolute; left: 56px; top: 40px; right: 56px; }
+  .kicker { font-size: 14px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--terracotta); }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 38px; line-height: 1.1; margin-top: 8px; letter-spacing: -.01em; }
+  .sub { margin-top: 8px; font-size: 16px; color: var(--ink-2); }
+  .card { position: absolute; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; box-shadow: 0 1px 0 rgba(29,27,23,.04), 0 18px 36px -28px rgba(47,74,53,.45); }
+  .step { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--terracotta); }
+  .title { font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 600; margin-top: 4px; line-height: 1.15; }
+  .meta { margin-top: 6px; font-size: 13px; color: var(--muted); }
+  ul { list-style: none; padding: 0; margin-top: 10px; display: grid; gap: 6px; }
+  li { font-size: 14px; color: var(--ink-2); line-height: 1.35; display: flex; gap: 8px; align-items: baseline; }
+  li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--olive-2); transform: translateY(-2px); }
+  .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin: 6px 6px 0 0; }
+  .nem { background: rgba(47,74,53,.1); color: var(--olive); border: 1px solid rgba(47,74,53,.25); }
+  .tav { background: rgba(221,154,46,.14); color: #7a4f0a; border: 1px solid rgba(221,154,46,.45); }
+  .open { background: var(--paper-2); color: var(--ink-2); border: 1px solid var(--line); }
+  .code { background: rgba(173,72,35,.08); color: var(--terracotta); border: 1px solid rgba(173,72,35,.3); }
+  .ledger { position: absolute; left: 56px; right: 56px; top: 452px; height: 76px; border-radius: 16px; background: var(--olive); color: var(--card); padding: 14px 22px; display: flex; align-items: center; gap: 22px; }
+  .ledger b { font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 600; white-space: nowrap; }
+  .ledger span { font-size: 15px; opacity: .92; line-height: 1.4; }
+  .ledger code { font-family: ui-monospace, Consolas, monospace; background: rgba(255,253,248,.14); padding: 1px 6px; border-radius: 6px; }
+  .num { font-variant-numeric: tabular-nums; }
+  footer { position: absolute; left: 56px; right: 56px; bottom: 30px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  footer b { color: var(--ink-2); font-weight: 600; }
+  svg.arrows { position: absolute; inset: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+  <header>
+    <p class="kicker">Tablecast · how a plan is made</p>
+    <h1>Read the week, write the plan, check every cited claim</h1>
+    <p class="sub">Every step runs on the model that suits it, on Nebius Token Factory. Times and costs: the Gjelina replay (Quick, recorded 21 Oct 2026).</p>
+  </header>
+
+  <!-- row 1 -->
+  <div class="card" style="left:56px; top:186px; width:250px; height:236px">
+    <p class="step">Input</p>
+    <p class="title">The owner</p>
+    <ul><li>Restaurant and city</li><li>This week’s goal</li><li>Optional: a photo of the menu</li><li>Writer: Quick or Economy</li></ul>
+  </div>
+  <div class="card" style="left:346px; top:186px; width:500px; height:236px">
+    <p class="step">1 · Context, in parallel · ~1 s</p>
+    <p class="title">The week and the block, from open data</p>
+    <ul><li>7-day forecast at the door · public holidays</li><li>Events within 5 km · every venue within 600 m</li><li>Menu photo read into dishes and prices</li></ul>
+    <p><span class="chip open">OpenStreetMap</span><span class="chip open">Open-Meteo</span><span class="chip open">Nager.Date</span><span class="chip open">Ticketmaster</span><span class="chip nem">Nemotron 3.5 Super VL</span></p>
+  </div>
+  <div class="card" style="left:886px; top:186px; width:558px; height:236px">
+    <p class="step">2 · Research · ~30 s · $0.001 + 4 Tavily credits</p>
+    <p class="title">The live web: menu, guests, local news, a rival</p>
+    <ul><li>Map lists the site’s menu pages; code keeps this branch’s; Extract reads it</li><li>A fast agent loop searches and reads (≤ 6 searches, 4 reads, in parallel)</li><li>Results about a same-name place elsewhere are set aside</li></ul>
+    <p><span class="chip nem">Nemotron 3.5 Lightning · reasoning off</span><span class="chip tav">Tavily Map · Search · Extract</span></p>
+  </div>
+
+  <div class="ledger">
+    <b>Source ledger</b>
+    <span>Everything read becomes a numbered source, cut into numbered sentences (<code>S9.4</code>): the forecast, events, holidays, the block, menu and review pages, news. Claims can only cite these.</span>
+  </div>
+
+  <!-- row 2 -->
+  <div class="card" style="left:56px; top:572px; width:330px; height:300px">
+    <p class="step">3 · Write · Quick ~30 s · $0.047</p>
+    <p class="title">The plan, as one forced function call</p>
+    <ul><li>Strict schema, streamed: the UI drafts it live</li><li>Claims cite sentence ids, never a typed quote</li><li>Loop guard, time budget, one retry</li></ul>
+    <p><span class="chip nem">Nemotron 3 Ultra · Quick</span><span class="chip nem">Nemotron 3 Super · Economy</span></p>
+    <p class="meta">Economy (Super): ~2 min, a third to half the cost</p>
+  </div>
+  <div class="card" style="left:426px; top:572px; width:420px; height:300px; border-color: rgba(173,72,35,.45)">
+    <p class="step">4 · Verify · code decides</p>
+    <p class="title">Every cited claim, every price, every date</p>
+    <ul><li>Cited sentence exists; every number is in it</li><li>Its words are there (another language: numbers and names)</li><li>About this restaurant; an add-on goes with its own dish</li><li>Prices in the text match a dish or a checked claim</li><li>No date before today, local time</li></ul>
+    <p><span class="chip code">deterministic · no model judges truth</span></p>
+  </div>
+  <div class="card" style="left:886px; top:572px; width:262px; height:300px">
+    <p class="step">Repair, once · ~12 s · $0.031</p>
+    <p class="title">Fix or drop what failed</p>
+    <ul><li>One small call per failed claim, in parallel</li><li>One call for unbacked prices, one for past dates</li><li>Re-checked by code; what still fails is shown as unverified</li></ul>
+    <p><span class="chip nem">Nemotron 3 Ultra · low effort</span></p>
+  </div>
+  <div class="card" style="left:1188px; top:572px; width:256px; height:300px; background: var(--olive); border-color: var(--olive); color: var(--card)">
+    <p class="step" style="color: var(--saffron)">Output</p>
+    <p class="title">The owner’s week</p>
+    <ul style="--x:1"><li style="color: rgba(255,253,248,.9)">Demand moments, 3 dishes to test, an event</li><li style="color: rgba(255,253,248,.9)">Post, supplier order, day-by-day plan</li><li style="color: rgba(255,253,248,.9)">Evidence chips and the engine room: every call, its tokens, time and cost</li></ul>
+    <p class="meta num" style="color: rgba(255,253,248,.8)">This run: 24 of 26 claims verified · 77 s · $0.082</p>
+  </div>
+
+  <svg class="arrows" width="1500" height="1000">
+    <defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6f6759"/></marker></defs>
+    <g stroke="#6f6759" stroke-width="2" fill="none" marker-end="url(#a)">
+      <path d="M306,304 L340,304"/>
+      <path d="M846,304 L880,304"/>
+      <path d="M596,422 L596,446"/>
+      <path d="M1165,422 L1165,446"/>
+      <path d="M220,528 L220,566"/>
+      <path d="M636,528 L636,566"/>
+      <path d="M386,722 L420,722"/>
+      <path d="M846,700 L880,700"/>
+      <path d="M1148,722 L1182,722"/>
+    </g>
+    <path d="M880,744 L852,744" stroke="#6f6759" stroke-width="2" fill="none" marker-end="url(#a)"/>
+    <text x="864" y="690" font-size="11" fill="#6f6759" text-anchor="middle" font-family="Inter">failed</text>
+    <text x="864" y="764" font-size="11" fill="#6f6759" text-anchor="middle" font-family="Inter">fixed</text>
+  </svg>
+
+  <footer><b>Same model, no data:</b> the writer is also asked the owner’s question with no tools and no data, and the app shows that answer next to the plan. <b>Measured, not assumed:</b> every call’s tokens, latency and cost at published Token Factory prices are in the engine room; routing and verifier numbers are in eval/SUMMARY.md.</footer>
+</body>
+</html>
