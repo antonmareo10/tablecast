@@ -1,5 +1,7 @@
 # Tablecast — plan a restaurant’s week with what’s happening around it
 
+![A recorded run for Gjelina, Los Angeles: “Watch this run”, the agent log as it reads the week, then the plan with 13 of 15 claims checked against 21 sources](docs/hero.gif)
+
 **An AI agent on NVIDIA Nemotron (Nebius Token Factory) that reads an independent restaurant’s coming week — the forecast at its door, holidays, events nearby, the venues on its block, its own menu and what guests say online — and turns it into three dishes to test, an event, a ready-to-post campaign, a supplier order and a day-by-day plan. Every claim cites the exact sentences it stands on, and code checks that those sentences contain its numbers and its words.**
 
 Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and Agents** · also entering **Best Use of Tavily** · License: MIT
