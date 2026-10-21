@@ -67,6 +67,31 @@ describe("coverage: the cited sentences must say most of what the claim says", (
     expect(nothingShared.issue).toMatch(/in Spanish\) share no name or number/);
   });
 
+  it("keeps the strict word check for Italian dish names on a menu page written in English", () => {
+    const l = new SourceLedger();
+    l.add({
+      kind: "menu",
+      provider: "Tavily",
+      title: "Los Angeles Menus",
+      url: "https://www.gjelina.com/los-angeles-menus",
+      text: [
+        "Our menus change with the season and are served all day at the counter and in the dining room.",
+        "Toasts and small plates are made to share, and the pizzas come out of the wood-fired oven.",
+        "Burrata con pane e olio",
+        "$18",
+        "Le Puy Lentil Soup",
+        "$22",
+        "Whipped Ricotta, Grilled Bread",
+        "$14",
+      ].join("\n"),
+    });
+    const strict = l.verifyEvidence({ text: "The menu lists Le Puy Lentil Soup with whipped ricotta at $22.", cites: [cite("S1.5")] });
+    expect(strict.across).toBeUndefined();
+    const ok = l.verifyEvidence({ text: "Burrata con pane e olio costs $18.", cites: [cite("S1.3")] });
+    expect(ok.verified).toBe(true);
+    expect(ok.across).toBeUndefined();
+  });
+
   it("tells languages apart from their function words", () => {
     expect(languageOf("Precio medio: de 35 a 45 euros, por persona.")).toBe("es");
     expect(languageOf("The rain comes in on Wednesday and the market is busy.")).toBe("en");

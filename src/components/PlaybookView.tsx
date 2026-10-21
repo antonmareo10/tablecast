@@ -186,6 +186,12 @@ export default function PlaybookView({
 // ---- Hero -----------------------------------------------------------------------------------
 
 const STAGES = ["Context", "Research", "Write", "Verify"];
+const STAGE_LINE = [
+  "Reading the week around this restaurant…",
+  "Researching the live web for this restaurant…",
+  "Writing this week's plan from the sources…",
+  "Checking every claim against its sources…",
+];
 
 function Hero({ live, running, stage }: { live: LiveState; running: boolean; stage: number }) {
   const p = live.playbook;
@@ -259,7 +265,7 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
           </m.div>
         ) : running ? (
           <div className="mt-5">
-            <p className="text-sm text-paper/75">Reading the week around this restaurant…</p>
+            <p className="text-sm text-paper/75">{STAGE_LINE[Math.min(Math.max(stage, 0), STAGE_LINE.length - 1)]}</p>
             <ol className="mt-3 flex flex-wrap gap-2" aria-label="Where the agent is">
               {STAGES.map((label, i) => {
                 const state = stage > i ? "done" : stage === i ? "active" : "waiting";

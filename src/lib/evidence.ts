@@ -184,7 +184,7 @@ export class SourceLedger {
   private norm = new Map<string, string>();
   private spanCache = new Map<string, string[]>();
   private ignored = new Set<string>();
-  private languages = new Map<string, string | null>();
+  private languages = new Map<string, { lang: string | null; foreign: string | null }>();
   /** Share of a claim's content words that may be missing from its cited sentences (calibrated in the eval). */
   missingShare = 0.2;
   /** The language claims are written in ("en" or "es"); words can only be matched within one language. */
@@ -200,13 +200,27 @@ export class SourceLedger {
    * if they are clear enough, otherwise the whole source. Null when it is the same language or unclear.
    */
   private foreignLanguage(c: Cite): string | null {
-    const text = c.span ? this.spanWithNeighbours(c.span) : "";
-    if (text && languageOf(text)) return foreignTo(text, this.claimLanguage);
-    // Too short to tell (a dish name, a price): go by the whole source.
     const src = this.get(c.source ?? c.span ?? "");
-    if (!src) return null;
-    if (!this.languages.has(src.id)) this.languages.set(src.id, foreignTo(src.text.slice(0, 4000), this.claimLanguage));
-    return this.languages.get(src.id) ?? null;
+    const whole = src ? this.sourceLanguage(src) : null;
+    const text = c.span ? this.spanWithNeighbours(c.span) : "";
+    if (text && languageOf(text)) {
+      const local = foreignTo(text, this.claimLanguage);
+      // A few dish names in another language ("burrata con pane e olio") on a page written in the claims' language
+      // don't make the page foreign: the strict word check still applies there.
+      if (local && whole?.lang === this.claimLanguage) return null;
+      return local;
+    }
+    // Too short to tell (a dish name, a price): go by the whole source.
+    return whole?.foreign ?? null;
+  }
+
+  /** A source's own language (from its first 4,000 characters) and whether it is foreign to the claims. Cached. */
+  private sourceLanguage(src: Source): { lang: string | null; foreign: string | null } {
+    if (!this.languages.has(src.id)) {
+      const head = src.text.slice(0, 4000);
+      this.languages.set(src.id, { lang: languageOf(head), foreign: foreignTo(head, this.claimLanguage) });
+    }
+    return this.languages.get(src.id)!;
   }
 
   /** Words a claim may use without its sources saying them: the restaurant's own name, its street and city. */
