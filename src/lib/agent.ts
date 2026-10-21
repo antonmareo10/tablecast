@@ -498,6 +498,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     });
   } catch (err) {
     if (signal?.aborted) throw err;
+    console.error("[research] failed:", err instanceof Error ? err.message : err);
     emit({ type: "note", text: "Web research hit a problem — writing the plan from the data already gathered." });
   }
   if (tavilyCredits > 0) emit({ type: "tavily", credits: tavilyCredits });

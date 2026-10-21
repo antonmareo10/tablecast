@@ -125,10 +125,14 @@ function client(): OpenAI {
 
 // The SDK's types don't know Nemotron's extra params (reasoning_effort), so we call it loosely.
 // Non-streamed calls (research turns, repairs, vision, baseline) never wait more than 90 s each.
-function chat(body: Record<string, unknown>, signal?: AbortSignal): Promise<ChatResponse> {
-  const capped = signal ? AbortSignal.any([signal, AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000);
+function chat(body: Record<string, unknown>, signal?: AbortSignal, capMs = 90_000): Promise<ChatResponse> {
+  const capped = signal ? AbortSignal.any([signal, AbortSignal.timeout(capMs)]) : AbortSignal.timeout(capMs);
   return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<ChatResponse>)(body, { signal: capped, maxRetries: 1 });
 }
+
+// A research turn takes ~0.6 s (median) and at most ~10 s in our recorded runs and evals. If the fast
+// model hangs past this (it happens on Token Factory now and then), the research moves to the backup.
+const GATHER_TURN_MS = Number(process.env.NEBIUS_GATHER_TURN_MS || 20_000);
 function chatStream(body: Record<string, unknown>, signal?: AbortSignal): Promise<AsyncIterable<StreamChunk>> {
   return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<AsyncIterable<StreamChunk>>)(
     { ...body, stream: true, stream_options: { include_usage: true } },
@@ -267,15 +271,14 @@ export async function gather(opts: {
     { role: "user", content: opts.user },
   ];
   const started = Date.now();
-  for (let turn = 0; turn < opts.maxTurns; turn++) {
-    if (turn > 0 && Date.now() - started > opts.budgetMs) {
-      emit({ type: "note", text: "Research time budget reached — writing the plan with what was found so far." });
-      break;
-    }
-    const t0 = Date.now();
-    const res = await chat(
+  // If the fast model doesn't answer a turn in time, the backup (the repair model, Ultra by default)
+  // drives the rest of the research, so a stuck model never costs the run its web research.
+  let model = routing.fast;
+  const backup = routing.repair ?? routing.reasoning;
+  const turnCall = (m: string) =>
+    chat(
       {
-        model: routing.fast,
+        model: m,
         messages,
         tools: tools.map(toOpenAITool),
         tool_choice: "auto",
@@ -284,7 +287,24 @@ export async function gather(opts: {
         max_tokens: 2048,
       },
       signal,
+      GATHER_TURN_MS,
     );
+  for (let turn = 0; turn < opts.maxTurns; turn++) {
+    if (turn > 0 && Date.now() - started > opts.budgetMs) {
+      emit({ type: "note", text: "Research time budget reached — writing the plan with what was found so far." });
+      break;
+    }
+    let t0 = Date.now();
+    let res: ChatResponse;
+    try {
+      res = await turnCall(model);
+    } catch (err) {
+      if (signal?.aborted || model === backup) throw err;
+      emit({ type: "note", text: `${modelLabel(model)} didn't answer in time — ${modelLabel(backup)} takes over the research.` });
+      model = backup;
+      t0 = Date.now();
+      res = await turnCall(model);
+    }
     const callMs = Date.now() - t0;
     const msg = res.choices[0]?.message;
     if (!msg) break;
@@ -314,7 +334,7 @@ export async function gather(opts: {
     calls.forEach((call, i) => messages.push({ role: "tool", tool_call_id: call.id, content: results[i] }));
     emit({
       type: "engine",
-      call: measured("gather", routing.fast, callMs, res.usage, {
+      call: measured("gather", model, callMs, res.usage, {
         started_at: t0,
         tool_calls: calls.length,
         ...(calls.length ? { tools_ms: Date.now() - toolsStart } : {}),

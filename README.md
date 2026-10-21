@@ -4,7 +4,7 @@
 
 Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and Agents** · also entering **Best Use of Tavily** · License: MIT
 
-- **Live demo:** _link added at deployment_
+- **Live demo:** [tastecraft-open.vercel.app](https://tastecraft-open.vercel.app)
 - **Demo video (< 3 min):** _link added at upload_
 - **Routing eval:** [eval/SUMMARY.md](eval/SUMMARY.md)
 
@@ -12,7 +12,7 @@ Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and
 
 ## Judge in 60 seconds
 
-1. Open the live demo and click one of the **instant replays** under the form (real recorded runs, labelled as recorded — no waiting).
+1. Open the [live demo](https://tastecraft-open.vercel.app) and click one of the **instant replays** under the form (real recorded runs, labelled as recorded — no waiting).
 2. Look at **Your week**: the 7-day forecast, holidays and events within 5 km, then the **demand moments** the agent drew from them.
 3. In the green header, read **“N / N claims checked against their sources”**. Hover any source chip (`S3 gjelina.com ×3`) to see the exact sentences it cites; click it to open the page. A claim that failed the check is marked in place, with the reason.
 4. Jump to **Proof & engine**: the evidence ledger (every source fetched in that run), Nemotron answering *without* data, and the **engine room** — every Nemotron call with its tokens, latency and cost.
@@ -40,7 +40,7 @@ Engineering details that came out of running it live:
 - **Measured, not assumed.** Every call’s `usage` (prompt, completion and reasoning tokens) and wall-clock time (plus time-to-first-token on streams) is emitted as an `engine` event and shown in the app’s **engine room** with its cost at published Token Factory prices. A typical plan costs a few US cents.
 - **Reasoning-loop guard.** On some inputs Ultra’s chain of thought started repeating the same sentence until it hit `max_tokens`. The stream is now watched: a sentence repeated four times cuts the call, and the plan is rewritten with `reasoning_effort: "low"` — said out loud in the agent log. The same retry covers `finish_reason: "length"`.
 - **Schema repair.** If the forced call ever breaks the schema, Lightning gets one chance to fix only the listed issues; the result is validated again.
-- **A time budget per run.** A stream that goes silent for a minute is cut and retried; one writing attempt may take at most 150 s (170 s for Super); and every run plans backwards from the host’s function limit, so the retry and the repair pass only get the time that is really left. Non-streamed calls never wait more than 90 s.
+- **A time budget per run.** A stream that goes silent for a minute is cut and retried; one writing attempt may take at most 150 s (170 s for Super); and every run plans backwards from the host’s function limit, so the retry and the repair pass only get the time that is really left. Non-streamed calls never wait more than 90 s, and a research turn no more than 20 s (median 0.6 s): if Lightning hangs, Ultra takes over the research instead of the run losing it.
 - **Routing eval.** [`scripts/eval-routing.ts`](scripts/eval-routing.ts) gathers the evidence for 8 fixed restaurants once, then has Ultra (medium / low effort), Super and Lightning each write the plan from the *same* evidence, and compares published plans, retries, verified claims (first pass and final), how many dishes tie to this week’s data, latency and cost. Full results and limits: **[eval/SUMMARY.md](eval/SUMMARY.md)**. The headline numbers (medians, 32 plans):
 
 | Writer | Verified, first pass | Verified, after repair | Dishes tied to this week | Writes in | Cost / plan |
