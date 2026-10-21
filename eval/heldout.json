@@ -1,0 +1,10 @@
+[
+  { "restaurant": "Franklin Barbecue", "city": "Austin", "goal": "Fill quiet weeknights" },
+  { "restaurant": "Commander's Palace", "city": "New Orleans", "goal": "Make the most of this week’s weather" },
+  { "restaurant": "Pai Northern Thai Kitchen", "city": "Toronto", "goal": "Grow takeaway orders" },
+  { "restaurant": "Hawksmoor Manchester", "city": "Manchester", "goal": "Win more lunch covers" },
+  { "restaurant": "Chin Chin", "city": "Melbourne", "goal": "Launch a seasonal special" },
+  { "restaurant": "Cervejaria Ramiro", "city": "Lisbon", "goal": "Fill quiet weeknights" },
+  { "restaurant": "Contramar", "city": "Mexico City", "goal": "Win more lunch covers" },
+  { "restaurant": "Salumeria Roscioli", "city": "Rome", "goal": "Make the most of this week’s weather" }
+]
