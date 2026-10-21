@@ -62,6 +62,8 @@ Each is a verified claim from the plan written *with* Tavily (sample 1). Every s
 - Local news that the events API did not list: *"The Ballon d'Or award ceremony moves to London for the first time on 26 October 2026…"* ← a Hankook press release (hankooktire-mediacenter.com): "This year's award ceremony will take place in London for the first time on 26 October 2026." The plan built a dish and its event around it.
 - Its own menu: *"Group feasts are served daily for groups of 8 or more, with lunch at £42 per person and dinner from £55 per person."* ← dishoom.com/menu/group-feast-covent-garden.
 
+- **It is now a replay.** Dishoom Covent Garden, recorded 21 Oct with verifier v7 (Quick, 79 s, 8 Tavily credits). The research step's search "London events this week October 2026 footfall" found the same Hankook press release. Ticketmaster's 25 listings for the week didn't include the ceremony. The plan's moment for Mon 26 Oct and its dish for that night (a pistachio kulfi with fizz) both cite it and are verified.
+
 **Katz's Delicatessen, New York**
 - A critic's warning: *"A Times reporter described Katz's pastrami as 'tough, rubbery, and barely edible,' flagging consistency risk."* ← dinertheory.substack.com/p/diner-theory-nyc-katzs-deli-review.
 - Its own menu: *"Half sandwiches with soup are a listed all‑day special at Katz's."* ← katzsdelicatessen.com/store-menu: "Half sandwich served with soup or salad."

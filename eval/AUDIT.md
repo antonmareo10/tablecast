@@ -40,7 +40,7 @@ Half of each sample comes from plans written for restaurants never used to tune 
 | Rejected: true and fully cited (T) | 8 | 4 | **12** |
 | Ambiguous (A) | 0 | 1 | 1 |
 
-**Precision of "rejected":** 37/50 (74%, CI 60–84%) of rejected claims said more than their cited lines (U + G + I). 17/50 (34%) were wrong or overstated outright. **12/50 (24%, CI 14–37%) were false rejections.** Strictness has a real cost, and it is higher on the held-out round (8 of 25) than on the tuning set (4 of 25). In the app, a rejected claim goes to the repair pass once. A false rejection usually comes back rephrased, and only what still fails is shown as unverified.
+**Precision of "rejected":** 37/50 (74%, CI 60–84%) of rejected claims said more than their cited lines (U + G + I). 17/50 (34%) were wrong or overstated outright. **12/50 (24%, CI 14–37%) were false rejections.** Strictness has a real cost, and it is higher on the held-out round (8 of 25) than on the tuning set (4 of 25). In the app, a rejected claim goes to the repair pass once. A false rejection gets one chance to come back rephrased, and only what still fails is shown as unverified.
 
 ## Every error found among the verified claims
 

@@ -67,7 +67,7 @@ A strict review of the flagship replay (Gjelina, Quick) found three things the v
 The replays keep only 600 characters of each page, so 15 of their 47 claims couldn't be re-read. Gjelina's menu was re-supplied from the same day's fetch. I read the 39 language-rule rejections by hand:
 
 - **15 had a wrong or unsupported detail that v6 let through.** Examples: "Creamy Polenta" on a meatball dish that has none, a "blueberry compote" nowhere on the menu, "nearest bars" when a pub is closer, block venues called "Spanish/regional restaurants", "theatre-goers from Mon night" for Tuesday shows, and "8 cafés" for "coffee shop 8".
-- **24 had their facts right but used words the lines don't contain.** Examples: "takes place", "sits", "begin", and commentary like "so lunch competition is fierce". This is the cost of the stricter check. English-named listings always got this treatment; v6 was lenient only when a listing carried Spanish or French names. In the app, the repair pass rephrases such claims.
+- **24 had their facts right but used words the lines don't contain.** Examples: "takes place", "sits", "begin", and commentary like "so lunch competition is fierce". This is the cost of the stricter check. English-named listings always got this treatment; v6 was lenient only when a listing carried Spanish or French names. In the app, the repair pass gets one chance to rephrase such claims.
 
 All 28 past-dated fields in the cached plans are "Mon 19 Oct" in plans made on Tuesday 20 Oct, except one no-Tavily plan dated in 2025. Two plans even called Monday "today". **Effect on the tuning-set numbers:** the v6 plans re-checked with v7, with no new repair pass, go from 84% to 82% verified (Quick) and from 88% to 82% (Economy).
 
@@ -87,7 +87,7 @@ The v3–v6 numbers above come from the same 8 restaurants the verifier was tune
 Per restaurant, verified/written (Quick · Economy): Franklin Barbecue 12/23 · 11/17; Commander's Palace 17/18 · 14/17; Pai 9/12 · 14/15; Hawksmoor 18/25 · 6/19; Chin Chin 8/13 · 13/13; Cervejaria Ramiro 19/23 · 8/14; Contramar 16/16 · 15/15; Roscioli 6/13 · 11/14. Research took a median of 23 s and 7 Tavily credits (range 6–9) per restaurant.
 
 **What it says.**
-- **Held-out is lower.** After repair, Quick verified 73% and Economy 74%. On the tuning set, the same writers verified 84% and 88% under v6, or 82% and 82% with those plans re-checked under v7. So about 9 points of the gap come from new restaurants, not from the stricter check. Two plans per writer did badly: Roscioli (6/13) and Franklin (12/23) for Quick, and Hawksmoor (6/19) and Ramiro (8/14) for Economy.
+- **Held-out is lower.** After repair, Quick verified 73% and Economy 74%. On the tuning set, the same writers verified 84% and 88% under v6, or 82% and 82% with those plans re-checked under v7. So about 8–9 points of the gap come from new restaurants, not from the stricter check. Two plans per writer did badly: Roscioli (6/13) and Franklin (12/23) for Quick, and Hawksmoor (6/19) and Ramiro (8/14) for Economy.
 - **Hand audit.** Of verified claims sampled from this round, 47 of 50 were correct ([AUDIT.md](AUDIT.md)), the same as on the tuning set.
 - **Fewer dishes tied to the week:** 42% and 33%, against 71% and 67% on the tuning set. Lisbon and Rome had no Ticketmaster events, and several weeks were dry and uneventful.
 - **No scheduling before today:** none of the 319 explicit dates in 16 plans, against 16 of 46 tuning-set plans before the date fix. Melbourne's plan correctly starts on Thu 22 Oct, its local date when the round ran.
