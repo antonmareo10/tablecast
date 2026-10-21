@@ -13,9 +13,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { gatherEvidence, writeAndVerify, type EvidencePack, type WriteReport } from "../src/lib/agent";
-import { normalizeText } from "../src/lib/evidence";
 import { defaultRouting, type Routing } from "../src/lib/nebius-agent";
-import type { AgentEvent, AgentRequest, EngineCall, Playbook, Source } from "../src/lib/types";
+import type { AgentEvent, AgentRequest, EngineCall, Playbook } from "../src/lib/types";
+import { argList as arg, argOne, dishMetrics, loadRestaurants, median, pct, readPack, RESULTS as OUT, ROOT, secs, slugOf } from "./eval-common";
 
 const ULTRA = "nvidia/Nemotron-3-Ultra-550b-a55b";
 const SUPER = "nvidia/nemotron-3-super-120b-a12b";
@@ -28,33 +28,12 @@ const CONFIGS: Record<string, Partial<Routing>> = {
   "lightning-low": { reasoning: LIGHTNING, effort: "low" },
 };
 
-const ROOT = path.resolve(import.meta.dirname, "..");
 // The eval measures each writer as it is, so it allows slower writers more time than the live app does.
 process.env.NEBIUS_WRITER_MAX_MS ??= "420000";
-const OUT = path.join(ROOT, "eval", "results");
 // --runs <dir> keeps each design's runs apart (re-running with an existing dir only re-aggregates cached runs);
 // --summary <file> chooses where the table goes.
 const RUNS_DIR = argOne("runs") ?? "runs";
 const SUMMARY_FILE = argOne("summary") ?? "eval/SUMMARY.md";
-
-function argOne(name: string): string | null {
-  const i = process.argv.indexOf(`--${name}`);
-  return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : null;
-}
-const WEEK_KINDS = new Set(["weather", "event", "holiday", "news"]);
-
-function slugOf(r: AgentRequest): string {
-  return `${r.restaurant}-${r.city}`
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[^\w]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-function arg(name: string): string[] | null {
-  const i = process.argv.indexOf(`--${name}`);
-  return i > 0 && process.argv[i + 1] ? process.argv[i + 1].split(",") : null;
-}
 
 type RunResult = {
   slug: string;
@@ -71,22 +50,10 @@ type RunResult = {
   newDishes: number | null; // share of dishes not already on the restaurant's menu (when a menu was found)
 };
 
-function dishMetrics(pb: Playbook | null, sources: Source[]): { weekSpecific: number | null; newDishes: number | null } {
-  if (!pb) return { weekSpecific: null, newDishes: null };
-  const kind = new Map(sources.map((s) => [s.id, s.kind] as const));
-  const week = pb.menu_moves.filter((m) => m.evidence.some((e) => e.verified && e.cites.some((c) => c.ok && WEEK_KINDS.has(kind.get(c.source) ?? "")))).length;
-  const menuText = sources
-    .filter((s) => s.kind === "menu" || s.kind === "site")
-    .map((s) => ` ${normalizeText(s.text)} `)
-    .join(" ");
-  const fresh = menuText.trim() ? pb.menu_moves.filter((m) => !menuText.includes(` ${normalizeText(m.dish)} `)).length : null;
-  const n = pb.menu_moves.length || 1;
-  return { weekSpecific: week / n, newDishes: fresh == null ? null : fresh / n };
-}
-
 async function packFor(req: AgentRequest, slug: string): Promise<{ pack: EvidencePack; calls: EngineCall[] } | null> {
+  const cached = readPack(slug);
+  if (cached) return cached;
   const file = path.join(OUT, "packs", `${slug}.json`);
-  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
   const calls: EngineCall[] = [];
   const emit = (e: AgentEvent) => {
     if (e.type === "engine") calls.push(e.call);
@@ -128,17 +95,8 @@ async function runConfig(slug: string, config: string, pack: EvidencePack): Prom
   return result;
 }
 
-const median = (xs: number[]) => {
-  if (!xs.length) return NaN;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-const pct = (x: number) => (Number.isFinite(x) ? `${Math.round(x * 100)}%` : "–");
-const secs = (ms: number) => (Number.isFinite(ms) ? `${(ms / 1000).toFixed(1)} s` : "–");
-
 async function main() {
-  const list = JSON.parse(fs.readFileSync(path.join(ROOT, "eval", "restaurants.json"), "utf8")) as AgentRequest[];
+  const list = loadRestaurants();
   const only = arg("only");
   const configs = arg("configs") ?? Object.keys(CONFIGS);
   const results: RunResult[] = [];
