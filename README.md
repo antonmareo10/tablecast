@@ -66,6 +66,8 @@ Tavily is the agent’s eyes on the live web — three endpoints, each with a jo
 - **Extract** (`query` + `chunks_per_source`, plain text) reads the chosen pages, focused on what is needed (“menu dishes and prices”).
 - Lightning decides the queries and which pages to read, within a budget (6 searches, 4 page reads). Every result becomes a numbered source the writer must cite, so web facts are verified exactly like the forecast or the map. Tavily credits per run are reported in the engine room (`include_usage`).
 
+**What it adds, measured ([eval/TAVILY.md](eval/TAVILY.md)).** The Quick writer wrote each of the 8 eval restaurants' cached evidence twice, with and without the Tavily sources, and code compared the plans. Tavily does not raise the *number* of verified claims (12.3 with vs 13.4 without per plan, within the noise of one sample of 8). It changes what they are about. With Tavily, 47% of verified claims cite a page it found. 7 of 8 plans show a menu checked on a fetched page (0 of 8 without), 50% of dishes cite the restaurant's own menu (0%), and 6 of 8 plans verify what guests or critics say (0 of 8). Without it, the writer lists a menu from memory (5 of 33 items are on the real one) and, in 3 of 8 plans, proposes as "new" dishes items it lists as already on the menu. The same eval shows the weak spots: only 1 of 8 plans cites a competitor's price, and Tavily Map found no menu page in these runs. Cost: a median of 5 Tavily credits per plan (range 2–6).
+
 ## How every claim is verified (code decides, not a model)
 
 1. Everything the agent sees becomes a numbered source — `S1` the forecast, `S2…` events, then web pages, the block, the menu photo — and every source is cut into numbered sentences (`S9.1`, `S9.2`, …).
