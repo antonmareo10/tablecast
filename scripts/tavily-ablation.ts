@@ -8,11 +8,11 @@ import type { Evidence, Playbook, Source } from "../src/lib/types";
 import { dishMetrics, menuTextOf, onMenu } from "./eval-common";
 
 /**
- * The only line of the pack's context that Tavily produces (agent.ts, buildContext): the menu pages Tavily Map
- * found on the restaurant's site. Every other context line comes from the owner's request, OpenStreetMap,
- * Open-Meteo, Nager.Date or Ticketmaster.
+ * The lines of the pack's context that Tavily produces (agent.ts, buildContext): the menu pages Tavily Map found
+ * on the restaurant's site, and which of them Extract already read. Every other context line comes from the
+ * owner's request, OpenStreetMap, Open-Meteo, Nager.Date or Ticketmaster.
  */
-export const TAVILY_CONTEXT_LINE = /^MENU PAGES \(Tavily Map\):/;
+export const TAVILY_CONTEXT_LINE = /^MENU PAGES? (\(Tavily Map\)|ALREADY READ|READ, LITTLE TEXT):/;
 
 /**
  * The same pack as if Tavily were not there: its sources are dropped (the rest renumbered S1…Sn in their

@@ -1,0 +1,181 @@
+{
+ "_note": "Real Tavily Map responses recorded on 21 Oct 2026 (request ids removed). default: the body production sent before the fix (limit 40, Tavily default max_breadth 20). select: max_breadth and limit 100-150 with select_paths (src/lib/site-map.ts MENU_PATHS).",
+ "gjelina.com default": {
+  "request": {
+   "url": "https://www.gjelina.com/",
+   "max_depth": 1,
+   "limit": 40,
+   "allow_external": false,
+   "include_usage": true,
+   "timeout": 30
+  },
+  "response": {
+   "base_url": "https://www.gjelina.com/",
+   "results": [
+    "https://www.gjelina.com/",
+    "https://www.gjelina.com/los-angeles-menus",
+    "https://www.gjelina.com/catering",
+    "https://www.gjelina.com/new-york-menus",
+    "https://www.gjelina.com/las-vegas-menus",
+    "https://www.gjelina.com/jobs",
+    "https://www.gjelina.com/gift-cards",
+    "https://www.gjelina.com/about",
+    "https://www.gjelina.com/contact",
+    "https://www.gjelina.com/accessibility",
+    "https://www.gjelina.com/reservations",
+    "https://www.gjelina.com/private-events",
+    "https://www.gjelina.com/home",
+    "https://www.gjelina.com/location/gjelina-ny",
+    "https://www.gjelina.com/location/gjelina-hotel-ca",
+    "https://www.gjelina.com/location/gjelina-take-away-ca",
+    "https://www.gjelina.com/location/gjelina-las-vegas-nv",
+    "https://www.gjelina.com/location/gjelina-venice-ca",
+    "https://gjelina.com/las-vegas",
+    "https://gjelina.com/gta"
+   ],
+   "response_time": 0.66,
+   "usage": {
+    "credits": 2
+   }
+  }
+ },
+ "katzsdelicatessen.com default": {
+  "request": {
+   "url": "https://www.katzsdelicatessen.com/",
+   "max_depth": 1,
+   "limit": 40,
+   "allow_external": false,
+   "include_usage": true,
+   "timeout": 30
+  },
+  "response": {
+   "base_url": "https://www.katzsdelicatessen.com/",
+   "results": [
+    "https://www.katzsdelicatessen.com/",
+    "https://katzsdelicatessen.com/",
+    "https://catering.katzsdelicatessen.com/",
+    "https://katzsdelicatessen.com/square-knish.html",
+    "https://katzsdelicatessen.com/cole-slaw.html",
+    "https://katzsdelicatessen.com/taste-of-new-york.html",
+    "https://katzsdelicatessen.com/reuben-rachel.html",
+    "https://katzsdelicatessen.com/pickled-tomatoes.html",
+    "https://katzsdelicatessen.com/katz-s-deli-classic-hat.html",
+    "https://katzsdelicatessen.com/game-day-package.html",
+    "https://catering.katzsdelicatessen.com/full-lunch-package-hot-sandwich.html",
+    "https://katzsdelicatessen.com/deli-mustard.html",
+    "https://katzsdelicatessen.com/katz-s-deli-apron.html",
+    "https://katzsdelicatessen.com/our-story",
+    "https://katzsdelicatessen.com/pigs-in-a-blanket.html",
+    "https://katzsdelicatessen.com/katz-s-pastrami-tour.html",
+    "https://katzsdelicatessen.com/kishka-stuffed-derma-1313.html",
+    "https://katzsdelicatessen.com/katz-s-deli-sweatshirts.html",
+    "https://katzsdelicatessen.com/round-knish.html",
+    "https://katzsdelicatessen.com/corned-beef"
+   ],
+   "response_time": 5.06,
+   "usage": {
+    "credits": 2
+   }
+  }
+ },
+ "dishoom.com/covent-garden default": {
+  "request": {
+   "url": "http://www.dishoom.com/covent-garden/",
+   "max_depth": 1,
+   "limit": 40,
+   "allow_external": false,
+   "include_usage": true,
+   "timeout": 30
+  },
+  "response": {
+   "base_url": "http://www.dishoom.com/covent-garden/",
+   "results": [
+    "https://www.dishoom.com/covent-garden",
+    "https://www.dishoom.com/carnaby",
+    "https://www.dishoom.com/food-drink",
+    "https://www.dishoom.com/store",
+    "https://www.dishoom.com/late-plates",
+    "https://www.dishoom.com/journal",
+    "https://www.dishoom.com/login",
+    "https://www.dishoom.com/battersea",
+    "https://www.dishoom.com/edinburgh",
+    "https://www.dishoom.com/group-feasts",
+    "https://www.dishoom.com/shoreditch",
+    "https://www.dishoom.com/birmingham",
+    "https://www.dishoom.com/impact",
+    "https://www.dishoom.com/frequently-asked-questions-faq",
+    "https://www.dishoom.com/covent-garden/halal-restaurant-covent-garden",
+    "https://www.dishoom.com/permit-room",
+    "https://www.dishoom.com/covent-garden/breakfast-restaurant-covent-garden",
+    "https://www.dishoom.com/leeds",
+    "https://www.dishoom.com/careers",
+    "https://www.dishoom.com/covent-garden/vegan-restaurant-covent-garden"
+   ],
+   "response_time": 0.14,
+   "usage": {
+    "credits": 2
+   }
+  }
+ },
+ "dishoom.com/covent-garden select": {
+  "request": {
+   "url": "http://www.dishoom.com/covent-garden/",
+   "max_depth": 1,
+   "max_breadth": 150,
+   "limit": 150,
+   "allow_external": false,
+   "include_usage": true,
+   "timeout": 30,
+   "select_paths": [
+    "/.*(menu|men%C3%BA|carta|carte|food|drink|lunch|dinner|brunch|breakfast|tapas|platos|bebidas|comida|cena|almuerzo|raciones|speisekarte).*"
+   ]
+  },
+  "response": {
+   "base_url": "http://www.dishoom.com/covent-garden/",
+   "results": [
+    "https://www.dishoom.com/covent-garden/breakfast-restaurant-covent-garden",
+    "https://www.dishoom.com/food-drink",
+    "https://www.dishoom.com/covent-garden/lunch-restaurant-covent-garden",
+    "https://www.dishoom.com/menu/drinks",
+    "https://www.dishoom.com/menu/covent-garden-all-day",
+    "https://www.dishoom.com/menu/group-feast",
+    "https://www.dishoom.com/menu/desserts",
+    "https://www.dishoom.com/menu/children-main",
+    "https://www.dishoom.com/menu/breakfast-group-feast",
+    "https://www.dishoom.com/menu/delivery",
+    "https://www.dishoom.com/menu/vegan-main",
+    "https://www.dishoom.com/menu/all-day-main",
+    "https://www.dishoom.com/menu/lunch-set-menu",
+    "https://www.dishoom.com/menu/christmas-feast-menu",
+    "https://www.dishoom.com/menu/breakfast",
+    "https://www.dishoom.com/menu/drinks-covent-garden"
+   ],
+   "response_time": 0.11,
+   "usage": {
+    "credits": 2
+   }
+  }
+ },
+ "katzsdelicatessen.com select": {
+  "request": {
+   "url": "https://www.katzsdelicatessen.com/",
+   "max_depth": 1,
+   "max_breadth": 100,
+   "limit": 100,
+   "allow_external": false,
+   "include_usage": true,
+   "timeout": 30,
+   "select_paths": [
+    "/.*(menu|men%C3%BA|carta|carte|food|drink|lunch|dinner|brunch|breakfast|tapas|platos|bebidas|comida|cena|almuerzo|raciones|speisekarte).*"
+   ]
+  },
+  "response": {
+   "base_url": "https://www.katzsdelicatessen.com/",
+   "results": [],
+   "response_time": 15.31,
+   "usage": {
+    "credits": 0
+   }
+  }
+ }
+}

@@ -15,6 +15,8 @@
 import { z } from "zod";
 import { allowedAmounts, fieldLabel, proseFields, unbackedAmounts } from "./amounts";
 import { SourceLedger, normalizeText } from "./evidence";
+import { host, isAboutPlace, placeAnchors } from "./place";
+import { findMenuPages, mappable, readMenuPage, shortUrl } from "./site-map";
 import {
   baseline,
   defaultRouting,
@@ -34,9 +36,12 @@ import { eventsNear, eventLine, type NearbyEvent } from "./sources/events";
 import { geocodeCity, geocodePlace } from "./sources/geo";
 import { holidayLine, upcomingHolidays, type Holiday } from "./sources/holidays";
 import { blockLine, nearbyVenues, venueLine } from "./sources/places";
-import { extract, map as siteMap, search } from "./sources/tavily";
+import { extract, search } from "./sources/tavily";
 import { forecastLine, weekForecast, type DayForecast } from "./sources/weather";
 import type { AgentRequest, MenuItem, Place, Playbook, Source, SourceKind } from "./types";
+
+// Kept importable from here for existing callers and tests.
+export { isAboutPlace, placeAnchors };
 
 const BLOCK_RADIUS_M = 600;
 const MAX_SEARCHES = 6;
@@ -143,7 +148,7 @@ const PUBLISH = {
 // ---- Prompts ------------------------------------------------------------------------------
 
 const RESEARCH_SYSTEM = `You are the research step of Tablecast, an assistant that writes an independent restaurant's plan for the coming week. The context below (location, forecast, holidays, events, the venues on the block) is already gathered. Your job is to collect from the live web, with web_search and read_pages:
-1. The restaurant's own website and its CURRENT menu with prices. If MENU PAGES (found by Tavily Map on the restaurant's site) are listed in the context, read the most likely one(s) first with read_pages. If only a website is given, read it directly — do not search for it. Otherwise search (purpose "menu"), then read the best menu or site page (focus "menu dishes and prices").
+1. The restaurant's own website and its CURRENT menu with prices. If the context says MENU PAGE ALREADY READ, the menu is in hand: do not search for it, and read another of the MENU PAGES only if you need more of the menu (MENU PAGE READ, LITTLE TEXT means it is not: find the menu as below). If MENU PAGES (found by Tavily Map on the restaurant's site) are listed but none was read, read the most likely one first with read_pages. If only a website is given, read it directly — do not search for it. Otherwise search (purpose "menu"), then read the best menu or site page (focus "menu dishes and prices").
 2. What guests and critics say (purpose "reviews"): guides, press, review pages. Read the 1-2 most substantive ones (focus "what guests praise or complain about").
 3. What is on near the restaurant in the coming days (purpose "local_news", recent): festivals, matches, openings, works, strikes — anything that changes footfall. Use short, local queries in the city's language, e.g. "Madrid fin de semana eventos" or "Brooklyn street fair this weekend"; the EVENTS NEARBY list is already known, don't repeat it.
 4. One nearby competitor with the same cuisine, picked from THE BLOCK list (purpose "rival"; never the restaurant itself or its own sister venues): find its menu and read one page to learn its prices. If THE BLOCK is missing, search for the same cuisine in the same street or neighbourhood.
@@ -306,16 +311,36 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     });
     return { value: b, summary: `${b.total} venues`, sources: [src.id] };
   });
-  // Tavily Map: if we know the restaurant's site, list its pages so the agent can open the menu instead of guessing.
-  const MENU_PAGE = /(menu|men%C3%BA|menú|carta|food|drinks?|bebidas|comida|platos|dishes|brunch|lunch|dinner|cena|almuerzo|tapas|raciones)/i;
-  const menuPagesPromise = place.website
+  // Tavily Map → Extract, in code: list the menu pages of the restaurant's own site, keep this branch's, and read
+  // the best one before research starts, so the plan stands on the real menu instead of a guessed URL.
+  const anchors = placeAnchors(place);
+  const menuPagesPromise = mappable(place.website)
     ? step<string[]>("site_map", `Mapping ${host(place.website)} for menu pages (Tavily Map)`, async () => {
-        const m = await siteMap(place.website as string, { limit: 40 });
+        const m = await findMenuPages(place.website as string, anchors);
         tavilyCredits += m.credits ?? 0;
-        const pages = m.urls.filter((u) => MENU_PAGE.test(decodeURIComponent(new URL(u).pathname))).slice(0, 6);
-        return { value: pages, summary: m.urls.length ? `${m.urls.length} pages, ${pages.length} look like menus` : "No pages listed" };
+        if (m.error) throw new Error(`Tavily Map failed: ${m.error}`);
+        const aside = m.otherBranches.length ? ` · ${m.otherBranches.length} set aside (other branch${m.otherBranches.length > 1 ? "es" : ""})` : "";
+        return {
+          value: m.pages,
+          summary: m.pages.length
+            ? `${m.pages.length} menu page${m.pages.length > 1 ? "s" : ""}: ${m.pages.slice(0, 3).map((u) => new URL(u).pathname).join(", ")}${aside}`
+            : `No menu page linked from the site${aside}`,
+        };
       })
     : Promise.resolve(null);
+  const menuReadPromise = menuPagesPromise.then((pages) =>
+    pages?.length
+      ? step<{ id: string; thin: boolean }>("read_pages", `Reading the menu Tavily Map found: ${shortUrl(pages[0])}`, async () => {
+          const r = await readMenuPage(pages[0]);
+          tavilyCredits += r.credits ?? 0;
+          if (!r.page) throw new Error(r.failed ? "Tavily Extract could not read the page" : "The page had no text");
+          const src = ledger.add({ kind: "menu", provider: "Tavily", title: shortUrl(r.page.url), url: r.page.url, text: r.page.content });
+          // Some menus are images or PDFs: a page with little text doesn't spare the search.
+          const thin = r.page.content.length < 600;
+          return { value: { id: src.id, thin }, summary: thin ? "1 read · little text on the page" : "1 read (menu)", sources: [src.id] };
+        })
+      : null,
+  );
   const [days, holidays, events, photoMenu] = await Promise.all([
     step<DayForecast[]>("forecast", "Reading the 7-day forecast (Open-Meteo)", async () => {
       const d = await weekForecast(place.lat, place.lon, { days: 7 });
@@ -366,6 +391,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
 
   emit({ type: "week", days: days ?? [], holidays: holidays ?? [], events: events ?? [] });
   const menuPages = await menuPagesPromise;
+  const menuRead = await menuReadPromise;
   if (photoMenu?.items.length) emit({ type: "menu", items: photoMenu.items, from: "photo" });
   // Research waits a few seconds at most for the block; if it is still loading, the writer gets it later.
   const emitBlock = (b: Awaited<typeof blockPromise>) => {
@@ -378,12 +404,11 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
   // ---- 2. RESEARCH (Nemotron Lightning + Tavily) ---------------------------------------------
   const country = countryName(place.country_code);
   const titles = new Map<string, string>();
-  const anchors = placeAnchors(place);
   const siteHost = place.website ? host(place.website) : null;
   const about = (url: string, text: string) => isAboutPlace(url, text, anchors, siteHost);
   const elsewhere = `they don't mention ${req.city}${anchors.length > 1 ? ` or ${anchors.slice(1, 3).join(" / ")}` : ""} — likely a different place with the same name`;
   let searches = 0;
-  let reads = 0;
+  let reads = menuRead ? 1 : 0; // the menu page read in code counts against the same budget
   const purposeKind = { site: "site", menu: "menu", reviews: "review", local_news: "news", rival: "rival" } as const;
 
   const tools: ToolSpec[] = [
@@ -472,6 +497,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       `Restaurant: ${req.restaurant} — ${req.city}${place.address ? ` (${place.address})` : ""}${place.match === "city" ? " [not found on the map; city level]" : ""}`,
       place.website ? `Website: ${place.website}` : "Website: unknown",
       menuPages?.length ? `MENU PAGES (Tavily Map): ${menuPages.join(" , ")}` : "",
+      menuRead && menuPages?.length ? `${menuRead.thin ? "MENU PAGE READ, LITTLE TEXT" : "MENU PAGE ALREADY READ"}: ${menuRead.id} (${menuPages[0]})` : "",
       place.cuisine?.length ? `Cuisine (OpenStreetMap): ${place.cuisine.join(", ")}` : "",
       `Owner's goal: ${goal}`,
       `Today: ${today}`,
@@ -773,50 +799,6 @@ function publicSource(s: Source): Source {
   return { ...s, text: s.text.length > 600 ? `${s.text.slice(0, 600)}…` : s.text };
 }
 
-function host(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
 function hosts(urls: string[]): string {
   return urls.map(host).join(", ").slice(0, 80);
-}
-
-const STREET_WORDS = new Set(
-  "calle c de del la las los el y avenida av avda avenue ave street st boulevard blvd road rd carretera ctra plaza pl paseo po rue via strada piazza place lane ln drive dr".split(
-    " ",
-  ),
-);
-const CITY_ALIASES: Record<string, string[]> = {
-  "new york": ["nyc", "manhattan", "brooklyn"],
-  "los angeles": ["venice", "santa monica"],
-  london: ["covent garden", "soho"],
-};
-
-/**
- * Words that tie a page to THIS restaurant's location: the city (and a few well-known aliases), the
- * distinctive part of its street name and its postcode. Same-name restaurants are common ("Casa Lucio" in
- * Madrid and in Barco de Ávila), so a page that mentions none of them is treated as being about somewhere else.
- */
-export function placeAnchors(place: { city: string; address?: string }): string[] {
-  const city = normalizeText(place.city);
-  const out = new Set<string>([city, ...(CITY_ALIASES[city] ?? [])]);
-  if (place.address) {
-    const street = normalizeText(place.address.split(/,|\d/)[0] ?? "")
-      .split(" ")
-      .filter((w) => w.length > 2 && !STREET_WORDS.has(w))
-      .join(" ");
-    if (street.length >= 4) out.add(street);
-    const postcode = place.address.match(/(?<!\d)\d{5}(?!\d)/)?.[0];
-    if (postcode) out.add(postcode);
-  }
-  return [...out].filter(Boolean);
-}
-
-export function isAboutPlace(url: string, text: string, anchors: string[], siteHost: string | null): boolean {
-  if (siteHost && host(url) === siteHost) return true;
-  const t = ` ${normalizeText(`${url.replace(/[/._-]+/g, " ")} ${text}`)} `;
-  return anchors.some((a) => t.includes(` ${a} `));
 }

@@ -1,6 +1,7 @@
 // Tavily web search + page extraction (https://docs.tavily.com, API reference checked 20-Oct-2026).
 // Key from TAVILY_API_KEY, Bearer auth. Every call asks for `include_usage` so runs can report credits:
-// search basic = 1 credit, advanced = 2; extract basic = 1 credit per 5 successful URLs, advanced = 2 per 5.
+// search basic = 1 credit, advanced = 2; extract basic = 1 credit per 5 successful URLs, advanced = 2 per 5;
+// map = 1 credit per 10 pages returned (2 with instructions).
 // Missing / rejected key and exhausted plan (401, 403, 432, 433) throw SourceError CONFIG; any other
 // failure returns an empty result (logged).
 
@@ -232,16 +233,31 @@ export type TavilyMapOptions = {
   /** Natural-language guidance for which pages matter, e.g. "menu, carta, food and drink pages". Doubles the credit rate. */
   instructions?: string;
   maxDepth?: number; // 1-5, default 1
-  limit?: number; // pages processed, default 30
+  /** Links followed per page, 1-500. Tavily's default is 20: a home page's first 20 links, often nav and shop. */
+  maxBreadth?: number;
+  limit?: number; // links processed in total before the crawl stops, default 30
+  /** Regexes on the URL path: only matching pages are returned — and billed (1 credit per 10 pages returned). */
+  selectPaths?: string[];
   timeoutMs?: number;
 };
-export type TavilyMapResponse = { urls: string[]; credits: number | null };
+/** `error` says why the map came back empty when it failed (upstream, timeout…); config errors throw instead. */
+export type TavilyMapResponse = { urls: string[]; credits: number | null; error?: string };
 
 type RawMap = { base_url?: string; results?: unknown[]; usage?: { credits?: number } };
 
+/** The page URLs of a Map response: plain strings (the documented shape) or `{ url }` objects. */
+export function mapUrls(data: RawMap | null | undefined): string[] {
+  const urls: string[] = [];
+  for (const r of data?.results ?? []) {
+    const u = typeof r === "string" ? r : typeof (r as { url?: unknown } | null)?.url === "string" ? (r as { url: string }).url : null;
+    if (u && /^https?:\/\//i.test(u.trim())) urls.push(u.trim());
+  }
+  return [...new Set(urls)];
+}
+
 /**
  * Tavily Map: the URLs of a site, so the agent can find the menu page instead of guessing it.
- * Same-domain only (no external links). Empty list on any non-config failure.
+ * Same-domain only (no external links). Empty list, with the reason in `error`, on any non-config failure.
  */
 export async function map(url: string, opts: TavilyMapOptions = {}): Promise<TavilyMapResponse> {
   apiKey();
@@ -249,25 +265,29 @@ export async function map(url: string, opts: TavilyMapOptions = {}): Promise<Tav
   try {
     root = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
   } catch {
-    return { urls: [], credits: null };
+    return { urls: [], credits: null, error: `not a URL: ${url.slice(0, 80)}` };
   }
+  const timeoutMs = opts.timeoutMs ?? 25_000;
   const body: Record<string, unknown> = {
     url: root.toString(),
     max_depth: Math.max(1, Math.min(5, Math.round(opts.maxDepth ?? 1))),
-    limit: Math.max(1, Math.min(200, Math.round(opts.limit ?? 30))),
+    limit: Math.max(1, Math.min(500, Math.round(opts.limit ?? 30))),
     allow_external: false,
     include_usage: true,
-    timeout: 30,
+    // Tavily's own time limit (10-150 s), a little under ours so it answers before we give up.
+    timeout: Math.max(10, Math.min(150, Math.round(timeoutMs / 1000) - 3)),
   };
+  if (opts.maxBreadth != null) body.max_breadth = Math.max(1, Math.min(500, Math.round(opts.maxBreadth)));
+  if (opts.selectPaths?.length) body.select_paths = opts.selectPaths;
   const instructions = cleanText(opts.instructions);
   if (instructions) body.instructions = instructions;
   try {
-    const data = await post<RawMap>("/map", body, opts.timeoutMs ?? 35_000);
-    const urls = (data?.results ?? []).filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u));
-    return { urls: [...new Set(urls)], credits: credits(data?.usage) };
+    const data = await post<RawMap>("/map", body, timeoutMs);
+    return { urls: mapUrls(data), credits: credits(data?.usage) };
   } catch (err) {
     if (err instanceof SourceError && err.code === "CONFIG") throw err;
     warnSource("tavily/map", err);
-    return { urls: [], credits: null };
+    const msg = err instanceof SourceError ? `${err.code}: ${err.message}` : (err as Error)?.message ?? String(err);
+    return { urls: [], credits: null, error: msg.slice(0, 200) };
   }
 }

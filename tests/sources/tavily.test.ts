@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { extract, search, tavilyCountry, truncateText } from "../../src/lib/sources/tavily";
 import { SourceError } from "../../src/lib/sources/http";
 import { header, jsonResponse, mockFetch, silenceWarnings } from "./helpers";
+import mapFixture from "../fixtures/tavily-map.json";
 
 beforeEach(() => {
   silenceWarnings();
@@ -239,12 +240,32 @@ describe("map", () => {
     const body = bodyOf(calls[0].init);
     expect(body).toMatchObject({ url: "https://casalucio.es/", limit: 20, max_depth: 1, allow_external: false, include_usage: true });
     expect(body.instructions).toBeUndefined();
+    expect(body.max_breadth).toBeUndefined();
+    expect(body.select_paths).toBeUndefined();
   });
 
-  it("returns an empty list on upstream failure and still throws on a bad key", async () => {
+  it("sends breadth, path filters and a time limit under the caller's", async () => {
+    const { calls } = mockFetch(() => jsonResponse({ results: [], usage: { credits: 0 } }));
+    const { map } = await import("../../src/lib/sources/tavily");
+    await map("https://www.dishoom.com/covent-garden/", { maxBreadth: 150, limit: 150, selectPaths: ["/.*menu.*"], timeoutMs: 20_000 });
+    expect(bodyOf(calls[0].init)).toMatchObject({ max_breadth: 150, limit: 150, select_paths: ["/.*menu.*"], timeout: 17 });
+  });
+
+  it("parses a recorded response (plain URL strings) and tolerates { url } objects", async () => {
+    const { mapUrls } = await import("../../src/lib/sources/tavily");
+    const recorded = mapFixture["dishoom.com/covent-garden select"].response;
+    expect(mapUrls(recorded)).toHaveLength(16);
+    expect(mapUrls(recorded)).toContain("https://www.dishoom.com/menu/covent-garden-all-day");
+    expect(mapUrls({ results: [{ url: "https://a.example/menu" }, "https://a.example/menu", "ftp://x", null, { url: 3 }] })).toEqual(["https://a.example/menu"]);
+    expect(mapUrls(null)).toEqual([]);
+  });
+
+  it("says why it came back empty on upstream failure, and still throws on a bad key", async () => {
     mockFetch(() => jsonResponse({ detail: "boom" }, 500));
     const { map } = await import("../../src/lib/sources/tavily");
-    expect(await map("https://example.com")).toEqual({ urls: [], credits: null });
+    const failed = await map("https://example.com");
+    expect(failed).toMatchObject({ urls: [], credits: null });
+    expect(failed.error).toMatch(/UPSTREAM.*500/);
     mockFetch(() => jsonResponse({ detail: "bad key" }, 401));
     await expect(map("https://example.com")).rejects.toMatchObject({ code: "CONFIG" });
   });

@@ -18,7 +18,7 @@ function pack(): EvidencePack {
     goal: "Fill quiet weeknights",
     language: "English",
     place: { name: "Casa Test", city: "Madrid", lat: 40.4, lon: -3.7, match: "exact" },
-    context: ["Restaurant: Casa Test — Madrid", "Website: https://example.com", "MENU PAGES (Tavily Map): https://example.com/menu", "FORECAST:", "Thu 22 Oct: light rain"].join("\n"),
+    context: ["Restaurant: Casa Test — Madrid", "Website: https://example.com", "MENU PAGES (Tavily Map): https://example.com/menu", "MENU PAGE ALREADY READ: S4 (https://example.com/menu)", "FORECAST:", "Thu 22 Oct: light rain"].join("\n"),
     sources: structuredClone(sources),
     photoMenu: false,
     tavilyCredits: 5,
@@ -58,9 +58,9 @@ describe("withoutTavily", () => {
     const before = JSON.stringify(input);
     const { pack: out, removedSources, removedLines } = withoutTavily(input);
     expect(removedSources).toBe(3);
-    expect(removedLines).toEqual(["MENU PAGES (Tavily Map): https://example.com/menu"]);
+    expect(removedLines).toEqual(["MENU PAGES (Tavily Map): https://example.com/menu", "MENU PAGE ALREADY READ: S4 (https://example.com/menu)"]);
     expect(out.sources.map((s) => `${s.id}:${s.provider}`)).toEqual(["S1:Open-Meteo", "S2:Ticketmaster", "S3:OpenStreetMap"]);
-    expect(out.context).not.toMatch(/Tavily/);
+    expect(out.context).not.toMatch(/Tavily|MENU PAGE/);
     expect(out.context).toContain("Website: https://example.com"); // from OpenStreetMap or the owner, not Tavily
     expect(out.tavilyCredits).toBe(0);
     expect(JSON.stringify(input)).toBe(before);
