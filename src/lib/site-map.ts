@@ -76,7 +76,8 @@ export type MenuPagesResult = MenuPagePick & { credits: number | null; error?: s
 /** One Tavily Map call on the restaurant's site, filtered to menu pages and ranked for this branch. */
 export async function findMenuPages(website: string, anchors: string[]): Promise<MenuPagesResult> {
   // A home page often links 100+ pages (Dishoom's: 137); Tavily's default breadth of 20 stops at the nav bar.
-  const m = await map(website, { maxDepth: 1, maxBreadth: 150, limit: 150, selectPaths: MENU_PATHS, timeoutMs: 20_000 });
+  // Research waits for this, so it gets 15 s (most sites answer in under 2; script-built ones can take 15).
+  const m = await map(website, { maxDepth: 1, maxBreadth: 150, limit: 150, selectPaths: MENU_PATHS, timeoutMs: 15_000 });
   return { ...pickMenuPages(m.urls, anchors), credits: m.credits, ...(m.error ? { error: m.error } : {}) };
 }
 
