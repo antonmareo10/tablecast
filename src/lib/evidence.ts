@@ -12,7 +12,9 @@
 //   3. the cited spans say what the claim says: every content word of the claim (dish names, ingredients,
 //      places, days…) appears in them, except at most one word in five (one, for claims of 4–9 words; none
 //      for shorter ones). Connective words ("brings", "costs"), the restaurant's own name and street don't
-//      count; "Wednesday" matches "Wed", "highs" matches "max", plurals match singulars.
+//      count; "Wednesday" matches "Wed", "highs" matches "max", plurals match singulars. Only if this fails and the
+//      cited pages are clearly written in another language than the plan (pageLanguage: running text, not a few
+//      dish names) does the check fall back to the numbers plus at least one shared name, and label the claim.
 //   4. for claims about the restaurant itself (loved for, watch-outs, its event and dishes), the cited pages are
 //      about THIS restaurant and branch, and a price is not a combo or add-on price (subject.ts; set by agent.ts).
 // When a number or word is found only on a neighbouring line, that line is attached to the cite so the owner
@@ -80,7 +82,10 @@ const FUNCTION_WORDS: Record<string, Set<string>> = {
 
 /** Function-word hits per language, most first (ties keep the order of FUNCTION_WORDS: en, es, fr…). */
 function languageScores(text: string): [string, number][] {
-  const words = normalizeText(text).split(" ");
+  return scoresOf(normalizeText(text).split(" "));
+}
+
+function scoresOf(words: string[]): [string, number][] {
   return Object.entries(FUNCTION_WORDS)
     .map(([lang, set]) => [lang, words.filter((w) => set.has(w)).length] as [string, number])
     .sort((a, b) => b[1] - a[1]);
@@ -92,16 +97,32 @@ export function languageOf(text: string): string | null {
   return best[1] >= 2 ? best[0] : null;
 }
 
+// A page is in another language only if that language's function words are at least 4, twice the claim
+// language's, and at least 8 in 100 of its words. Running text has 15–40 in 100 in any language; a menu in
+// English with Italian or Spanish dish names ("Cacio e Pepe", "Le Puy Lentil Soup") has 1–2 in 100. Measured
+// on the 8 eval packs: every Spanish and French page 16–37%, Gjelina's English menus 0.7% and 1.2%.
+const PAGE_MIN_HITS = 4;
+const PAGE_MIN_SHARE = 0.08;
+
 /**
- * The other language a text is clearly in, compared with `claimLanguage`: at least two of its function words
- * and half again as many as the claim language's. (Spanish and Portuguese share many; either way it is foreign.)
+ * The language a whole page is clearly written in, when it is not `claimLanguage`; null when it is the same or
+ * unclear. `names` (the restaurant's name, street and city, normalised) are removed first: "Au Cheval" eight
+ * times doesn't make a Chicago page French.
  */
-function foreignTo(text: string, claimLanguage: string): string | null {
-  const scores = languageScores(text);
+export function pageLanguage(text: string, claimLanguage: string, names: string[] = []): string | null {
+  let norm = ` ${normalizeText(text)} `;
+  for (const n of names) if (n) norm = norm.split(` ${n} `).join(" ");
+  const words = norm.split(" ").filter((w) => /[a-z]/.test(w));
+  const scores = scoresOf(words);
   const own = scores.find(([lang]) => lang === claimLanguage)?.[1] ?? 0;
   const other = scores.find(([lang]) => lang !== claimLanguage);
-  return other && other[1] >= 2 && other[1] >= own * 1.5 ? other[0] : null;
+  if (!other || other[1] < PAGE_MIN_HITS || other[1] < own * 2 || other[1] < words.length * PAGE_MIN_SHARE) return null;
+  return other[0];
 }
+
+// Sources whose lines Tablecast writes itself, in English: the forecast, events, holidays and the block. Names
+// inside them ("Una Cena Cantada at El Café de la Ópera") don't make them Spanish.
+const WRITTEN_IN_ENGLISH = new Set<SourceKind>(["weather", "event", "holiday", "block"]);
 
 const LANGUAGE_NAME: Record<string, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", pt: "Portuguese", de: "German", ca: "Catalan" };
 
@@ -184,7 +205,8 @@ export class SourceLedger {
   private norm = new Map<string, string>();
   private spanCache = new Map<string, string[]>();
   private ignored = new Set<string>();
-  private languages = new Map<string, { lang: string | null; foreign: string | null }>();
+  private ignoredNames: string[] = [];
+  private languages = new Map<string, string | null>();
   /** Share of a claim's content words that may be missing from its cited sentences (calibrated in the eval). */
   missingShare = 0.2;
   /** The language claims are written in ("en" or "es"); words can only be matched within one language. */
@@ -196,36 +218,36 @@ export class SourceLedger {
   subjectCheck?: (claim: string, field: string, cites: CitedLines[]) => string | null;
 
   /**
-   * The language a cite's text is in, when it differs from the claims' language: its sentence and neighbours
-   * if they are clear enough, otherwise the whole source. Null when it is the same language or unclear.
+   * The language a cite stands in, when it differs from the claims' language: the language of its whole page
+   * (pageLanguage), unless the cited sentence and its neighbours are themselves in the claims' language. Lines
+   * Tablecast writes itself are English. Null when it is the same language or unclear.
    */
   private foreignLanguage(c: Cite): string | null {
     const src = this.get(c.source ?? c.span ?? "");
-    const whole = src ? this.sourceLanguage(src) : null;
+    if (!src) return null;
+    if (WRITTEN_IN_ENGLISH.has(src.kind)) return this.claimLanguage === "en" ? null : "en";
+    const page = this.sourceLanguage(src);
+    if (!page) return null;
     const text = c.span ? this.spanWithNeighbours(c.span) : "";
-    if (text && languageOf(text)) {
-      const local = foreignTo(text, this.claimLanguage);
-      // A few dish names in another language ("burrata con pane e olio") on a page written in the claims' language
-      // don't make the page foreign: the strict word check still applies there.
-      if (local && whole?.lang === this.claimLanguage) return null;
-      return local;
-    }
-    // Too short to tell (a dish name, a price): go by the whole source.
-    return whole?.foreign ?? null;
+    return text && languageOf(text) === this.claimLanguage ? null : page;
   }
 
-  /** A source's own language (from its first 4,000 characters) and whether it is foreign to the claims. Cached. */
-  private sourceLanguage(src: Source): { lang: string | null; foreign: string | null } {
-    if (!this.languages.has(src.id)) {
-      const head = src.text.slice(0, 4000);
-      this.languages.set(src.id, { lang: languageOf(head), foreign: foreignTo(head, this.claimLanguage) });
-    }
-    return this.languages.get(src.id)!;
+  /** A source's language when it is clearly not the claims' (see pageLanguage). Cached. */
+  private sourceLanguage(src: Source): string | null {
+    const key = `${this.claimLanguage}|${src.id}`;
+    if (!this.languages.has(key)) this.languages.set(key, pageLanguage(src.text, this.claimLanguage, this.ignoredNames));
+    return this.languages.get(key) ?? null;
   }
 
   /** Words a claim may use without its sources saying them: the restaurant's own name, its street and city. */
   ignoreWords(...texts: (string | null | undefined)[]): void {
-    for (const t of texts) if (t) for (const key of coverageWords(t, new Set()).keys()) this.ignored.add(key);
+    for (const t of texts) {
+      if (!t) continue;
+      for (const key of coverageWords(t, new Set()).keys()) this.ignored.add(key);
+      const name = normalizeText(t);
+      if (name && !this.ignoredNames.includes(name)) this.ignoredNames.push(name);
+    }
+    this.languages.clear();
   }
 
   /** Rebuild a ledger from a saved source list, keeping every id as it was. */
@@ -437,16 +459,15 @@ export class SourceLedger {
     let across: string | undefined;
     if (!issue && cites.some((c) => c.span)) {
       const { missing, words } = this.uncovered(resolved);
-      // Words can't be matched across languages ("eggs" vs "huevos"). When most of the cited text is in another
-      // language, the check keeps every number and asks for at least one shared name or number.
-      const foreign = this.mostlyForeign(resolved);
-      if (foreign) {
-        const shared = words - missing.length;
-        if (!numbersIn(e.text).length && shared === 0)
+      if (missing.length > allowedMissing(words, this.missingShare)) {
+        // Words can't be matched across languages ("eggs" vs "huevos"). Only when the word check fails and most of
+        // the cited text stands on pages clearly written in another language does the check fall back to keeping
+        // every number and asking for at least one shared name or number.
+        const foreign = this.mostlyForeign(resolved);
+        if (!foreign) issue = `the cited sentences don't mention ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "…" : ""}`;
+        else if (!numbersIn(e.text).length && words - missing.length === 0)
           issue = `the cited sentences (in ${LANGUAGE_NAME[foreign] ?? foreign}) share no name or number with the claim`;
         else across = foreign;
-      } else if (missing.length > allowedMissing(words, this.missingShare)) {
-        issue = `the cited sentences don't mention ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "…" : ""}`;
       }
     }
     if (!issue && field && this.subjectCheck) {

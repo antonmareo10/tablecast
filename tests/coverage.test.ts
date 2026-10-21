@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { allowedAmounts, fieldLabel, moneyIn, proseFields, unbackedAmounts, type PlanText } from "@/lib/amounts";
-import { SourceLedger, languageOf } from "@/lib/evidence";
+import { SourceLedger, languageOf, pageLanguage } from "@/lib/evidence";
 
 const ledger = () => {
   const l = new SourceLedger();
@@ -67,29 +67,80 @@ describe("coverage: the cited sentences must say most of what the claim says", (
     expect(nothingShared.issue).toMatch(/in Spanish\) share no name or number/);
   });
 
-  it("keeps the strict word check for Italian dish names on a menu page written in English", () => {
+  // Lines as Tavily Extract returned gjelina.com/los-angeles-menus on 21 Oct: an English menu whose only function
+  // words are Italian ("Le Puy", "Cacio e Pepe"). v6 called it Italian and skipped the word check on the showcase.
+  const gjelinaLA = () => {
     const l = new SourceLedger();
+    l.ignoreWords("Gjelina", "Los Angeles", "Abbot Kinney Boulevard 1429, 90291 Los Angeles");
     l.add({
       kind: "menu",
       provider: "Tavily",
-      title: "Los Angeles Menus",
+      title: "gjelina.com/los-angeles-menus",
       url: "https://www.gjelina.com/los-angeles-menus",
       text: [
-        "Our menus change with the season and are served all day at the counter and in the dining room.",
-        "Toasts and small plates are made to share, and the pizzas come out of the wood-fired oven.",
-        "Burrata con pane e olio",
-        "$18",
-        "Le Puy Lentil Soup",
-        "$22",
-        "Whipped Ricotta, Grilled Bread",
-        "$14",
+        " Le Puy Lentil Soup", "$22", "Cilantro, Dill, Spice Blend Oil",
+        " Agnolotti", "$30", "Honeynut Squash, Miso Butter, Pepita Gremolata, Belper Knolle Cheese",
+        " Bucatini", "$27", "Cacio e Pepe",
+        " Orecchiette", "$32", "Wagyu Beef Cheek Bolognese, Whipped Ricotta",
+        "Plates",
+        " Le Puy Lentil Soup", "$22", "Cilantro, Dill, Spice Blend Oil",
+        " Bucatini", "$27", "Cacio e Pepe",
+        " Vegetable Sandwich", "$19", "Avocado, Pickled Turnip, Sprouts, Fennel, Tahini",
+        " BLT", "$19", "Bacon, Arugula, Tomato, Lemon Aioli",
+        "Add egg $3",
+        " Blackened Vermilion Rockfish Sandwich", "$25", "Napa Cabbage Slaw, Fermented Chili Aioli",
       ].join("\n"),
     });
-    const strict = l.verifyEvidence({ text: "The menu lists Le Puy Lentil Soup with whipped ricotta at $22.", cites: [cite("S1.5")] });
-    expect(strict.across).toBeUndefined();
-    const ok = l.verifyEvidence({ text: "Burrata con pane e olio costs $18.", cites: [cite("S1.3")] });
+    return l;
+  };
+
+  it("does not call an English menu Italian because of its dish names (Gjelina, Los Angeles)", () => {
+    const l = gjelinaLA();
+    // Embellished: the soup has no whipped ricotta or crispy shallots. v6 passed it as "Source in Italian".
+    const embellished = l.verifyEvidence({ text: "Le Puy Lentil Soup with whipped ricotta, crispy shallots and chili crunch is $22.", cites: [cite("S1.1")] });
+    expect(embellished.verified).toBe(false);
+    expect(embellished.across).toBeUndefined();
+    expect(embellished.issue).toMatch(/don't mention .*whipped/);
+    const ok = l.verifyEvidence({ text: "Le Puy Lentil Soup with cilantro, dill and spice blend oil is $22.", cites: [cite("S1.1")] });
     expect(ok.verified).toBe(true);
     expect(ok.across).toBeUndefined();
+    const italianName = l.verifyEvidence({ text: "Bucatini cacio e pepe costs $27.", cites: [cite("S1.7")] });
+    expect(italianName.verified).toBe(true);
+    expect(italianName.across).toBeUndefined();
+  });
+
+  it("runs the word check first: a claim that passes it is never labelled as read across languages", () => {
+    const l = new SourceLedger();
+    l.add({ kind: "site", provider: "Tavily", title: "Casa Lucio", url: "https://casalucio.es", text: "Precio medio: de 35 a 45 euros, por persona.\nSopa Castellana de Casa Lucio." });
+    const sameWords = l.verifyEvidence({ text: "Sopa Castellana is on the menu.", cites: [cite("S1.2")] });
+    expect(sameWords.verified).toBe(true);
+    expect(sameWords.across).toBeUndefined();
+  });
+
+  it("treats the lines Tablecast writes (events, forecast, the block) as English, whatever names they carry (Casa Lucio)", () => {
+    const l = new SourceLedger();
+    l.ignoreWords("Casa Lucio", "Madrid", "Calle de la Cava Baja 35");
+    l.add({ kind: "event", provider: "Ticketmaster", title: "Una Cena Cantada", text: "Fri 23 Oct 20:30 — Una Cena Cantada at El Café de la Ópera, 0.7 km away (Music · Classical)" });
+    l.add({ kind: "block", provider: "OpenStreetMap", title: "Venues", text: "Taberna Tempranillo — bar, 38 m away\nLa Cuevina de Leon — bar, 39 m away" });
+    const event = l.verifyEvidence({ text: "Una Cena Cantada plays at El Café de la Ópera on Friday 23 Oct at 20:30, 0.7 km away.", cites: [cite("S1.1")] });
+    expect(event.verified).toBe(true);
+    expect(event.across).toBeUndefined();
+    const invented = l.verifyEvidence({ text: "Una Cena Cantada is a sold-out flamenco dinner show on Friday at 20:30.", cites: [cite("S1.1")] });
+    expect(invented.verified).toBe(false);
+    expect(invented.across).toBeUndefined();
+    // A plan in Spanish reads these English lines across languages.
+    const es = new SourceLedger();
+    es.claimLanguage = "es";
+    es.add({ kind: "weather", provider: "Open-Meteo", title: "Forecast", text: "Thu 22 Oct: rain, max 14°C / min 9°C, 6.2 mm, 80% chance of rain" });
+    const lluvia = es.verifyEvidence({ text: "El jueves llueve con fuerza: 6,2 mm y 14 °C de máxima.", cites: [cite("S1.1")] });
+    expect(lluvia.verified).toBe(true);
+    expect(lluvia.across).toBe("en");
+  });
+
+  it("does not count the restaurant's own name as another language (Au Cheval, Chicago)", () => {
+    expect(pageLanguage("Skip to Content Au Cheval Au Cheval Chicago New York City Nashville Food & Drink Order Online Au Cheval Nashville Au Cheval Chicago", "en")).toBe("fr");
+    expect(pageLanguage("Skip to Content Au Cheval Au Cheval Chicago New York City Nashville Food & Drink Order Online Au Cheval Nashville Au Cheval Chicago", "en", ["au cheval"])).toBeNull();
+    expect(pageLanguage("Precio medio: de 35 a 45 euros, por persona. Sopa Castellana de Casa Lucio.", "en")).toBe("es");
   });
 
   it("tells languages apart from their function words", () => {
