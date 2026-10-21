@@ -1,5 +1,6 @@
 // Records a REAL run of the live agent into src/data/demos.json.
 // Usage: node scripts/record-demo.mjs "Casa Lucio" "Madrid" "Fill quiet weeknights" [baseUrl]
+// MODE=economy records a run written by Nemotron Super (default: quick, Nemotron Ultra).
 import fs from "node:fs";
 
 const [restaurant, city, goal, baseUrl = "http://localhost:3000"] = process.argv.slice(2);
@@ -12,7 +13,7 @@ const started = Date.now();
 const res = await fetch(`${baseUrl}/api/agent`, {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ restaurant, city, goal }),
+  body: JSON.stringify({ restaurant, city, goal, mode: process.env.MODE === "economy" ? "economy" : "quick" }),
 });
 if (!res.ok || !res.body) {
   console.error("Agent failed:", res.status, await res.text());
