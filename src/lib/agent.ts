@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { allowedAmounts, fieldLabel, proseFields, unbackedAmounts } from "./amounts";
+import { dateFieldLabel, datesIn, localToday, longDayLabel, pastDates, scheduleFields, weekOf } from "./dates";
 import { SourceLedger, normalizeText } from "./evidence";
 import { host, isAboutPlace, placeAnchors } from "./place";
 import { findMenuPages, mappable, readMenuPage, shortUrl } from "./site-map";
@@ -27,6 +28,7 @@ import {
   readMenuPhoto,
   repairAmounts,
   repairCitations,
+  repairDates,
   synthesize,
   type Emit,
   type EvidenceGroup,
@@ -95,7 +97,7 @@ export const PlaybookSchema = z.object({
   moments: z
     .array(
       z.object({
-        when: z.string().describe('Day and part of day, e.g. "Thu 23 Oct, evening"'),
+        when: z.string().describe('Day and part of day this week, e.g. "Thu 23 Oct, evening"'),
         title: z.string().describe('What happens, e.g. "Rain all day", "Derby 2 km away"'),
         play: z.string().describe("What the restaurant should do about it"),
         evidence: z.array(EvidenceSchema).min(1).max(2),
@@ -128,7 +130,7 @@ export const PlaybookSchema = z.object({
   }),
   marketing: z.object({
     instagram_post: z.string().describe("Ready to post, in the owner's voice, max 70 words, at most 3 hashtags"),
-    post_when: z.string().describe("Day and time to post, tied to the week's moments"),
+    post_when: z.string().describe("Day and time to post, today or later, tied to the week's moments"),
     audience: z.string().describe("Who it is for"),
   }),
   shopping_list: z.array(IngredientSchema.extend({ est_cost: z.number() })).max(20),
@@ -170,7 +172,7 @@ What to write:
 - rivals: use THE BLOCK (OpenStreetMap) counts and the rival page(s): how crowded the block is, who serves the same cuisine nearby, their price points if found.
 - snapshot: only from review, press or site sources. If none were found, leave loved_for and watch_outs empty and add a caveat.
 - experience: one event or offer for this week tied to the evidence. marketing: a ready-to-post Instagram caption, when to post it and for whom.
-- shopping_list: ingredients to test the three dishes for one week in a small kitchen (realistic quantities, local-currency costs). week_plan: the next 7 days from today, with the supplier order early and the review of results at the end.
+- shopping_list: ingredients to test the three dishes for one week in a small kitchen (realistic quantities, local-currency costs). week_plan: the 7 days of THE WEEK in CONTEXT, starting today (the restaurant's local date): the supplier order goes out today, a new dish starts no earlier than the day after its ingredients are ordered, and the review of results comes at the end. Nothing in the plan (week_plan, moments, dishes, the event, when to post) may fall before today: code checks every date.
 - caveats: what the data cannot tell (forecasts beyond 3 days are uncertain; event listings may be incomplete; web reviews are not a sample of all guests; nothing here measures sales — test before scaling).
 Write warmly and practically for a busy owner. LANGUAGE: every text field (headline, moments, dishes, evidence sentences, the post, the plan, caveats) must be in the language requested; only the quotes stay exactly as written in the sources, in their original language. Keep proper names as they appear.`;
 
@@ -207,6 +209,7 @@ export interface EvidencePack {
   sources: Source[];
   photoMenu: boolean;
   tavilyCredits: number;
+  today?: string; // the restaurant's local date (YYYY-MM-DD) when the evidence was gathered; the forecast starts on it
 }
 
 export async function runTablecast(req: AgentRequest, emit: Emit, opts: RunOptions = {}): Promise<void> {
@@ -298,7 +301,9 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
   }
   emit({ type: "place", place });
 
-  const today = new Date().toISOString().slice(0, 10);
+  // The restaurant's own date, not the server's: a run at 02:00 UTC is still yesterday evening in Los Angeles.
+  // The forecast (Open-Meteo, timezone=auto) starts on that local date and confirms it below.
+  const today = localToday({ timezone: place.timezone, lon: place.lon });
   // The block (OpenStreetMap) can be slow; it runs alongside and is awaited just before research needs it.
   const blockPromise = step("block", `Mapping the block (${BLOCK_RADIUS_M} m, OpenStreetMap)`, async () => {
     const b = await nearbyVenues(place.lat, place.lon, BLOCK_RADIUS_M, { budgetMs: 22_000, preferComplete: true });
@@ -391,6 +396,8 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
   ]);
 
   emit({ type: "week", days: days ?? [], holidays: holidays ?? [], events: events ?? [] });
+  const planToday = days?.[0]?.date ?? today;
+  const week = weekOf(planToday);
   const menuPages = await menuPagesPromise;
   const menuRead = await menuReadPromise;
   if (photoMenu?.items.length) emit({ type: "menu", items: photoMenu.items, from: "photo" });
@@ -501,7 +508,8 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       menuRead && menuPages?.length ? `${menuRead.thin ? "MENU PAGE READ, LITTLE TEXT" : "MENU PAGE ALREADY READ"}: ${menuRead.id} (${menuPages[0]})` : "",
       place.cuisine?.length ? `Cuisine (OpenStreetMap): ${place.cuisine.join(", ")}` : "",
       `Owner's goal: ${goal}`,
-      `Today: ${today}`,
+      `Today: ${longDayLabel(planToday)} (${planToday}), the restaurant's local date`,
+      `THE WEEK: ${week.map((d) => d.label).join(", ")}. Nothing can be scheduled before today.`,
       days?.length ? `FORECAST:\n${days.map(forecastLine).join("\n")}` : "",
       holidays?.length ? `HOLIDAYS:\n${holidays.map(holidayLine).join("\n")}` : "",
       events?.length ? `EVENTS NEARBY:\n${events.slice(0, 8).map(eventLine).join("\n")}` : "",
@@ -538,7 +546,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     context = buildContext(block);
   }
 
-  return { req, goal, language, place, context, sources: ledger.list(), photoMenu: !!photoMenu?.items.length, tavilyCredits };
+  return { req, goal, language, place, context, sources: ledger.list(), photoMenu: !!photoMenu?.items.length, tavilyCredits, today: planToday };
 }
 
 /** What happened to the claims of one plan, for the engine room and the routing eval. */
@@ -554,6 +562,9 @@ export interface WriteReport {
   verifiedFinal: number;
   // Money amounts in the plan's free text: how many, how many matched nothing before and after the repair.
   amounts: { checked: number; unbackedFirst: number; unbackedFinal: number };
+  // Explicit dates in the plan's scheduling fields: how many, how many fields fell before today first and after
+  // the repair (not counting dropped lines of the day-by-day plan), and how many such lines were dropped.
+  dates?: { checked: number; pastFirst: number; pastFinal: number; dropped: number };
   playbook: Playbook | null;
   // The plan as the writer published it, before any repair (kept for the eval, never sent to the browser).
   draft?: PlaybookOut;
@@ -742,6 +753,46 @@ ${sourcesForPrompt(ledger)}`,
     });
   }
 
+  // ---- 4c. DATES ---------------------------------------------------------------------------------
+  // Nothing in a plan for the coming week may fall before today, the restaurant's local date. One repair call
+  // re-dates what does; code re-checks; a line of the day-by-day plan still in the past is dropped, and anything
+  // else still in the past is listed under Proof.
+  const today = packToday(pack);
+  const dated = scheduleFields(pb);
+  const firstDates = pastDates(dated, today);
+  let past = firstDates.past;
+  if (past.length && left() > 15_000) {
+    emit({
+      type: "note",
+      text: `🔎 Verifier: ${past.length} part${past.length > 1 ? "s" : ""} of the plan ${past.length > 1 ? "fall" : "falls"} before today (${longDayLabel(today)}) — asking ${modelLabel(routing.repair || routing.reasoning)} to re-date ${past.length > 1 ? "them" : "it"}.`,
+    });
+    const proposals = await repairDates({
+      items: past.map((p) => ({ where: p.where, text: p.text })),
+      today: longDayLabel(today),
+      calendar: weekOf(today).map((d) => d.label),
+      language: language === "Español" ? "Spanish" : "English",
+      routing,
+      emit,
+      signal,
+      maxMs: left() - 5_000,
+    });
+    for (const [where, text] of proposals) {
+      const f = dated.find((x) => x.where === where);
+      if (!f) continue;
+      const clean = pastDates([{ ...f, get: () => text }], today).past.length === 0;
+      if (clean && text.length >= f.get().length * 0.5) f.set(text);
+    }
+    past = pastDates(dated, today).past;
+  }
+  const pastRows = new Set(past.filter((p) => p.where.startsWith("week_plan.")).map((p) => Number(p.where.split(".")[1])));
+  if (pastRows.size) pb.week_plan = pb.week_plan.filter((_, i) => !pastRows.has(i));
+  const pastLeft = past.filter((p) => !p.where.startsWith("week_plan."));
+  if (firstDates.past.length)
+    emit({
+      type: "note",
+      text: `🔎 Verifier: dates before today — ${firstDates.past.length - past.length} re-dated${pastRows.size ? `, ${pastRows.size} line${pastRows.size > 1 ? "s" : ""} of the day-by-day plan dropped` : ""}${pastLeft.length ? `, ${pastLeft.length} still listed under Proof` : ""}.`,
+    });
+
   // Dishes "on your menu now" are shown only if their name really is in the cited menu/site page.
   if (!pack.photoMenu) {
     const menuText = ledger
@@ -785,6 +836,13 @@ ${sourcesForPrompt(ledger)}`,
         fixed: firstAmounts.unbacked.length - amounts.unbacked.length,
         unbacked: amounts.unbacked.map((u) => ({ where: fieldLabel(u.where), amount: u.amount })),
       },
+      dates: {
+        today,
+        checked: firstDates.checked,
+        fixed: firstDates.past.length - past.length,
+        dropped: pastRows.size,
+        past: pastLeft.map((p) => ({ where: dateFieldLabel(p.where), text: p.text })),
+      },
     },
   };
   emit({ type: "sources", sources: ledger.list().map(publicSource) });
@@ -794,8 +852,19 @@ ${sourcesForPrompt(ledger)}`,
     verifiedFinal: ok,
     playbook,
     amounts: { checked: firstAmounts.checked, unbackedFirst: firstAmounts.unbacked.length, unbackedFinal: amounts.unbacked.length },
+    dates: { checked: firstDates.checked, pastFirst: firstDates.past.length, pastFinal: pastLeft.length, dropped: pastRows.size },
   });
   return report;
+}
+
+/** The restaurant's local date for a pack: stored since v7; older packs state it in their context. */
+export function packToday(pack: Pick<EvidencePack, "today" | "context" | "place">): string {
+  if (pack.today) return pack.today;
+  const stated = pack.context.match(/Today: [^\n]*?(\d{4}-\d{2}-\d{2})/)?.[1];
+  // Older packs stated the server's UTC date; the forecast's first day is the local one.
+  const firstDay = pack.context.match(/FORECAST:\n([^\n:]+):/)?.[1];
+  const fromForecast = stated && firstDay ? datesIn(firstDay, stated)[0] : undefined;
+  return fromForecast ?? stated ?? localToday({ timezone: pack.place?.timezone, lon: pack.place?.lon });
 }
 
 export function evidenceGroups(pb: PlaybookOut): EvidenceGroup[] {

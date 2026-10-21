@@ -1080,8 +1080,8 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
         Every source fetched in this run is cut into numbered sentences, and every claim cites the sentences it stands on — the chip shows the exact
         text. Code checks that each cited sentence exists, that every number in the claim appears in it, and that it says what the claim says: every
-        specific word of the claim must be there, give or take one in five. Prices elsewhere in the plan must match a dish or a checked claim. No
-        model is asked whether a claim is true.
+        specific word of the claim must be there, give or take one in five. Prices elsewhere in the plan must match a dish or a checked claim, and
+        no date may fall before today. No model is asked whether a claim is true.
       </p>
       {p.verification?.first_pass != null && (
         <ol className="mb-4 grid gap-2 sm:grid-cols-4" aria-label="How the verifier got there">
@@ -1136,6 +1136,23 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
             {p.verification.amounts.unbacked.length
               ? ` — not backed: ${p.verification.amounts.unbacked.map((u) => `${u.amount} (${u.where})`).join(", ")}`
               : " — each matches a dish price, the menu or a checked claim."}
+          </span>
+        </p>
+      )}
+      {p.verification?.dates && p.verification.dates.checked > 0 && (
+        <p
+          className={`mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] ${
+            p.verification.dates.past.length ? "border-terracotta/30 bg-terracotta/5 text-terracotta" : "border-line bg-paper/50 text-ink-2"
+          }`}
+        >
+          {p.verification.dates.past.length ? <IconAlert size={13} /> : <IconCheck size={13} className="text-olive" />}
+          <span>
+            <span className="font-semibold">Dates in the plan:</span> {p.verification.dates.checked} checked against today ({p.verification.dates.today})
+            {p.verification.dates.fixed ? `, ${p.verification.dates.fixed} re-dated by the repair pass` : ""}
+            {p.verification.dates.dropped ? `, ${p.verification.dates.dropped} line${p.verification.dates.dropped > 1 ? "s" : ""} of the day-by-day plan dropped` : ""}
+            {p.verification.dates.past.length
+              ? ` — still before today: ${p.verification.dates.past.map((d) => `“${d.text}” (${d.where})`).join(", ")}`
+              : " — none falls before today."}
           </span>
         </p>
       )}

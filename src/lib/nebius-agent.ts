@@ -721,6 +721,60 @@ ${JSON.stringify({ allowed_prices: opts.allowed, texts: items })}`,
   }
 }
 
+// ---- REPAIR: dates before today ---------------------------------------------------------------
+
+/**
+ * One small call: the writer's model re-dates the listed scheduling fields so nothing falls before today, using
+ * the week's calendar. Returns the proposed texts; the caller re-checks them in code.
+ */
+export async function repairDates(opts: {
+  items: { where: string; text: string }[];
+  today: string; // "Wed 21 Oct 2026"
+  calendar: string[]; // "Wed 21 Oct", "Thu 22 Oct"…
+  language: string;
+  routing: Routing;
+  emit: Emit;
+  signal?: AbortSignal;
+  maxMs?: number;
+}): Promise<Map<string, string>> {
+  const { items, routing, emit } = opts;
+  const model = routing.repair || routing.reasoning;
+  const capMs = Math.max(5_000, Math.min(30_000, opts.maxMs ?? 30_000));
+  const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(capMs)]) : AbortSignal.timeout(capMs);
+  const t0 = Date.now();
+  try {
+    const res = await chat(
+      {
+        model,
+        reasoning_effort: "low",
+        temperature: 0,
+        max_tokens: 6000,
+        tools: [toOpenAITool({ name: "fix_dates", description: "Return the corrected texts.", schema: AmountFixSchema })],
+        tool_choice: { type: "function", function: { name: "fix_dates" } },
+        messages: [
+          {
+            role: "user",
+            content: `Today is ${opts.today}, the restaurant's local date. These texts from its plan for the coming week schedule something on a day before today, which can't happen.
+Re-date each one to a day of this week's calendar, today or later, keeping its order relative to the rest of the plan (orders go out first; a new dish starts no earlier than the day after its order). Change only the days and dates, keep each weekday matching its date as in the calendar, and keep everything else exactly as written, in ${opts.language}.
+
+${JSON.stringify({ calendar: opts.calendar, texts: items })}`,
+          },
+        ],
+      },
+      signal,
+    );
+    const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const parsed = AmountFixSchema.safeParse(raw ? tolerantParse(raw) : null);
+    const out = new Map<string, string>();
+    if (parsed.success) for (const f of parsed.data.fixes) if (items.some((i) => i.where === f.where) && f.text.trim()) out.set(f.where, f.text.trim());
+    emit({ type: "engine", call: measured("verify", model, Date.now() - t0, res.usage, { note: `dates before today: ${out.size} of ${items.length} texts re-dated` }) });
+    return out;
+  } catch (err) {
+    if (opts.signal?.aborted) throw err;
+    return new Map(); // timed out or failed: code drops or lists what is still in the past
+  }
+}
+
 // ---- VISION: menu photo -------------------------------------------------------------------
 
 const MenuSchema = z.object({

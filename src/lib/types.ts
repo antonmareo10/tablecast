@@ -110,6 +110,9 @@ export type Playbook = {
     // Money amounts in the plan's free text (headline, plays, event, post…): each must equal a dish price, a
     // price on the current menu or a number in a checked claim. `unbacked` lists what still doesn't after repair.
     amounts?: { checked: number; fixed: number; unbacked: { where: string; amount: string }[] };
+    // Explicit dates in the plan's scheduling fields (day-by-day plan, moments, dishes, the event, when to post),
+    // checked against the restaurant's local date: re-dated by the repair, day-plan lines dropped, the rest listed.
+    dates?: { today: string; checked: number; fixed: number; dropped: number; past: { where: string; text: string }[] };
   };
 };
 
