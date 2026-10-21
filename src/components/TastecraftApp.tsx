@@ -409,11 +409,15 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState 
   const live: LiveState = { sources: [], engine: [] };
   events.forEach((ev, i) => {
     switch (ev.type) {
-      case "note":
+      case "note": {
         items.push({ kind: "note", text: ev.text, key: `note-${i}` });
+        // The writer is Ultra (Quick) or Super (Thorough), and Ultra may take over a retry: the agent says which.
+        const writer = /^🧠 (Nemotron [\w. ]+?) is writing your week/.exec(ev.text) ?? / — (Nemotron [\w. ]+?) takes over/.exec(ev.text);
+        if (writer) live.writer = writer[1];
         break;
+      }
       case "tool_start": {
-        const step: Step = { id: ev.id, tool: ev.tool, label: ev.label, done: false };
+        const step: Step = { id: ev.id, tool: ev.tool, label: ev.label, done: false, provider: ev.tool === "draft_playbook" ? live.writer : undefined };
         steps.set(ev.id, step);
         items.push({ kind: "step", step });
         break;
@@ -454,6 +458,7 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState 
         break;
       case "engine":
         live.engine = [...live.engine, ev.call];
+        if (ev.call.phase === "synthesize") live.writer = ev.call.label;
         break;
       case "tavily":
         live.tavilyCredits = ev.credits;

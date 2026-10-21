@@ -31,8 +31,8 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   },
   {
     step: "4 · Write",
-    who: "Nemotron 3 Ultra",
-    what: "The reasoning model writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
+    who: "Nemotron 3 Ultra (Quick) or Nemotron 3 Super (Thorough)",
+    what: "The owner picks the writer: Ultra at low reasoning effort, the fastest (Quick, about a minute), or Super at medium effort, the most claims verified first time (Thorough, 2–3 min; if it runs out of time, Ultra takes over). It writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
   },
   {
     step: "5 · Verify",

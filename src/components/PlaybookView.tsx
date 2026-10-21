@@ -26,6 +26,7 @@ export type LiveState = {
   draft?: Record<string, unknown>;
   engine: EngineCall[];
   tavilyCredits?: number;
+  writer?: string; // the Nemotron writing the plan, as the agent announced it
 };
 
 function money(v: number, currency: string): string {
@@ -118,7 +119,7 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
 
         {live.menu && live.menu.items.length > 0 && <MenuNow menu={live.menu} currency={p?.currency} />}
 
-        {running && live.draft && !p && <DraftPreview draft={live.draft} />}
+        {running && live.draft && !p && <DraftPreview draft={live.draft} writer={live.writer} />}
 
         {p && (
           <>
@@ -491,7 +492,7 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
   );
 }
 
-function DraftPreview({ draft }: { draft: Record<string, unknown> }) {
+function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; writer?: string }) {
   const headline = typeof draft.headline === "string" ? draft.headline : "";
   const moves = Array.isArray(draft.menu_moves) ? (draft.menu_moves as Array<Record<string, unknown>>) : [];
   const moments = Array.isArray(draft.moments) ? (draft.moments as Array<Record<string, unknown>>) : [];
@@ -507,7 +508,7 @@ function DraftPreview({ draft }: { draft: Record<string, unknown> }) {
   ];
   return (
     <section aria-live="polite" className="rise rounded-2xl border border-dashed border-olive/40 bg-card p-5 sm:p-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">Drafting live · Nemotron Ultra</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">Drafting live · {writer ?? "Nemotron"}</p>
       {headline ? (
         <p className="font-display mt-2 text-xl leading-snug sm:text-2xl">{headline}</p>
       ) : (
@@ -896,8 +897,8 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
       title={running ? "Model calls so far" : `This plan cost ≈ $${totalUsd.toFixed(3)} in inference`}
     >
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra writes the plan
-        and repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
+        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra (Quick) or
+        Super (Thorough) writes the plan, and Ultra repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
         <a href={PRICES_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           catalog
         </a>
@@ -1010,7 +1011,9 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
         </ol>
       </details>
       <p className="mt-3 text-[12px] text-muted">
-        {synth?.completion_tokens && synth.ms ? `Ultra streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. ` : ""}
+        {synth?.completion_tokens && synth.ms
+          ? `${synth.label.replace(/^Nemotron /, "")} streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. `
+          : ""}
         {tavilyCredits ? `Web research used ${tavilyCredits} Tavily credit${tavilyCredits === 1 ? "" : "s"}. ` : ""}
         {calls.some((c) => c.usage_estimated)
           ? "Calls cut by the loop guard never report usage; their tokens are estimated from the streamed text (~4 characters per token)."
