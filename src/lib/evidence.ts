@@ -6,11 +6,16 @@
 // citing span ids — it never types a quote — and the server fills in the exact text of each cited span.
 // A claim is "verified" only if, deterministically:
 //   1. every cited span exists in this run's sources;
-//   2. every number in the claim's sentence appears in a cited span (or the line right next to it, for
-//      menus that put a dish and its price on separate lines);
-//   3. the claim and its cited spans share at least one content word or number (an irrelevant citation fails).
-// No model is asked whether a claim is true — code decides. (Older quote-style cites are still checked:
-// the quote must appear word for word in the cited source.)
+//   2. every number in the claim's sentence appears in a cited span (or the lines right next to it: menus
+//      put a dish, its price and its description on separate lines, so for menu and site pages the window is
+//      the line before and the two after);
+//   3. the cited spans say what the claim says: every content word of the claim (dish names, ingredients,
+//      places, days…) appears in them, except at most one word in five (one, for claims of 4–9 words; none
+//      for shorter ones). Connective words ("brings", "costs"), the restaurant's own name and street don't
+//      count; "Wednesday" matches "Wed", "highs" matches "max", plurals match singulars.
+// When a number or word is found only on a neighbouring line, that line is attached to the cite so the owner
+// sees it. No model is asked whether a claim is true — code decides. (Older quote-style cites are still
+// checked: the quote must appear word for word in the cited source.)
 
 import type { Cite, Evidence, Source, SourceKind } from "./types";
 
@@ -46,13 +51,57 @@ const STOP = new Set(
   ),
 );
 
-/** Content words (4+ letters, not stopwords) and numbers of a text, for the relevance check. */
+/** Content words (4+ letters, not stopwords) and numbers of a text, for ranking related sentences. */
 function contentTokens(s: string): Set<string> {
   return new Set(
     normalizeText(s)
       .split(" ")
       .filter((w) => (/\d/.test(w) && w.length > 0) || (w.length >= 4 && !STOP.has(w))),
   );
+}
+
+// ---- coverage ------------------------------------------------------------------------------------
+
+/** How many of a claim's content words may be missing from its cited sentences (see the header). */
+export function allowedMissing(words: number, share = 0.2): number {
+  return words >= 4 ? Math.max(1, Math.floor(words * share)) : 0;
+}
+
+// Words that connect facts rather than state them: a claim may use them without its source saying them.
+const GENERIC = new Set(
+  "brings bring expected expect shows show stays stay include includes including offers offer serves serve serving runs run opens open available current currently listed lists features featuring located starts start starting within away between through every other some both still today tonight morning afternoon evening night weekend weather forecast forecasts temperature temperatures chance likely roughly approximately sell sells sold cost costs priced price prices item items there here tiene tienen ofrece ofrecen sirve sirven abre abren precio precios cuesta cuestan prevision tiempo temperatura temperaturas probabilidad".split(
+    " ",
+  ),
+);
+
+// One form for words that sources and claims write differently.
+const CANON: Record<string, string> = {
+  monday: "mon", tuesday: "tue", tues: "tue", wednesday: "wed", thursday: "thu", thur: "thu", thurs: "thu", friday: "fri", saturday: "sat", sunday: "sun",
+  lunes: "mon", martes: "tue", miercoles: "wed", jueves: "thu", viernes: "fri", sabado: "sat", domingo: "sun",
+  january: "jan", february: "feb", march: "mar", april: "apr", june: "jun", july: "jul", august: "aug", september: "sep", sept: "sep", october: "oct", november: "nov", december: "dec",
+  enero: "jan", febrero: "feb", marzo: "mar", abril: "apr", mayo: "may", junio: "jun", julio: "jul", agosto: "aug", septiembre: "sep", setiembre: "sep", octubre: "oct", noviembre: "nov", diciembre: "dec",
+  high: "max", highs: "max", maximum: "max", maxima: "max", low: "min", lows: "min", minimum: "min", minima: "min",
+  rainfall: "rain", precipitation: "rain", showers: "rain", shower: "rain", lluvia: "rain", lluvias: "rain",
+};
+const SHORT_KEEP = new Set(["mon", "tue", "wed", "thu", "fri", "sat", "sun", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec", "max", "min", "rain"]);
+
+/** Plural-insensitive form: "tomatoes" ~ "tomato", "croquetas" ~ "croqueta", "sauces" ~ "sauce". */
+function stem(w: string): string {
+  return w.replace(/ies$/, "y").replace(/s$/, "").replace(/e$/, "");
+}
+
+/** The words of a text that a citation has to back up, in comparable form, mapped back to how they were written. */
+function coverageWords(s: string, ignore: Set<string>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const raw of normalizeText(s).split(" ")) {
+    if (!raw || /\d/.test(raw)) continue;
+    const w = CANON[raw] ?? raw;
+    if (!SHORT_KEEP.has(w) && (w.length < 4 || STOP.has(w) || GENERIC.has(w))) continue;
+    const key = stem(w);
+    if (ignore.has(key)) continue;
+    if (!out.has(key)) out.set(key, raw);
+  }
+  return out;
 }
 
 const MAX_SPAN = 240;
@@ -91,6 +140,14 @@ export class SourceLedger {
   private byKey = new Map<string, Source>();
   private norm = new Map<string, string>();
   private spanCache = new Map<string, string[]>();
+  private ignored = new Set<string>();
+  /** Share of a claim's content words that may be missing from its cited sentences (calibrated in the eval). */
+  missingShare = 0.2;
+
+  /** Words a claim may use without its sources saying them: the restaurant's own name, its street and city. */
+  ignoreWords(...texts: (string | null | undefined)[]): void {
+    for (const t of texts) if (t) for (const key of coverageWords(t, new Set()).keys()) this.ignored.add(key);
+  }
 
   /** Rebuild a ledger from a saved source list, keeping every id as it was. */
   static from(list: Source[]): SourceLedger {
@@ -170,12 +227,23 @@ export class SourceLedger {
     return text == null ? null : { source, index, text };
   }
 
-  /** A span plus its immediate neighbours (menus often put a dish and its price on separate lines). */
-  private spanWithNeighbours(spanId: string): string {
+  /**
+   * The lines around a span that a claim may also draw on: the one before and the one after; for menu and
+   * site pages, the one before and the two after (a dish, its price and its description often sit on
+   * separate lines).
+   */
+  private window(spanId: string): { before: string[]; text: string; after: string[] } | null {
     const s = this.span(spanId);
-    if (!s) return "";
+    if (!s) return null;
     const all = this.spansOf(s.source.id);
-    return [all[s.index - 1], s.text, all[s.index + 1]].filter(Boolean).join(" ");
+    const n = s.source.kind === "menu" || s.source.kind === "site" ? 2 : 1;
+    return { before: all.slice(Math.max(0, s.index - 1), s.index), text: s.text, after: all.slice(s.index + 1, s.index + 1 + n) };
+  }
+
+  /** A span plus its neighbours, as one text. */
+  private spanWithNeighbours(spanId: string): string {
+    const w = this.window(spanId);
+    return w ? [...w.before, w.text, ...w.after].join(" ") : "";
   }
 
   /** Turn writer cites ({ span }) into display cites ({ source, span, quote = the span's exact text }). */
@@ -232,11 +300,43 @@ export class SourceLedger {
     return numbersIn(e.text).filter((n) => !tokens.has(n));
   }
 
+  /** The claim's content words (as written) that its cited sentences don't contain, and how many it has. */
+  uncovered(e: Evidence): { missing: string[]; words: number } {
+    const words = coverageWords(e.text, this.ignored);
+    const cited = coverageWords((e.cites ?? []).map((c) => this.citedText(c)).join(" "), new Set());
+    const missing = [...words].filter(([key]) => !cited.has(key)).map(([, raw]) => raw);
+    return { missing, words: words.size };
+  }
+
+  /**
+   * The neighbouring lines a span cite needed: those holding a number or word of the claim that the cited
+   * span itself doesn't have. Shown to the owner next to the quote.
+   */
+  private neighboursUsed(c: Cite, claim: string, citedSpans: string): string[] {
+    const w = c.span ? this.window(c.span) : null;
+    if (!w) return [];
+    // What every cited sentence already says (a claim citing Saturday and Sunday needs no neighbour for either).
+    const own = normalizeText(citedSpans).split(" ");
+    const ownWords = coverageWords(citedSpans, new Set());
+    const nums = numbersIn(claim).filter((n) => !own.includes(n));
+    const words = [...coverageWords(claim, this.ignored).keys()].filter((k) => !ownWords.has(k));
+    if (!nums.length && !words.length) return [];
+    return [...w.before, ...w.after].filter((line) => {
+      const toks = normalizeText(line).split(" ");
+      const lw = coverageWords(line, new Set());
+      return nums.some((n) => toks.includes(n)) || words.some((k) => lw.has(k));
+    });
+  }
+
   /** Verify one claim (see the header of this file). */
   verifyEvidence(e: Evidence): Evidence {
     const resolved = this.resolve(e);
     const checks = resolved.cites.map((c) => ({ c, r: this.checkCite(c) }));
-    const cites = checks.map(({ c, r }) => ({ ...c, ok: r.ok }));
+    const citedSpans = resolved.cites.map((c) => (c.span ? (this.span(c.span)?.text ?? "") : "")).join(" ");
+    const cites: Cite[] = checks.map(({ c, r }) => {
+      const context = r.ok ? this.neighboursUsed(c, e.text, citedSpans) : [];
+      return { ...c, ok: r.ok, ...(context.length ? { context } : {}) };
+    });
     let issue: string | undefined;
     if (cites.length === 0) issue = "no source cited";
     else {
@@ -248,9 +348,9 @@ export class SourceLedger {
       if (missing.length) issue = `number${missing.length > 1 ? "s" : ""} ${missing.join(", ").replace(/d/g, ".")} not in the cited sentences`;
     }
     if (!issue && cites.some((c) => c.span)) {
-      const claim = contentTokens(e.text);
-      const cited = contentTokens(cites.map((c) => this.citedText(c)).join(" "));
-      if (claim.size && ![...claim].some((t) => cited.has(t))) issue = "the cited sentences don't mention anything in the claim";
+      const { missing, words } = this.uncovered(resolved);
+      if (missing.length > allowedMissing(words, this.missingShare))
+        issue = `the cited sentences don't mention ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "…" : ""}`;
     }
     return { ...resolved, cites, verified: !issue, ...(issue ? { issue } : {}) };
   }
@@ -258,6 +358,23 @@ export class SourceLedger {
   verifyAll(list: Evidence[]): { items: Evidence[]; checked: number; verified: number } {
     const items = list.map((e) => this.verifyEvidence(e));
     return { items, checked: items.length, verified: items.filter((e) => e.verified).length };
+  }
+
+  /** True if a menu or site source has `name` on a line with `price` on it or on a neighbouring line. */
+  hasPriceFor(name: string, price: number): boolean {
+    const n = normalizeText(name);
+    const p = numbersIn(String(price));
+    if (!n || !p.length) return false;
+    for (const s of this.sources) {
+      if (s.kind !== "menu" && s.kind !== "site") continue;
+      const spans = this.spansOf(s.id);
+      for (let i = 0; i < spans.length; i++) {
+        if (!` ${normalizeText(spans[i])} `.includes(` ${n} `)) continue;
+        const near = normalizeText([spans[i - 1], spans[i], spans[i + 1]].filter(Boolean).join(" ")).split(" ");
+        if (p.every((x) => near.includes(x))) return true;
+      }
+    }
+    return false;
   }
 
   // ---- helpers for the repair pass ------------------------------------------------------------

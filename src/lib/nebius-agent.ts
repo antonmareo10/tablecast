@@ -609,7 +609,7 @@ export async function repairCitations(opts: {
             {
               role: "user",
               content: `This claim failed the check (${issue}).
-- "fix": cite 1-3 ids from candidate_sentences that really state the fact, and rewrite the claim so every number in it appears in those sentences (drop numbers you cannot back; never add computed totals or ranges).
+- "fix": cite 1-3 ids from candidate_sentences that really state the fact, and rewrite the claim so every number and every specific detail in it (names, ingredients, days, places) appears in those sentences — drop what you cannot back, keep it a plain statement of fact, and never add computed totals or ranges.
 - "drop": if no candidate sentence supports the claim.
 Never cite an id that is not listed.
 
@@ -659,6 +659,65 @@ ${JSON.stringify({ claim: e.text, cited, candidate_sentences: candidates })}`,
   emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, usage, { note, count: failing.length }) });
   emit({ type: "note", text: `🔎 Verifier: fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified.` });
   return { failing: failing.length, fixed, dropped };
+}
+
+// ---- REPAIR: money amounts in the plan's free text ----------------------------------------------
+
+const AmountFixSchema = z.object({
+  fixes: z
+    .array(z.object({ where: z.string().describe("The field id, exactly as given"), text: z.string().describe("The corrected text") }))
+    .max(20),
+});
+
+/**
+ * One small call: the writer's model rewrites only the money amounts of the listed fields so each equals an
+ * allowed price for the same item, or drops it. Returns the proposed texts; the caller re-checks them in code.
+ */
+export async function repairAmounts(opts: {
+  items: { where: string; text: string; amounts: string[] }[];
+  allowed: string[];
+  currency: string;
+  routing: Routing;
+  emit: Emit;
+  signal?: AbortSignal;
+  maxMs?: number;
+}): Promise<Map<string, string>> {
+  const { items, routing, emit } = opts;
+  const model = routing.repair || routing.reasoning;
+  const capMs = Math.max(5_000, Math.min(30_000, opts.maxMs ?? 30_000));
+  const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(capMs)]) : AbortSignal.timeout(capMs);
+  const t0 = Date.now();
+  try {
+    const res = await chat(
+      {
+        model,
+        reasoning_effort: "low",
+        temperature: 0,
+        max_tokens: 6000,
+        tools: [toOpenAITool({ name: "fix_amounts", description: "Return the corrected texts.", schema: AmountFixSchema })],
+        tool_choice: { type: "function", function: { name: "fix_amounts" } },
+        messages: [
+          {
+            role: "user",
+            content: `These texts from a restaurant's weekly plan contain money amounts that match no price the plan can back (currency ${opts.currency}).
+For each text, change ONLY the listed amounts: use the allowed price of the same item if there is one, otherwise remove the amount and keep the sentence natural (e.g. "a half-portion of the lunch pasta" instead of "a $12 half-portion"). Keep everything else exactly as written, in the same language. Never add new amounts.
+
+${JSON.stringify({ allowed_prices: opts.allowed, texts: items })}`,
+          },
+        ],
+      },
+      signal,
+    );
+    const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const parsed = AmountFixSchema.safeParse(raw ? tolerantParse(raw) : null);
+    const out = new Map<string, string>();
+    if (parsed.success) for (const f of parsed.data.fixes) if (items.some((i) => i.where === f.where) && f.text.trim()) out.set(f.where, f.text.trim());
+    emit({ type: "engine", call: measured("verify", model, Date.now() - t0, res.usage, { note: `prices in the plan text: ${out.size} of ${items.length} texts rewritten` }) });
+    return out;
+  } catch (err) {
+    if (opts.signal?.aborted) throw err;
+    return new Map(); // timed out or failed: the amounts stay listed as unbacked
+  }
 }
 
 // ---- VISION: menu photo -------------------------------------------------------------------

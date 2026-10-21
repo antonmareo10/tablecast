@@ -13,6 +13,7 @@
 //      number must be in a cited source; failures get one repair pass, re-checked by code.
 
 import { z } from "zod";
+import { allowedAmounts, fieldLabel, proseFields, unbackedAmounts } from "./amounts";
 import { SourceLedger, normalizeText } from "./evidence";
 import {
   baseline,
@@ -21,6 +22,7 @@ import {
   gather,
   modelLabel,
   readMenuPhoto,
+  repairAmounts,
   repairCitations,
   synthesize,
   type Emit,
@@ -158,6 +160,7 @@ Evidence rules (the server checks them in code and marks every failure in front 
 What to write:
 - Focus on THIS week, day by day: the forecast, holidays, events near the restaurant and local news. Moments = the 2-4 things that change demand this week, each with a concrete play.
 - menu_moves: three dishes to test this week. Build on the restaurant's real menu (list it in menu_seen): do not propose something it already sells; keep prices consistent with its current prices; tie each dish to the days it suits (cold/rain, heat, an event, a holiday) and to what guests already love.
+- Prices outside evidence sentences (headline, plays, event, post, reasoning, week plan): only use a price of one of your three dishes, a price printed on the current menu, or a price stated in an evidence sentence — always for the same item. Code checks every amount; describe any other offer without a price.
 - rivals: use THE BLOCK (OpenStreetMap) counts and the rival page(s): how crowded the block is, who serves the same cuisine nearby, their price points if found.
 - snapshot: only from review, press or site sources. If none were found, leave loved_for and watch_outs empty and add a caveat.
 - experience: one event or offer for this week tied to the evidence. marketing: a ready-to-post Instagram caption, when to post it and for whom.
@@ -522,7 +525,11 @@ export interface WriteReport {
   reattributed: number;
   repaired: { failing: number; fixed: number; dropped: number };
   verifiedFinal: number;
+  // Money amounts in the plan's free text: how many, how many matched nothing before and after the repair.
+  amounts: { checked: number; unbackedFirst: number; unbackedFinal: number };
   playbook: Playbook | null;
+  // The plan as the writer published it, before any repair (kept for the eval, never sent to the browser).
+  draft?: PlaybookOut;
 }
 
 /** Steps 3-4: write the plan from an evidence pack and verify every claim in code. */
@@ -531,6 +538,8 @@ export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOp
   const { signal } = opts;
   const { language, goal, context } = pack;
   const ledger = SourceLedger.from(pack.sources);
+  // A claim may name the restaurant and its street without a source repeating them.
+  ledger.ignoreWords(pack.req.restaurant, pack.req.city, pack.place?.name, pack.place?.address);
   const report: WriteReport = {
     ok: false,
     finish: null,
@@ -541,6 +550,7 @@ export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOp
     reattributed: 0,
     repaired: { failing: 0, fixed: 0, dropped: 0 },
     verifiedFinal: 0,
+    amounts: { checked: 0, unbackedFirst: 0, unbackedFinal: 0 },
     playbook: null,
   };
 
@@ -618,6 +628,7 @@ ${sourcesForPrompt(ledger)}`,
     return report;
   }
   const pb = checked.value;
+  report.draft = structuredClone(pb);
   const groups = evidenceGroups(pb);
   for (const g of groups) {
     report.claims += g.list.length;
@@ -648,6 +659,45 @@ ${sourcesForPrompt(ledger)}`,
     for (const e of v.items) for (const c of e.cites) if (c.ok) cited.add(c.source);
   }
   const providers = [...new Set([...cited].map((id) => ledger.get(id)?.provider).filter(Boolean) as string[])];
+
+  // ---- 4b. PRICES IN THE PLAN'S TEXT -------------------------------------------------------------
+  // Every money amount in the headline, plays, event, post… must be a dish price, a price printed next to the
+  // dish on the menu, or a number in a checked claim. One repair call fixes or removes the rest; code re-checks.
+  const fields = proseFields(pb);
+  const { numbers: allowed, labels } = allowedAmounts(
+    { ...pb, menu_seen: pb.menu_seen.filter((m) => m.price != null && ledger.hasPriceFor(m.name, m.price)) },
+    groups.flatMap((g) => g.list),
+  );
+  const firstAmounts = unbackedAmounts(fields, allowed);
+  let amounts = firstAmounts;
+  if (amounts.unbacked.length && left() > 15_000) {
+    const byField = new Map<string, string[]>();
+    for (const u of amounts.unbacked) byField.set(u.where, [...(byField.get(u.where) ?? []), u.amount]);
+    emit({
+      type: "note",
+      text: `🔎 Verifier: ${amounts.unbacked.length} price${amounts.unbacked.length > 1 ? "s" : ""} in the plan's text match${amounts.unbacked.length > 1 ? "" : "es"} no dish, menu price or checked claim — asking ${modelLabel(routing.repair || routing.reasoning)} to correct ${amounts.unbacked.length > 1 ? "them" : "it"}.`,
+    });
+    const proposals = await repairAmounts({
+      items: [...byField].map(([where, list]) => ({ where, text: fields.find((f) => f.where === where)?.get() ?? "", amounts: list })),
+      allowed: labels,
+      currency: pb.currency,
+      routing,
+      emit,
+      signal,
+      maxMs: left() - 5_000,
+    });
+    for (const [where, text] of proposals) {
+      const f = fields.find((x) => x.where === where);
+      if (!f) continue;
+      const clean = unbackedAmounts([{ ...f, get: () => text }], allowed).unbacked.length === 0;
+      if (clean && text.length >= f.get().length * 0.5) f.set(text);
+    }
+    amounts = unbackedAmounts(fields, allowed);
+    emit({
+      type: "note",
+      text: `🔎 Verifier: prices in the plan's text — ${firstAmounts.unbacked.length - amounts.unbacked.length} corrected${amounts.unbacked.length ? `, ${amounts.unbacked.length} still unbacked (listed under Proof)` : ""}.`,
+    });
+  }
 
   // Dishes "on your menu now" are shown only if their name really is in the cited menu/site page.
   if (!pack.photoMenu) {
@@ -687,11 +737,21 @@ ${sourcesForPrompt(ledger)}`,
       reattributed: report.reattributed,
       fixed: report.repaired.fixed,
       dropped: report.repaired.dropped,
+      amounts: {
+        checked: firstAmounts.checked,
+        fixed: firstAmounts.unbacked.length - amounts.unbacked.length,
+        unbacked: amounts.unbacked.map((u) => ({ where: fieldLabel(u.where), amount: u.amount })),
+      },
     },
   };
   emit({ type: "sources", sources: ledger.list().map(publicSource) });
   emit({ type: "playbook", playbook });
-  Object.assign(report, { ok: true, verifiedFinal: ok, playbook });
+  Object.assign(report, {
+    ok: true,
+    verifiedFinal: ok,
+    playbook,
+    amounts: { checked: firstAmounts.checked, unbackedFirst: firstAmounts.unbacked.length, unbackedFinal: amounts.unbacked.length },
+  });
   return report;
 }
 

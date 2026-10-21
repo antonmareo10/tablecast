@@ -1,15 +1,15 @@
 # Routing eval — which Nemotron should write the plan?
 
-Run on 2026-10-20 with `npx tsx scripts/eval-routing.ts`. Restaurants: [eval/restaurants.json](restaurants.json) (fixed before running).
+Run on 2026-10-21 with `npx tsx scripts/eval-routing.ts`. Restaurants: [eval/restaurants.json](restaurants.json) (fixed before running).
 
-**Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, Tavily Map, then Nemotron 3.5 Lightning researching the web with Tavily Search/Extract). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: each cited sentence must exist, every number in the claim must appear in a cited sentence, and the cited sentences must share content with the claim. "First pass" is the writer alone; then one repair pass (the same for every configuration: Nemotron Ultra at low effort, one call per failing claim) fixes or drops what failed; "final" is what the owner sees. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).
+**Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, Tavily Map, then Nemotron 3.5 Lightning researching the web with Tavily Search/Extract). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: each cited sentence must exist, every number in the claim must appear in a cited sentence (or its neighbouring lines), and the cited sentences must contain the claim's content words — at most one in five may be missing (one for claims of 4–9 words, none for shorter ones). "First pass" is the writer alone; then one repair pass (the same for every configuration: Nemotron Ultra at low effort, one call per failing claim) fixes or drops what failed; "final" is what the owner sees. Verification shares are pooled over all claims of a configuration (verified claims ÷ claims), not medians of per-plan rates. Money amounts in the plan's free text (headline, plays, event, post, reasoning) must equal a dish price, a price printed next to the dish on the menu, or a number in a verified claim; one repair call fixes or removes the rest. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).
 
-| Writer | Plans published | Retries | Claims / plan | Verified, first pass | Verified, final | Dishes tied to this week | Dishes new to the menu | Writer time (median / slowest) | Cost / plan (median) |
-|---|---|---|---|---|---|---|---|---|---|
-| ultra-medium | 8/8 | 0 | 18.8 | 76% | 96% | 67% | 100% | 38.9 s / 73.2 s | $0.0653 |
-| ultra-low | 8/8 | 1 | 17.5 | 73% | 96% | 71% | 100% | 32.9 s / 138.6 s | $0.0752 |
-| super-medium | 8/8 | 0 | 20.3 | 94% | 98% | 71% | 100% | 126.8 s / 207.4 s | $0.0233 |
-| lightning-low | 8/8 | 0 | 15.4 | 89% | 94% | 25% | 75% | 93.9 s / 151.7 s | $0.0079 |
+| Writer | Plans published | Retries | Claims / plan | Verified, first pass | Verified, final | Prices in the text backed (first → final) | Dishes tied to this week | Dishes new to the menu | Writer time (median / slowest) | Cost / plan (median) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ultra-medium | 8/8 | 0 | 20.9 | 47% | 89% | 78% → 97% (58) | 83% | 100% | 27.2 s / 36.5 s | $0.1052 |
+| ultra-low | 8/8 | 1 | 17.1 | 41% | 81% | 82% → 100% (72) | 75% | 100% | 25.5 s / 47.5 s | $0.1045 |
+| super-medium | 8/8 | 2 | 16.9 | 56% | 82% | 38% → 100% (8) | 50% | 100% | 118.1 s / 177.2 s | $0.0487 |
+| lightning-low | 8/8 | 0 | 16.0 | 71% | 88% | 78% → 100% (9) | 13% | 54% | 99.8 s / 199.3 s | $0.0233 |
 
 Shared research step (once per restaurant): median 34 sources, median $0.0014 of Nemotron Lightning, median 5 Tavily credits.
 

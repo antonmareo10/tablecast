@@ -59,7 +59,8 @@ function arg(name: string): string[] | null {
 type RunResult = {
   slug: string;
   config: string;
-  report: Omit<WriteReport, "playbook">;
+  report: Omit<WriteReport, "playbook">; // includes the writer's draft before repair, for offline re-checks
+  final?: Playbook | null;
   calls: EngineCall[];
   ms: number;
   usd: number;
@@ -113,6 +114,7 @@ async function runConfig(slug: string, config: string, pack: EvidencePack): Prom
     slug,
     config,
     report: rest,
+    final: playbook,
     calls,
     ms: Date.now() - started,
     usd: calls.reduce((s, c) => s + (c.est_cost_usd ?? 0), 0),
@@ -182,8 +184,13 @@ async function main() {
     const final = ok.reduce((s, r) => s + r.report.verifiedFinal, 0);
     const week = ok.map((r) => r.weekSpecific).filter((x): x is number => x != null);
     const fresh = ok.map((r) => r.newDishes).filter((x): x is number => x != null);
+    const amounts = ok.map((r) => r.report.amounts).filter((a): a is WriteReport["amounts"] => !!a);
+    const amountsChecked = amounts.reduce((s, a) => s + a.checked, 0);
     return {
       config,
+      amountsChecked,
+      amountsFirst: amountsChecked ? 1 - amounts.reduce((s, a) => s + a.unbackedFirst, 0) / amountsChecked : NaN,
+      amountsFinal: amountsChecked ? 1 - amounts.reduce((s, a) => s + a.unbackedFinal, 0) / amountsChecked : NaN,
       runs: rs.length,
       published: ok.length,
       retries: rs.filter((r) => r.report.retried).length,
@@ -205,13 +212,13 @@ async function main() {
     ``,
     `Run on ${date} with \`npx tsx scripts/eval-routing.ts\`. Restaurants: [eval/restaurants.json](restaurants.json) (fixed before running).`,
     ``,
-    `**Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, Tavily Map, then Nemotron 3.5 Lightning researching the web with Tavily Search/Extract). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: each cited sentence must exist, every number in the claim must appear in a cited sentence, and the cited sentences must share content with the claim. "First pass" is the writer alone; then one repair pass (the same for every configuration: Nemotron Ultra at low effort, one call per failing claim) fixes or drops what failed; "final" is what the owner sees. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).`,
+    `**Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, Tavily Map, then Nemotron 3.5 Lightning researching the web with Tavily Search/Extract). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: each cited sentence must exist, every number in the claim must appear in a cited sentence (or its neighbouring lines), and the cited sentences must contain the claim's content words — at most one in five may be missing (one for claims of 4–9 words, none for shorter ones). "First pass" is the writer alone; then one repair pass (the same for every configuration: Nemotron Ultra at low effort, one call per failing claim) fixes or drops what failed; "final" is what the owner sees. Verification shares are pooled over all claims of a configuration (verified claims ÷ claims), not medians of per-plan rates. Money amounts in the plan's free text (headline, plays, event, post, reasoning) must equal a dish price, a price printed next to the dish on the menu, or a number in a verified claim; one repair call fixes or removes the rest. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).`,
     ``,
-    `| Writer | Plans published | Retries | Claims / plan | Verified, first pass | Verified, final | Dishes tied to this week | Dishes new to the menu | Writer time (median / slowest) | Cost / plan (median) |`,
-    `|---|---|---|---|---|---|---|---|---|---|`,
+    `| Writer | Plans published | Retries | Claims / plan | Verified, first pass | Verified, final | Prices in the text backed (first → final) | Dishes tied to this week | Dishes new to the menu | Writer time (median / slowest) | Cost / plan (median) |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|`,
     ...rows.map(
       (r) =>
-        `| ${r.config} | ${r.published}/${r.runs} | ${r.retries} | ${Number.isFinite(r.claimsPerPlan) ? r.claimsPerPlan.toFixed(1) : "–"} | ${pct(r.firstPass)} | ${pct(r.final)} | ${pct(r.week)} | ${pct(r.fresh)} | ${secs(r.writerMs)} / ${secs(r.writerMaxMs)} | ${Number.isFinite(r.usd) ? `$${r.usd.toFixed(4)}` : "–"} |`,
+        `| ${r.config} | ${r.published}/${r.runs} | ${r.retries} | ${Number.isFinite(r.claimsPerPlan) ? r.claimsPerPlan.toFixed(1) : "–"} | ${pct(r.firstPass)} | ${pct(r.final)} | ${r.amountsChecked ? `${pct(r.amountsFirst)} → ${pct(r.amountsFinal)} (${r.amountsChecked})` : "–"} | ${pct(r.week)} | ${pct(r.fresh)} | ${secs(r.writerMs)} / ${secs(r.writerMaxMs)} | ${Number.isFinite(r.usd) ? `$${r.usd.toFixed(4)}` : "–"} |`,
     ),
     ``,
     `Shared research step (once per restaurant): median ${gatherStats.length ? median(gatherStats.map((g) => g.sources)) : "–"} sources, median $${gatherStats.length ? median(gatherStats.map((g) => g.usd)).toFixed(4) : "–"} of Nemotron Lightning, median ${gatherStats.length ? median(gatherStats.map((g) => g.credits)) : "–"} Tavily credits.`,
@@ -221,6 +228,15 @@ async function main() {
     `**Limits.** ${results.length} plans over ${gatherStats.length} restaurants is a small sample; verification measures whether claims are backed by the sources, not whether the dishes would sell. Web content changes daily, so a re-run gathers different evidence.`,
     ``,
   ].join("\n");
+  // Per-plan metrics without any third-party text, committed so the table above can be re-derived.
+  const csv = [
+    "restaurant,writer,published,retried,claims,verified_first_pass,verified_final,amounts_checked,amounts_unbacked_first,amounts_unbacked_final,writer_ms,usd",
+    ...results.map((r) =>
+      [r.slug, r.config, r.report.ok, r.report.retried, r.report.claims, r.report.verifiedFirstPass, r.report.verifiedFinal, r.report.amounts?.checked ?? "", r.report.amounts?.unbackedFirst ?? "", r.report.amounts?.unbackedFinal ?? "", r.writerMs, r.usd.toFixed(6)].join(","),
+    ),
+  ].join("\n");
+  fs.writeFileSync(path.join(ROOT, "eval", `metrics-${RUNS_DIR}.csv`), `${csv}\n`);
+
   // Hand-written findings and decisions live in eval/SUMMARY-notes.md, so a re-run keeps them.
   const notesFile = path.join(ROOT, "eval", "SUMMARY-notes.md");
   const notes = fs.existsSync(notesFile) ? `\n${fs.readFileSync(notesFile, "utf8").trim()}\n` : "";

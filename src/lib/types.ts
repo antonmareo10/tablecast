@@ -33,8 +33,10 @@ export type Source = {
   text: string; // the text quotes are checked against, exactly as fetched
 };
 
-// The writer cites sentence ids (span "S9.4"); the server fills in `source` and the exact `quote`.
-export type Cite = { source: string; quote: string; span?: string; ok?: boolean };
+// The writer cites sentence ids (span "S9.4"); the server fills in `source` and the exact `quote`, plus
+// `context`: the neighbouring lines that hold a number or word of the claim (menus often put a dish and its
+// price on separate lines), shown next to the quote.
+export type Cite = { source: string; quote: string; span?: string; ok?: boolean; context?: string[] };
 
 export type Evidence = {
   text: string; // one owner-friendly sentence
@@ -104,6 +106,9 @@ export type Playbook = {
     reattributed?: number;
     fixed?: number;
     dropped?: number;
+    // Money amounts in the plan's free text (headline, plays, event, post…): each must equal a dish price, a
+    // price on the current menu or a number in a checked claim. `unbacked` lists what still doesn't after repair.
+    amounts?: { checked: number; fixed: number; unbacked: { where: string; amount: string }[] };
   };
 };
 
