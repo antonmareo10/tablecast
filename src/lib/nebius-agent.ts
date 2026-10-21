@@ -141,6 +141,11 @@ function chatStream(body: Record<string, unknown>, signal?: AbortSignal): Promis
   );
 }
 
+/** A short, one-line description of a failed request, for the engine log. */
+function errorText(err: unknown): string {
+  return (err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 140);
+}
+
 export function measured(phase: EngineCall["phase"], model: string, ms: number, usage: Usage | null | undefined, extra: Partial<EngineCall> = {}): EngineCall {
   // started_at lets the UI draw a real timeline of where the run's time went.
   const call: EngineCall = { phase, model, label: modelLabel(model), ms: Math.round(ms), started_at: Date.now() - Math.round(ms), ...extra };
@@ -406,10 +411,14 @@ export async function synthesize(opts: {
     );
   } catch (err) {
     clearTimeout(stallTimer);
-    // The connection never answered: let the caller retry once.
     clearTimeout(capTimer);
-    if ((finish === "stall" || finish === "slow") && !signal?.aborted) return { value: null, finish };
-    throw err;
+    // The connection never answered, or the server refused the request: let the caller retry once.
+    if (signal?.aborted) throw err;
+    if (finish !== "stall" && finish !== "slow") {
+      finish = "error";
+      emit({ type: "engine", call: measured("synthesize", model, Date.now() - started, undefined, { note: `reasoning_effort ${effort} · server error: ${errorText(err)}` }) });
+    }
+    return { value: null, finish };
   }
   let args = "";
   let ttft: number | null = null;
@@ -419,6 +428,7 @@ export async function synthesize(opts: {
   let thinking = ""; // reasoning streamed since the last note
   let lastNote = "";
   const guard = new LoopGuard();
+  let serverError = "";
   let outChars = 0; // streamed characters, to estimate tokens if a cut stream never reports usage
   try {
     for await (const chunk of stream) {
@@ -471,12 +481,18 @@ export async function synthesize(opts: {
       }
     }
   } catch (err) {
-    // Only our loop guard may end the stream early; anything else (incl. the caller's abort) propagates.
-    if (!((finish === "loop" || finish === "stall" || finish === "slow") && stopper.signal.aborted && !signal?.aborted)) throw err;
+    // The caller's abort propagates. Our own cuts (loop, stall, slow) and a server error mid-stream end this attempt,
+    // and the caller retries once. (Held-out eval, 21 Oct: Token Factory failed a stream whose JSON held a 4,305-digit
+    // number — "Exceeds the limit (4300 digits) for integer string conversion" — and the whole run was lost.)
+    if (signal?.aborted) throw err;
+    if (!((finish === "loop" || finish === "stall" || finish === "slow") && stopper.signal.aborted)) {
+      finish = "error";
+      serverError = errorText(err);
+    }
   }
   clearTimeout(stallTimer);
   clearTimeout(capTimer);
-  if (finish === "loop" || finish === "stall" || finish === "slow") args = ""; // a cut-off or looping plan is not trusted
+  if (finish === "loop" || finish === "stall" || finish === "slow" || finish === "error") args = ""; // a cut-off or looping plan is not trusted
   // A stream cut by us never reports usage: estimate it (~4 characters per token) and say so.
   const estimated = !usage;
   if (estimated) usage = { prompt_tokens: Math.round((opts.system.length + opts.user.length) / 4), completion_tokens: Math.round(outChars / 4) };
@@ -485,7 +501,7 @@ export async function synthesize(opts: {
     call: measured("synthesize", model, Date.now() - started, usage, {
       ...(ttft != null ? { ttft_ms: ttft } : {}),
       ...(estimated ? { usage_estimated: true } : {}),
-      note: `reasoning_effort ${effort}${finish === "loop" ? " · cut: reasoning loop detected" : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
+      note: `reasoning_effort ${effort}${finish === "loop" ? " · cut: reasoning loop detected" : finish === "error" ? ` · server error: ${serverError}` : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
     }),
   });
   if (!args.trim()) return { value: null, finish };

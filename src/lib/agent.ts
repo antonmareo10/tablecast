@@ -218,7 +218,7 @@ export async function runTablecast(req: AgentRequest, emit: Emit, opts: RunOptio
   const language = req.language ?? "English";
   // The generic, no-data answer from the same fast Nemotron — shown side by side at the end.
   const baselinePromise = baseline(
-    `I own the restaurant "${req.restaurant}" in ${req.city}. My goal this week: ${goal}. Suggest three dishes to add this week and one event idea. Plain text, max 90 words, no markdown. Answer in ${language}.`,
+    baselinePrompt(req.restaurant, req.city, goal, language),
     routing,
     emit,
     opts.signal,
@@ -228,6 +228,11 @@ export async function runTablecast(req: AgentRequest, emit: Emit, opts: RunOptio
   const pack = await gatherEvidence(req, emit, { ...opts, routing });
   if (pack) await writeAndVerify(pack, emit, { ...opts, routing });
   await baselinePromise;
+}
+
+/** What the owner would get asking the same Nemotron without Tablecast: no tools, no data (shown side by side). */
+export function baselinePrompt(restaurant: string, city: string, goal: string, language: string): string {
+  return `I own the restaurant "${restaurant}" in ${city}. My goal this week: ${goal}. Suggest three dishes to add this week and one event idea. Plain text, max 90 words, no markdown. Answer in ${language}.`;
 }
 
 /** Steps 1-2: deterministic context + web research. Returns null if the restaurant's city can't be located. */
@@ -654,9 +659,11 @@ ${sourcesForPrompt(ledger)}`,
           ? "ran out of room while reasoning"
           : finish === "stall"
             ? "stopped responding for a minute"
-            : finish === "slow"
-              ? "was taking too long"
-              : "stopped without publishing";
+            : finish === "error"
+              ? "hit a server error"
+              : finish === "slow"
+                ? "was taking too long"
+                : "stopped without publishing";
     const retryModel = routing.fallback ?? routing.reasoning;
     emit({
       type: "note",
