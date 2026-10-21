@@ -4,6 +4,8 @@
 
 **An AI agent on NVIDIA Nemotron (Nebius Token Factory) that reads an independent restaurant’s coming week — the forecast at its door, holidays, events nearby, the venues on its block, its own menu and what guests say online — and turns it into three dishes to test, an event, a ready-to-post campaign, a supplier order and a day-by-day plan. Every claim cites the exact sentences it stands on, and code checks that those sentences contain its numbers and its words.**
 
+**Live demo: https://tablecast-app.vercel.app** · **Video (2:36): https://youtu.be/Ni4OlFJ6yrQ**
+
 Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and Agents** · also entering **Best Use of Tavily** · License: MIT
 
 - **Live demo:** [tablecast-app.vercel.app](https://tablecast-app.vercel.app)
