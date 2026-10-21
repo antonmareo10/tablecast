@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SplitWords } from "@/components/kinetic";
+import { Reveal } from "@/components/motion";
 
 export const metadata: Metadata = {
   title: "How it works · Tablecast",
@@ -44,19 +46,27 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
 export default function About() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 sm:px-6">
-      <Link href="/" className="text-sm text-ink-2 underline decoration-line underline-offset-4 hover:text-ink">
-        ← Back to Tablecast
+      <Link
+        href="/"
+        className="group inline-flex min-h-9 items-center gap-1 text-sm text-ink-2 underline decoration-line underline-offset-4 transition-colors hover:text-ink"
+      >
+        <span aria-hidden className="inline-block transition-transform duration-300 group-hover:-translate-x-0.5">
+          ←
+        </span>{" "}
+        Back to Tablecast
       </Link>
 
       <header className="mt-8">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">How it works</p>
-        <h1 className="font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-5xl">The Monday-morning plan chains get from an insight team.</h1>
+        <p className="rise text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">How it works</p>
+        <h1 className="kinetic font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-5xl">
+          <SplitWords text="The Monday-morning plan chains get from an insight team." />
+        </h1>
       </header>
 
       <section className="mt-12 grid gap-4 sm:grid-cols-3">
-        <Stat value="412,498" label="independent restaurants left in the US at the end of 2025" href={SOURCES.technomic} />
-        <Stat value="−2.3%" label="independents lost in 2025 — about 9,500 closures — while chains grew 1.4%" href={SOURCES.nrn} />
-        <Stat value="7 in 10" label="US restaurants are single-unit operations, with no insight team" href={SOURCES.nra} />
+        <Stat i={0} value="412,498" label="independent restaurants left in the US at the end of 2025" href={SOURCES.technomic} />
+        <Stat i={1} value="−2.3%" label="independents lost in 2025 — about 9,500 closures — while chains grew 1.4%" href={SOURCES.nrn} />
+        <Stat i={2} value="7 in 10" label="US restaurants are single-unit operations, with no insight team" href={SOURCES.nra} />
       </section>
 
       <Block title="The problem">
@@ -70,13 +80,13 @@ export default function About() {
       <Block title="The pipeline">
         <p>Every step runs on the model that suits it, on Nebius Token Factory. All model calls are measured and shown in the app’s engine room.</p>
         <ol className="mt-4 space-y-3">
-          {PIPELINE.map((p) => (
-            <li key={p.step} className="rounded-2xl border border-line bg-card p-4">
+          {PIPELINE.map((p, i) => (
+            <Reveal as="li" key={p.step} delay={i * 0.06} y={12} className="rounded-2xl border border-line bg-card p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
                 {p.step} · <span className="text-olive">{p.who}</span>
               </p>
               <p className="mt-1 text-[15px] leading-relaxed text-ink-2">{p.what}</p>
-            </li>
+            </Reveal>
           ))}
         </ol>
       </Block>
@@ -130,9 +140,15 @@ export default function About() {
   );
 }
 
-function Stat({ value, label, href }: { value: string; label: string; href: string }) {
+function Stat({ value, label, href, i }: { value: string; label: string; href: string; i: number }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="block rounded-2xl border border-line bg-card p-5 transition hover:border-ink-2/30">
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      style={{ "--d": `${300 + i * 80}ms` } as React.CSSProperties}
+      className="rise lift block rounded-2xl border border-line bg-card p-5 hover:border-ink-2/30"
+    >
       <p className="font-display text-4xl text-olive">{value}</p>
       <p className="mt-2 text-sm leading-snug text-ink-2">{label}</p>
       <p className="mt-3 text-[11px] text-muted underline underline-offset-2">Source</p>
@@ -142,9 +158,9 @@ function Stat({ value, label, href }: { value: string; label: string; href: stri
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-12">
+    <Reveal as="section" className="mt-12">
       <h2 className="font-display text-2xl sm:text-3xl">{title}</h2>
       <div className="mt-3 space-y-3 text-[16px] leading-relaxed text-ink-2">{children}</div>
-    </section>
+    </Reveal>
   );
 }
