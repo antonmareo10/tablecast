@@ -644,8 +644,29 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
         </div>
       }
     >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm">
+      {/* Phone: one stacked row per item, cost always visible. */}
+      <ul className="border-t border-line text-sm sm:hidden" aria-label="Shopping list">
+        {p.shopping_list.map((i, idx) => (
+          <li key={`${i.item}-${idx}`} className="flex items-start justify-between gap-3 border-b border-line/60 py-2">
+            <div className="min-w-0">
+              <p className="leading-snug">{i.item}</p>
+              <p className="text-[12px] text-muted">
+                <span className="tabular-nums">
+                  {i.qty} {i.unit}
+                </span>{" "}
+                · {i.supplier_category}
+              </p>
+            </div>
+            <span className="shrink-0 tabular-nums">{money(i.est_cost, p.currency)}</span>
+          </li>
+        ))}
+        <li className="flex items-baseline justify-between gap-3 pt-3">
+          <span className="text-xs uppercase tracking-[0.12em] text-muted">Estimated total</span>
+          <span className="font-semibold tabular-nums">{money(total, p.currency)}</span>
+        </li>
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.12em] text-muted">
               <th className="py-2 pr-3 font-semibold">Item</th>
@@ -877,7 +898,42 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
         , {PRICES_RETRIEVED}).
       </p>
       <EngineTimeline calls={calls} />
-      <div className="overflow-x-auto">
+      {/* Phone: one card per model, cost first; the full table from sm up. */}
+      <ul className="space-y-2 text-[13px] sm:hidden" aria-label="Cost per model">
+        {[...byModel.entries()].map(([id, m]) => (
+          <li key={id} className="rounded-xl border border-line bg-paper/40 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium">{m.label}</p>
+                <p className="truncate text-[11px] text-muted">{id}</p>
+              </div>
+              <span className="shrink-0 font-semibold tabular-nums">{usd(m.usd)}</span>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+              {[
+                ["Tokens in", m.inTok.toLocaleString("en-GB")],
+                ["Tokens out", m.outTok.toLocaleString("en-GB")],
+                ["Calls", String(m.calls)],
+                ["Time", fmtMs(m.ms)],
+              ].map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-[10px] uppercase tracking-[0.1em] text-muted">{k}</dt>
+                  <dd className="tabular-nums">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            {m.reason > 0 && <p className="mt-1 text-[11px] text-muted">{m.reason.toLocaleString("en-GB")} of the output tokens were reasoning</p>}
+          </li>
+        ))}
+        <li className="flex items-baseline justify-between gap-3 px-1 pt-1">
+          <span className="text-[12px] text-muted">
+            <span className="uppercase tracking-[0.12em]">Total</span> · {calls.reduce((n, c) => n + callCount(c), 0)} calls ·{" "}
+            {totalTok.toLocaleString("en-GB")} tokens
+          </span>
+          <span className="shrink-0 font-semibold tabular-nums">{usd(totalUsd)}</span>
+        </li>
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[560px] text-[13px]">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -993,7 +1049,7 @@ function EngineTimeline({ calls }: { calls: EngineCall[] }) {
         {timed.map((c, i) => {
           const start = (c.started_at as number) - t0;
           return (
-            <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-2 text-[11px] sm:grid-cols-[130px_1fr]">
+            <li key={i} className="grid grid-cols-[112px_1fr] items-center gap-2 text-[11px] sm:grid-cols-[130px_1fr]">
               <span className="truncate text-ink-2" title={`${PHASE_LABEL[c.phase]} · ${c.label}`}>
                 {PHASE_LABEL[c.phase]}
               </span>
@@ -1015,7 +1071,7 @@ function EngineTimeline({ calls }: { calls: EngineCall[] }) {
           );
         })}
       </ol>
-      <div className="mt-1 grid grid-cols-[96px_1fr] text-[10px] tabular-nums text-muted sm:grid-cols-[130px_1fr]">
+      <div className="mt-1 grid grid-cols-[112px_1fr] gap-2 text-[10px] tabular-nums text-muted sm:grid-cols-[130px_1fr]">
         <span />
         <span className="flex justify-between">
           <span>0 s</span>

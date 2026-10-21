@@ -368,7 +368,7 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
         </div>
       </main>
 
-      <footer className="no-print border-t border-line py-6 text-center text-xs text-muted">
+      <footer className="no-print border-t border-line px-4 py-6 text-center text-xs leading-relaxed text-muted sm:px-6">
         Built for the Nebius × NVIDIA Global AI Hackathon · Reasoning by NVIDIA Nemotron on Nebius Token Factory · Web research by Tavily · Map data
         © OpenStreetMap contributors · Weather by Open-Meteo
       </footer>
