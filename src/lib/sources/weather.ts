@@ -1,7 +1,7 @@
 // 7-day forecast from Open-Meteo (free, keyless). Weather data by Open-Meteo.com, CC BY 4.0.
 
 import { fetchJson, warnSource } from "./http";
-import { dayLabel, isValidLatLon, roundInt, weekdayOf } from "./format";
+import { dayLabel, formatMm, isValidLatLon, roundInt, weekdayOf } from "./format";
 
 export type DayForecast = {
   date: string;
@@ -112,7 +112,7 @@ export function forecastLine(d: DayForecast): string {
   const parts = [
     `${dayLabel(d.date)}: ${d.condition}`,
     `max ${roundInt(d.tmax)}°C / min ${roundInt(d.tmin)}°C`,
-    `${(Math.round(Math.max(0, d.precip_mm) * 10) / 10).toFixed(1)} mm`,
+    `${formatMm(d.precip_mm)} mm`,
   ];
   if (d.precip_prob !== null) parts.push(`${roundInt(d.precip_prob)}% chance of rain`);
   return parts.join(", ");

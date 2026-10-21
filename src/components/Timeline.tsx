@@ -11,6 +11,7 @@ export type Step = {
   error?: boolean;
   summary?: string;
   sources?: string[];
+  provider?: string; // overrides the per-tool default, e.g. which Nemotron drafts the plan
 };
 
 export type TimelineItem =
@@ -90,7 +91,7 @@ const PROVIDER: Record<string, string> = {
   read_pages: "Tavily",
   site_map: "Tavily",
   menu_photo: "Nemotron Super VL",
-  draft_playbook: "Nemotron Ultra",
+  draft_playbook: "Nemotron",
 };
 
 function StepRow({ step }: { step: Step }) {
@@ -117,7 +118,11 @@ function StepRow({ step }: { step: Step }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-snug">
             {step.label}
-            {PROVIDER[step.tool] && <span className="ml-1.5 rounded-full bg-paper-2 px-1.5 py-px align-middle text-[10px] font-normal text-muted">{PROVIDER[step.tool]}</span>}
+            {(step.provider ?? PROVIDER[step.tool]) && (
+              <span className="ml-1.5 rounded-full bg-paper-2 px-1.5 py-px align-middle text-[10px] font-normal text-muted">
+                {step.provider ?? PROVIDER[step.tool]}
+              </span>
+            )}
           </p>
           {step.summary && <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{step.summary}</p>}
           {step.sources && step.sources.length > 0 && (

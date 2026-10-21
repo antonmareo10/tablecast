@@ -61,6 +61,14 @@ export function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * Rainfall to one decimal, e.g. 2.05 -> "2.1". The forecast source line and the week strip both use it, so
+ * the owner never sees "2.0 mm" on the card next to a claim that cites "2.1 mm" (toFixed alone rounds 2.05 down).
+ */
+export function formatMm(mm: number): string {
+  return (Math.round(Math.max(0, mm) * 10) / 10).toFixed(1);
+}
+
 /** Integer rounding without "-0". */
 export function roundInt(n: number): number {
   const r = Math.round(n);

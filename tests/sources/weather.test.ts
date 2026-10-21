@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { forecastLine, weatherCondition, weekForecast, type DayForecast } from "../../src/lib/sources/weather";
-import { dayLabel } from "../../src/lib/sources/format";
+import { dayLabel, formatMm } from "../../src/lib/sources/format";
 import { jsonResponse, mockFetch, params, silenceWarnings } from "./helpers";
 
 beforeEach(() => {
@@ -81,6 +81,19 @@ describe("forecastLine", () => {
     expect(forecastLine({ ...base, date: "2026-02-01", tmax: -1.6, tmin: -7.5, precip_mm: 12.05, precip_prob: 95, condition: "heavy snow" })).toBe(
       "Sun 1 Feb: heavy snow, max -2°C / min -7°C, 12.1 mm, 95% chance of rain",
     );
+  });
+});
+
+describe("formatMm", () => {
+  it("rounds half up to one decimal, like the forecast line the claims cite", () => {
+    // 2.05 is stored as 2.0499…, so (2.05).toFixed(1) gives "2.0": the week strip showed 2.0 mm next to a claim citing 2.1 mm.
+    expect((2.05).toFixed(1)).toBe("2.0");
+    expect(formatMm(2.05)).toBe("2.1");
+    expect(formatMm(20.6)).toBe("20.6");
+    expect(formatMm(0.04)).toBe("0.0");
+    expect(formatMm(-0.1)).toBe("0.0");
+    const day: DayForecast = { date: "2026-10-22", weekday: "Thu", tmax: 20, tmin: 14, precip_mm: 2.05, precip_prob: 94, weather_code: 53, condition: "drizzle" };
+    expect(forecastLine(day)).toContain(`${formatMm(day.precip_mm)} mm`);
   });
 });
 

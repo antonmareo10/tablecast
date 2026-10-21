@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
+import { formatMm } from "@/lib/sources/format";
+import { cleanMenu } from "@/lib/menu";
 import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
@@ -24,6 +26,7 @@ export type LiveState = {
   draft?: Record<string, unknown>;
   engine: EngineCall[];
   tavilyCredits?: number;
+  writer?: string; // the Nemotron writing the plan, as the agent announced it
 };
 
 function money(v: number, currency: string): string {
@@ -45,18 +48,25 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
         {(live.place || p) && <Hero live={live} running={running} />}
 
         {p && !running && (
+          // One row at every width: short labels on a phone, and it scrolls sideways rather than wrapping.
           <nav
             aria-label="Playbook sections"
-            className="no-print sticky top-2 z-[1100] flex flex-wrap gap-2 rounded-full border border-line bg-card/90 p-1.5 backdrop-blur"
+            className="no-print sticky top-2 z-[1100] flex gap-0.5 overflow-x-auto whitespace-nowrap rounded-full border border-line bg-card/90 p-1.5 backdrop-blur [scrollbar-width:none] sm:gap-2"
           >
             {[
-              ["act-week", "1 · Your week"],
-              ["act-moves", "2 · The moves"],
-              ["act-launch", "3 · Launch"],
-              ["act-proof", "Proof & engine"],
-            ].map(([id, label]) => (
-              <a key={id} href={`#${id}`} className="rounded-full px-3 py-1 text-[13px] text-ink-2 transition hover:bg-paper hover:text-ink">
+              ["act-week", "1 · ", "Your week", ""],
+              ["act-moves", "2 · ", "The moves", ""],
+              ["act-launch", "3 · ", "Launch", ""],
+              ["act-proof", "", "Proof", " & engine"],
+            ].map(([id, n, label, more]) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className="shrink-0 rounded-full px-2.5 py-1 text-[13px] text-ink-2 transition hover:bg-paper hover:text-ink sm:px-3"
+              >
+                <span className="hidden sm:inline">{n}</span>
                 {label}
+                <span className="hidden sm:inline">{more}</span>
               </a>
             ))}
           </nav>
@@ -109,7 +119,7 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
 
         {live.menu && live.menu.items.length > 0 && <MenuNow menu={live.menu} currency={p?.currency} />}
 
-        {running && live.draft && !p && <DraftPreview draft={live.draft} />}
+        {running && live.draft && !p && <DraftPreview draft={live.draft} writer={live.writer} />}
 
         {p && (
           <>
@@ -239,7 +249,7 @@ function Hero({ live, running }: { live: LiveState; running: boolean }) {
 
 function ActHeader({ id, n, title, subtitle }: { id: string; n: number; title: string; subtitle: string }) {
   return (
-    <header id={id} className="scroll-mt-16 pt-4">
+    <header id={id} className="scroll-mt-20 pt-4">
       <p className="font-display text-sm text-terracotta">{n <= 3 ? `Act ${n}` : "Appendix"}</p>
       <h2 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h2>
       <p className="mt-1 max-w-2xl text-sm text-ink-2">{subtitle}</p>
@@ -272,6 +282,7 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
           const hol = holidays.find((h) => h.date === d.date);
           const ev = byDate(d.date);
           const wet = d.precip_mm >= 1 || (d.precip_prob ?? 0) >= 60;
+          const mm = formatMm(d.precip_mm); // same rounding as the forecast source the claims cite
           return (
             <li
               key={d.date}
@@ -290,7 +301,7 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
               </p>
               <p className={`text-[11px] tabular-nums ${wet ? "font-semibold text-olive" : "text-muted"}`}>
                 {d.condition}
-                {d.precip_mm > 0 ? ` · ${d.precip_mm.toFixed(1)} mm` : ""}
+                {mm !== "0.0" ? ` · ${mm} mm` : ""}
               </p>
               {hol && <p className="mt-1 text-[11px] font-semibold leading-tight text-ink">{hol.local_name || hol.name}</p>}
               {ev.length > 0 && (
@@ -414,6 +425,9 @@ function Snapshot({ playbook: p }: { playbook: Playbook }) {
 }
 
 function MenuNow({ menu, currency }: { menu: NonNullable<LiveState["menu"]>; currency?: string }) {
+  // Split "Four Onion $24 Goat Cheese, …" into name / price / description; drop ingredient lists and repeats.
+  const items = useMemo(() => cleanMenu(menu.items), [menu.items]);
+  if (!items.length) return null;
   return (
     <section className="rise rounded-2xl border border-line bg-card px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
@@ -429,8 +443,8 @@ function MenuNow({ menu, currency }: { menu: NonNullable<LiveState["menu"]>; cur
         )}
       </p>
       <ul className="mt-2 flex flex-wrap gap-1.5">
-        {menu.items.slice(0, 30).map((m, i) => (
-          <li key={`${m.name}-${i}`}>
+        {items.slice(0, 30).map((m, i) => (
+          <li key={`${m.name}-${i}`} title={m.description ?? undefined}>
             <Pill>
               {m.name}
               {m.price != null && currency ? <span className="ml-1 tabular-nums text-muted">{money(m.price, currency)}</span> : null}
@@ -478,7 +492,7 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
   );
 }
 
-function DraftPreview({ draft }: { draft: Record<string, unknown> }) {
+function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; writer?: string }) {
   const headline = typeof draft.headline === "string" ? draft.headline : "";
   const moves = Array.isArray(draft.menu_moves) ? (draft.menu_moves as Array<Record<string, unknown>>) : [];
   const moments = Array.isArray(draft.moments) ? (draft.moments as Array<Record<string, unknown>>) : [];
@@ -494,7 +508,7 @@ function DraftPreview({ draft }: { draft: Record<string, unknown> }) {
   ];
   return (
     <section aria-live="polite" className="rise rounded-2xl border border-dashed border-olive/40 bg-card p-5 sm:p-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">Drafting live · Nemotron Ultra</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">Drafting live · {writer ?? "Nemotron"}</p>
       {headline ? (
         <p className="font-display mt-2 text-xl leading-snug sm:text-2xl">{headline}</p>
       ) : (
@@ -637,8 +651,29 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
         </div>
       }
     >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm">
+      {/* Phone: one stacked row per item, cost always visible. */}
+      <ul className="border-t border-line text-sm sm:hidden" aria-label="Shopping list">
+        {p.shopping_list.map((i, idx) => (
+          <li key={`${i.item}-${idx}`} className="flex items-start justify-between gap-3 border-b border-line/60 py-2">
+            <div className="min-w-0">
+              <p className="leading-snug">{i.item}</p>
+              <p className="text-[12px] text-muted">
+                <span className="tabular-nums">
+                  {i.qty} {i.unit}
+                </span>{" "}
+                · {i.supplier_category}
+              </p>
+            </div>
+            <span className="shrink-0 tabular-nums">{money(i.est_cost, p.currency)}</span>
+          </li>
+        ))}
+        <li className="flex items-baseline justify-between gap-3 pt-3">
+          <span className="text-xs uppercase tracking-[0.12em] text-muted">Estimated total</span>
+          <span className="font-semibold tabular-nums">{money(total, p.currency)}</span>
+        </li>
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.12em] text-muted">
               <th className="py-2 pr-3 font-semibold">Item</th>
@@ -862,15 +897,50 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
       title={running ? "Model calls so far" : `This plan cost ≈ $${totalUsd.toFixed(3)} in inference`}
     >
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra writes the plan
-        and repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
+        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra (Quick) or
+        Super (Thorough) writes the plan, and Ultra repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
         <a href={PRICES_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           catalog
         </a>
         , {PRICES_RETRIEVED}).
       </p>
       <EngineTimeline calls={calls} />
-      <div className="overflow-x-auto">
+      {/* Phone: one card per model, cost first; the full table from sm up. */}
+      <ul className="space-y-2 text-[13px] sm:hidden" aria-label="Cost per model">
+        {[...byModel.entries()].map(([id, m]) => (
+          <li key={id} className="rounded-xl border border-line bg-paper/40 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium">{m.label}</p>
+                <p className="truncate text-[11px] text-muted">{id}</p>
+              </div>
+              <span className="shrink-0 font-semibold tabular-nums">{usd(m.usd)}</span>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
+              {[
+                ["Tokens in", m.inTok.toLocaleString("en-GB")],
+                ["Tokens out", m.outTok.toLocaleString("en-GB")],
+                ["Calls", String(m.calls)],
+                ["Time", fmtMs(m.ms)],
+              ].map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-[10px] uppercase tracking-[0.1em] text-muted">{k}</dt>
+                  <dd className="tabular-nums">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            {m.reason > 0 && <p className="mt-1 text-[11px] text-muted">{m.reason.toLocaleString("en-GB")} of the output tokens were reasoning</p>}
+          </li>
+        ))}
+        <li className="flex items-baseline justify-between gap-3 px-1 pt-1">
+          <span className="text-[12px] text-muted">
+            <span className="uppercase tracking-[0.12em]">Total</span> · {calls.reduce((n, c) => n + callCount(c), 0)} calls ·{" "}
+            {totalTok.toLocaleString("en-GB")} tokens
+          </span>
+          <span className="shrink-0 font-semibold tabular-nums">{usd(totalUsd)}</span>
+        </li>
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[560px] text-[13px]">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.12em] text-muted">
@@ -941,7 +1011,9 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
         </ol>
       </details>
       <p className="mt-3 text-[12px] text-muted">
-        {synth?.completion_tokens && synth.ms ? `Ultra streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. ` : ""}
+        {synth?.completion_tokens && synth.ms
+          ? `${synth.label.replace(/^Nemotron /, "")} streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. `
+          : ""}
         {tavilyCredits ? `Web research used ${tavilyCredits} Tavily credit${tavilyCredits === 1 ? "" : "s"}. ` : ""}
         {calls.some((c) => c.usage_estimated)
           ? "Calls cut by the loop guard never report usage; their tokens are estimated from the streamed text (~4 characters per token)."
@@ -986,7 +1058,7 @@ function EngineTimeline({ calls }: { calls: EngineCall[] }) {
         {timed.map((c, i) => {
           const start = (c.started_at as number) - t0;
           return (
-            <li key={i} className="grid grid-cols-[96px_1fr] items-center gap-2 text-[11px] sm:grid-cols-[130px_1fr]">
+            <li key={i} className="grid grid-cols-[112px_1fr] items-center gap-2 text-[11px] sm:grid-cols-[130px_1fr]">
               <span className="truncate text-ink-2" title={`${PHASE_LABEL[c.phase]} · ${c.label}`}>
                 {PHASE_LABEL[c.phase]}
               </span>
@@ -1008,7 +1080,7 @@ function EngineTimeline({ calls }: { calls: EngineCall[] }) {
           );
         })}
       </ol>
-      <div className="mt-1 grid grid-cols-[96px_1fr] text-[10px] tabular-nums text-muted sm:grid-cols-[130px_1fr]">
+      <div className="mt-1 grid grid-cols-[112px_1fr] gap-2 text-[10px] tabular-nums text-muted sm:grid-cols-[130px_1fr]">
         <span />
         <span className="flex justify-between">
           <span>0 s</span>
