@@ -205,7 +205,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                 </span>
               </h1>
               <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-ink-2">
-                Rain on Thursday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tablecast reads your week —
+                Rain on Wednesday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tablecast reads your week —
                 forecast, events, your block, your menu and what guests say online — and turns it into three dishes to test, an event, a post and a
                 supplier order. Every cited claim links to the exact sentence it stands on, checked in code.
               </p>

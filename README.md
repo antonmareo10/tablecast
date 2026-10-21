@@ -23,7 +23,7 @@ Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and
 
 ## The problem
 
-A restaurant’s week is shaped by things outside its walls: a wet Thursday, a match two streets away, a public holiday, a rival’s new menu. Chains plan for them with insight teams; an independent owner finds out on the night. Generic AI doesn’t help: ask it what to add this week and every restaurant gets the same answer, with nothing to check. Tablecast gives the owner a plan grounded in *this* week, *this* street and *this* menu — and shows its sources.
+A restaurant’s week is shaped by things outside its walls: a wet Wednesday, a match two streets away, a public holiday, a rival’s new menu. Chains plan for them with insight teams; an independent owner finds out on the night. Generic AI doesn’t help: ask it what to add this week and every restaurant gets the same answer, with nothing to check. Tablecast gives the owner a plan grounded in *this* week, *this* street and *this* menu — and shows its sources.
 
 ## How it uses NVIDIA Nemotron on Nebius Token Factory
 

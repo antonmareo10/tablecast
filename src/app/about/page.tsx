@@ -71,7 +71,7 @@ export default function About() {
 
       <Block title="The problem">
         <p>
-          A restaurant’s week is shaped by things outside its walls: a wet Thursday, a match two streets away, a holiday, a rival’s new menu. Chains
+          A restaurant’s week is shaped by things outside its walls: a wet Wednesday, a match two streets away, a holiday, a rival’s new menu. Chains
           plan for them with data teams. An independent owner finds out on the night. Generic AI doesn’t help: ask it what to add this week and every
           restaurant gets the same answer, with no way to check any of it.
         </p>
