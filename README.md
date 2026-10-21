@@ -119,7 +119,7 @@ npm run dev                  # http://localhost:3000
 | `TICKETMASTER_API_KEY` | optional | [developer.ticketmaster.com](https://developer.ticketmaster.com) (events nearby) |
 | `NEBIUS_FAST_MODEL`, `NEBIUS_MODEL`, `NEBIUS_THOROUGH_MODEL`, `NEBIUS_VISION_MODEL`, `NEBIUS_REASONING_EFFORT` | optional | routing overrides (defaults in `.env.example`) |
 
-Checks: `npx tsc --noEmit`, `npx eslint .`, `npm test` (unit tests for the verifier and every data source; `LIVE=1 npm test` also hits the keyless APIs). Routing eval: `npx tsx scripts/eval-routing.ts`. Record an instant replay: `node scripts/record-demo.mjs "Casa Lucio" "Madrid" "Fill quiet weeknights" http://localhost:3000`.
+Checks: `npm run typecheck` (generates Next's route types first, so it works on a fresh clone), `npm run lint`, `npm test` (unit tests for the verifier and every data source; `LIVE=1 npm test` also hits the keyless APIs). Routing eval: `npm run eval` (= `npx tsx scripts/eval-routing.ts`; needs the API keys). Record an instant replay: `node scripts/record-demo.mjs "Casa Lucio" "Madrid" "Fill quiet weeknights" http://localhost:3000`.
 
 ## Responsible by design
 

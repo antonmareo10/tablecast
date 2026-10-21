@@ -11,7 +11,8 @@
     "prebuild": "node scripts/ensure-demos.mjs",
     "record-demo": "node scripts/record-demo.mjs",
     "test": "vitest run",
-    "eval": "node scripts/eval.mjs"
+    "typecheck": "node scripts/ensure-demos.mjs && next typegen && tsc --noEmit",
+    "eval": "tsx scripts/eval-routing.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
