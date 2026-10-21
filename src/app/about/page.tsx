@@ -34,7 +34,7 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   {
     step: "4 · Write",
     who: "Nemotron 3 Ultra (Quick) or Nemotron 3 Super (Economy)",
-    what: "The owner picks the writer: Ultra at medium reasoning effort, fast and the most claims verified (Quick, about a minute), or Super at medium effort, about half the cost but slower (Economy, about 2 min; if it runs out of time, Ultra takes over). It writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
+    what: "The owner picks the writer: Ultra at medium reasoning effort, fast and the best average in our eval (Quick, about a minute), or Super at medium effort, as faithful at a third to half the cost but slower (Economy, about 2 min; if it runs out of time, Ultra takes over). It writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
   },
   {
     step: "5 · Verify",

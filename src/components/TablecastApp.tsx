@@ -13,10 +13,10 @@ import { IconAlert, IconArrow, IconSearch } from "./icons";
 import { SplitWords, Underline } from "./kinetic";
 import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } from "./motion";
 
-// Routing measured in eval/SUMMARY.md (v5, strict verifier): Ultra at medium effort is the most faithful and fast; Super costs about half, but is slower.
+// Routing measured in eval/SUMMARY.md (v5 and v6, strict verifier): Ultra at medium effort has the best average and is fast; Super is as faithful at a third to half the cost, but slower.
 const MODES = [
   { id: "quick", label: "Quick", hint: "Nemotron Ultra · about a minute, most claims verified" },
-  { id: "economy", label: "Economy", hint: "Nemotron Super · about 2 min, half the cost" },
+  { id: "economy", label: "Economy", hint: "Nemotron Super · about 2 min, a third to half the cost" },
 ] as const;
 
 const LANGUAGES = [
@@ -377,14 +377,14 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                 <div className="flex shrink-0 items-baseline gap-3 sm:block sm:text-center">
                   <div className="font-display text-5xl leading-none text-olive tabular-nums">
                     <span aria-hidden>
-                      <span className="css-count" style={{ "--to": 89, "--d": "500ms" } as CSSProperties} />%
+                      <span className="css-count" style={{ "--to": 84, "--d": "500ms" } as CSSProperties} />%
                     </span>
-                    <span className="sr-only">89%</span>
+                    <span className="sr-only">84%</span>
                   </div>
                   <div className="mt-1 text-[11px] text-muted">claims verified · Quick</div>
                 </div>
                 <p className="text-[13px] leading-snug text-ink-2">
-                  <span className="font-semibold text-ink">Measured, not promised.</span> In our routing eval of 8 restaurants, 89% of Quick claims (Nemotron Ultra)
+                  <span className="font-semibold text-ink">Measured, not promised.</span> In our latest routing eval of 8 restaurants, 84% of Quick claims (Nemotron Ultra; 89% the round before)
                   passed a strict code check after one repair pass: every number and nearly every word must be in the sentences they cite,
                   and every price in the plan must match a dish or a checked claim. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
                   <a
