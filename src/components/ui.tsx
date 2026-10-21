@@ -285,7 +285,15 @@ export function EvidenceLine({ evidence }: { evidence: Evidence }) {
       <div className="flex gap-2">
         <span
           className={`mt-0.5 shrink-0 ${ok ? "text-olive" : unknown ? "text-saffron" : "text-terracotta"}`}
-          title={ok ? "Verified in code: cited sentences exist, contain every number and talk about the claim" : unknown ? "Not checked yet" : `Not verified: ${evidence.issue ?? "not backed by its sources"}`}
+          title={
+            ok
+              ? evidence.across
+                ? `Verified in code across languages: the cited sentences (in ${LANGUAGE_LABEL[evidence.across] ?? evidence.across}) exist and contain every number of the claim; words can't be matched across languages`
+                : "Verified in code: the cited sentences exist and contain every number and nearly every word of the claim"
+              : unknown
+                ? "Not checked yet"
+                : `Not verified: ${evidence.issue ?? "not backed by its sources"}`
+          }
         >
           {ok ? <IconCheck size={13} /> : <IconAlert size={13} />}
           <span className="sr-only">{ok ? "Verified against its sources" : "Not verified"}</span>
@@ -300,11 +308,18 @@ export function EvidenceLine({ evidence }: { evidence: Evidence }) {
             </span>
           )}
           {!ok && !unknown && evidence.issue && <span className="mt-0.5 block text-[11px] text-terracotta">Not verified: {evidence.issue}</span>}
+          {ok && evidence.across && (
+            <span className="mt-0.5 block text-[11px] text-muted">
+              Source in {LANGUAGE_LABEL[evidence.across] ?? evidence.across}: numbers and names checked
+            </span>
+          )}
         </div>
       </div>
     </li>
   );
 }
+
+const LANGUAGE_LABEL: Record<string, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", pt: "Portuguese", de: "German", ca: "Catalan" };
 
 /** A number that counts up to its value when it first appears or changes (instant with reduced motion). */
 export function CountUp({ value, duration = 900 }: { value: number; duration?: number }) {

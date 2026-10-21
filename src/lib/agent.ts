@@ -540,6 +540,8 @@ export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOp
   const ledger = SourceLedger.from(pack.sources);
   // A claim may name the restaurant and its street without a source repeating them.
   ledger.ignoreWords(pack.req.restaurant, pack.req.city, pack.place?.name, pack.place?.address);
+  // Claims are written in the plan's language; words are only matched against sources in that language.
+  ledger.claimLanguage = language === "Español" ? "es" : "en";
   const report: WriteReport = {
     ok: false,
     finish: null,

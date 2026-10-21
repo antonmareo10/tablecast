@@ -43,6 +43,7 @@ export type Evidence = {
   cites: Cite[]; // source id + verbatim quote(s) backing it
   verified?: boolean; // set by the server: every quote found in its source, every number backed
   issue?: string; // why it did not verify
+  across?: string; // verified across languages (e.g. "es"): numbers and names checked, words can't be
 };
 
 // ---- Playbook --------------------------------------------------------------------------

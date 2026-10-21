@@ -62,6 +62,46 @@ function contentTokens(s: string): Set<string> {
 
 // ---- coverage ------------------------------------------------------------------------------------
 
+// ---- language --------------------------------------------------------------------------------
+
+// Function words per language: enough to tell which language a sentence or page is in.
+const FUNCTION_WORDS: Record<string, Set<string>> = {
+  en: new Set("the and of to in is with for on at from are this that by an be as it or was".split(" ")),
+  es: new Set("el la los las de del y en con para por que una un es al se su sus lo como mas o a".split(" ")),
+  fr: new Set("le la les des du de et en avec pour par que une un est au aux sur dans".split(" ")),
+  it: new Set("il la le gli di del della e con per che una un al nel sono".split(" ")),
+  pt: new Set("o a os as de do da dos das e com para por que uma um no na".split(" ")),
+  de: new Set("der die das und mit fur von zu ist ein eine im den dem auf".split(" ")),
+  ca: new Set("el la els les de del i amb per que una un es al als".split(" ")),
+};
+
+/** Function-word hits per language, most first (ties keep the order of FUNCTION_WORDS: en, es, fr…). */
+function languageScores(text: string): [string, number][] {
+  const words = normalizeText(text).split(" ");
+  return Object.entries(FUNCTION_WORDS)
+    .map(([lang, set]) => [lang, words.filter((w) => set.has(w)).length] as [string, number])
+    .sort((a, b) => b[1] - a[1]);
+}
+
+/** Rough language of a text from its function words ("en", "es"…), or null when there are too few to tell. */
+export function languageOf(text: string): string | null {
+  const [best] = languageScores(text);
+  return best[1] >= 2 ? best[0] : null;
+}
+
+/**
+ * The other language a text is clearly in, compared with `claimLanguage`: at least two of its function words
+ * and half again as many as the claim language's. (Spanish and Portuguese share many; either way it is foreign.)
+ */
+function foreignTo(text: string, claimLanguage: string): string | null {
+  const scores = languageScores(text);
+  const own = scores.find(([lang]) => lang === claimLanguage)?.[1] ?? 0;
+  const other = scores.find(([lang]) => lang !== claimLanguage);
+  return other && other[1] >= 2 && other[1] >= own * 1.5 ? other[0] : null;
+}
+
+const LANGUAGE_NAME: Record<string, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", pt: "Portuguese", de: "German", ca: "Catalan" };
+
 /** How many of a claim's content words may be missing from its cited sentences (see the header). */
 export function allowedMissing(words: number, share = 0.2): number {
   return words >= 4 ? Math.max(1, Math.floor(words * share)) : 0;
@@ -141,8 +181,25 @@ export class SourceLedger {
   private norm = new Map<string, string>();
   private spanCache = new Map<string, string[]>();
   private ignored = new Set<string>();
+  private languages = new Map<string, string | null>();
   /** Share of a claim's content words that may be missing from its cited sentences (calibrated in the eval). */
   missingShare = 0.2;
+  /** The language claims are written in ("en" or "es"); words can only be matched within one language. */
+  claimLanguage = "en";
+
+  /**
+   * The language a cite's text is in, when it differs from the claims' language: its sentence and neighbours
+   * if they are clear enough, otherwise the whole source. Null when it is the same language or unclear.
+   */
+  private foreignLanguage(c: Cite): string | null {
+    const text = c.span ? this.spanWithNeighbours(c.span) : "";
+    if (text && languageOf(text)) return foreignTo(text, this.claimLanguage);
+    // Too short to tell (a dish name, a price): go by the whole source.
+    const src = this.get(c.source ?? c.span ?? "");
+    if (!src) return null;
+    if (!this.languages.has(src.id)) this.languages.set(src.id, foreignTo(src.text.slice(0, 4000), this.claimLanguage));
+    return this.languages.get(src.id) ?? null;
+  }
 
   /** Words a claim may use without its sources saying them: the restaurant's own name, its street and city. */
   ignoreWords(...texts: (string | null | undefined)[]): void {
@@ -347,12 +404,36 @@ export class SourceLedger {
       const missing = this.missingNumbers(resolved);
       if (missing.length) issue = `number${missing.length > 1 ? "s" : ""} ${missing.join(", ").replace(/d/g, ".")} not in the cited sentences`;
     }
+    let across: string | undefined;
     if (!issue && cites.some((c) => c.span)) {
       const { missing, words } = this.uncovered(resolved);
-      if (missing.length > allowedMissing(words, this.missingShare))
+      // Words can't be matched across languages ("eggs" vs "huevos"). When most of the cited text is in another
+      // language, the check keeps every number and asks for at least one shared name or number.
+      const foreign = this.mostlyForeign(resolved);
+      if (foreign) {
+        const shared = words - missing.length;
+        if (!numbersIn(e.text).length && shared === 0)
+          issue = `the cited sentences (in ${LANGUAGE_NAME[foreign] ?? foreign}) share no name or number with the claim`;
+        else across = foreign;
+      } else if (missing.length > allowedMissing(words, this.missingShare)) {
         issue = `the cited sentences don't mention ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "…" : ""}`;
+      }
     }
-    return { ...resolved, cites, verified: !issue, ...(issue ? { issue } : {}) };
+    return { ...resolved, cites, verified: !issue, ...(issue ? { issue } : {}), ...(!issue && across ? { across } : {}) };
+  }
+
+  /** The other language most of a claim's cited text is in (by length), or null. */
+  private mostlyForeign(e: Evidence): string | null {
+    let total = 0;
+    const byLang = new Map<string, number>();
+    for (const c of e.cites ?? []) {
+      const len = this.citedText(c).length;
+      total += len;
+      const lang = this.foreignLanguage(c);
+      if (lang) byLang.set(lang, (byLang.get(lang) ?? 0) + len);
+    }
+    const [lang, len] = [...byLang].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+    return lang && len > total / 2 ? lang : null;
   }
 
   verifyAll(list: Evidence[]): { items: Evidence[]; checked: number; verified: number } {

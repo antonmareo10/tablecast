@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { allowedAmounts, fieldLabel, moneyIn, proseFields, unbackedAmounts, type PlanText } from "@/lib/amounts";
-import { SourceLedger } from "@/lib/evidence";
+import { SourceLedger, languageOf } from "@/lib/evidence";
 
 const ledger = () => {
   const l = new SourceLedger();
@@ -53,6 +53,24 @@ describe("coverage: the cited sentences must say most of what the claim says", (
     const v = ledger().verifyEvidence({ text: "Rain Wednesday, 20.6 mm; drizzle Thursday, 2.1 mm.", cites: [cite("S2.1"), cite("S2.2")] });
     expect(v.verified).toBe(true);
     expect(v.cites.map((c) => c.context)).toEqual([undefined, undefined]);
+  });
+
+  it("checks numbers and names, not words, when the cited sentence is in another language", () => {
+    const l = new SourceLedger();
+    l.add({ kind: "site", provider: "Tavily", title: "Casa Lucio", url: "https://casalucio.es", text: "Precio medio: de 35 a 45 euros, por persona.\nSopa Castellana de Casa Lucio." });
+    const ok = l.verifyEvidence({ text: "Average spend is 35–45 € per person.", cites: [cite("S1.1")] });
+    expect(ok.verified).toBe(true);
+    expect(ok.across).toBe("es");
+    const wrongNumber = l.verifyEvidence({ text: "Average spend is 30–45 € per person.", cites: [cite("S1.1")] });
+    expect(wrongNumber.issue).toMatch(/30/);
+    const nothingShared = l.verifyEvidence({ text: "Guests love the quiet terrace.", cites: [cite("S1.1")] });
+    expect(nothingShared.issue).toMatch(/in Spanish\) share no name or number/);
+  });
+
+  it("tells languages apart from their function words", () => {
+    expect(languageOf("Precio medio: de 35 a 45 euros, por persona.")).toBe("es");
+    expect(languageOf("The rain comes in on Wednesday and the market is busy.")).toBe("en");
+    expect(languageOf("Pomodoro Crudo")).toBeNull();
   });
 
   it("lets a claim name the restaurant and its street without the source repeating them", () => {
