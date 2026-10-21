@@ -19,7 +19,7 @@ export function Section({
   aside?: ReactNode;
 }) {
   return (
-    <section className="rise rounded-2xl border border-line bg-card p-5 sm:p-6">
+    <section className="rise scroll-mt-20 rounded-2xl border border-line bg-card p-5 sm:p-6">
       <header className="mb-4 flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           {icon && (

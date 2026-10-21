@@ -45,18 +45,25 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
         {(live.place || p) && <Hero live={live} running={running} />}
 
         {p && !running && (
+          // One row at every width: short labels on a phone, and it scrolls sideways rather than wrapping.
           <nav
             aria-label="Playbook sections"
-            className="no-print sticky top-2 z-[1100] flex flex-wrap gap-2 rounded-full border border-line bg-card/90 p-1.5 backdrop-blur"
+            className="no-print sticky top-2 z-[1100] flex gap-0.5 overflow-x-auto whitespace-nowrap rounded-full border border-line bg-card/90 p-1.5 backdrop-blur [scrollbar-width:none] sm:gap-2"
           >
             {[
-              ["act-week", "1 · Your week"],
-              ["act-moves", "2 · The moves"],
-              ["act-launch", "3 · Launch"],
-              ["act-proof", "Proof & engine"],
-            ].map(([id, label]) => (
-              <a key={id} href={`#${id}`} className="rounded-full px-3 py-1 text-[13px] text-ink-2 transition hover:bg-paper hover:text-ink">
+              ["act-week", "1 · ", "Your week", ""],
+              ["act-moves", "2 · ", "The moves", ""],
+              ["act-launch", "3 · ", "Launch", ""],
+              ["act-proof", "", "Proof", " & engine"],
+            ].map(([id, n, label, more]) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className="shrink-0 rounded-full px-2.5 py-1 text-[13px] text-ink-2 transition hover:bg-paper hover:text-ink sm:px-3"
+              >
+                <span className="hidden sm:inline">{n}</span>
                 {label}
+                <span className="hidden sm:inline">{more}</span>
               </a>
             ))}
           </nav>
@@ -239,7 +246,7 @@ function Hero({ live, running }: { live: LiveState; running: boolean }) {
 
 function ActHeader({ id, n, title, subtitle }: { id: string; n: number; title: string; subtitle: string }) {
   return (
-    <header id={id} className="scroll-mt-16 pt-4">
+    <header id={id} className="scroll-mt-20 pt-4">
       <p className="font-display text-sm text-terracotta">{n <= 3 ? `Act ${n}` : "Appendix"}</p>
       <h2 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h2>
       <p className="mt-1 max-w-2xl text-sm text-ink-2">{subtitle}</p>
