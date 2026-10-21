@@ -13,10 +13,13 @@
 //      places, days…) appears in them, except at most one word in five (one, for claims of 4–9 words; none
 //      for shorter ones). Connective words ("brings", "costs"), the restaurant's own name and street don't
 //      count; "Wednesday" matches "Wed", "highs" matches "max", plurals match singulars.
+//   4. for claims about the restaurant itself (loved for, watch-outs, its event and dishes), the cited pages are
+//      about THIS restaurant and branch, and a price is not a combo or add-on price (subject.ts; set by agent.ts).
 // When a number or word is found only on a neighbouring line, that line is attached to the cite so the owner
 // sees it. No model is asked whether a claim is true — code decides. (Older quote-style cites are still
 // checked: the quote must appear word for word in the cited source.)
 
+import type { CitedLines } from "./subject";
 import type { Cite, Evidence, Source, SourceKind } from "./types";
 
 /** Word-level normal form used for matching: accents folded, case and punctuation ignored. */
@@ -186,6 +189,11 @@ export class SourceLedger {
   missingShare = 0.2;
   /** The language claims are written in ("en" or "es"); words can only be matched within one language. */
   claimLanguage = "en";
+  /**
+   * Check 4 (optional): why a claim in an evidence group (agent.ts labels: "loved_for", "dish 2"…) is about the
+   * wrong place or item, given the lines it cites; null when it is fine. agent.ts sets it from subject.ts.
+   */
+  subjectCheck?: (claim: string, field: string, cites: CitedLines[]) => string | null;
 
   /**
    * The language a cite's text is in, when it differs from the claims' language: its sentence and neighbours
@@ -385,8 +393,16 @@ export class SourceLedger {
     });
   }
 
-  /** Verify one claim (see the header of this file). */
-  verifyEvidence(e: Evidence): Evidence {
+  /** A span cite's sentence with up to 3 lines before and 2 after, for the subject check. */
+  private citedLines(c: Cite): CitedLines | null {
+    const s = c.span ? this.span(c.span) : null;
+    if (!s) return null;
+    const all = this.spansOf(s.source.id);
+    return { id: s.source.id, source: s.source, sentence: s.text, before: all.slice(Math.max(0, s.index - 3), s.index), after: all.slice(s.index + 1, s.index + 3) };
+  }
+
+  /** Verify one claim (see the header of this file). `field` is its evidence group, for the subject check. */
+  verifyEvidence(e: Evidence, field?: string): Evidence {
     const resolved = this.resolve(e);
     const checks = resolved.cites.map((c) => ({ c, r: this.checkCite(c) }));
     const citedSpans = resolved.cites.map((c) => (c.span ? (this.span(c.span)?.text ?? "") : "")).join(" ");
@@ -419,6 +435,10 @@ export class SourceLedger {
         issue = `the cited sentences don't mention ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "…" : ""}`;
       }
     }
+    if (!issue && field && this.subjectCheck) {
+      const lines = resolved.cites.map((c) => this.citedLines(c)).filter((x): x is CitedLines => !!x);
+      issue = this.subjectCheck(e.text, field, lines) ?? undefined;
+    }
     return { ...resolved, cites, verified: !issue, ...(issue ? { issue } : {}), ...(!issue && across ? { across } : {}) };
   }
 
@@ -436,8 +456,8 @@ export class SourceLedger {
     return lang && len > total / 2 ? lang : null;
   }
 
-  verifyAll(list: Evidence[]): { items: Evidence[]; checked: number; verified: number } {
-    const items = list.map((e) => this.verifyEvidence(e));
+  verifyAll(list: Evidence[], field?: string): { items: Evidence[]; checked: number; verified: number } {
+    const items = list.map((e) => this.verifyEvidence(e, field));
     return { items, checked: items.length, verified: items.filter((e) => e.verified).length };
   }
 

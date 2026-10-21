@@ -17,6 +17,7 @@ import { allowedAmounts, fieldLabel, proseFields, unbackedAmounts } from "./amou
 import { SourceLedger, normalizeText } from "./evidence";
 import { host, isAboutPlace, placeAnchors } from "./place";
 import { findMenuPages, mappable, readMenuPage, shortUrl } from "./site-map";
+import { subjectIssue, subjectProfile } from "./subject";
 import {
   baseline,
   defaultRouting,
@@ -558,16 +559,30 @@ export interface WriteReport {
   draft?: PlaybookOut;
 }
 
+/** The source ledger every claim of a plan written from `pack` is checked against, configured as in production. */
+export function verifierFor(pack: Pick<EvidencePack, "req" | "place" | "language" | "sources">): SourceLedger {
+  const ledger = SourceLedger.from(pack.sources);
+  // A claim may name the restaurant and its street without a source repeating them.
+  ledger.ignoreWords(pack.req.restaurant, pack.req.city, pack.place?.name, pack.place?.address);
+  // Claims are written in the plan's language; words are only matched against sources in that language.
+  ledger.claimLanguage = pack.language === "Español" ? "es" : "en";
+  // Claims about the restaurant itself must cite pages about this restaurant and branch (subject.ts).
+  const subject = subjectProfile({
+    restaurant: pack.req.restaurant,
+    city: pack.place?.city ?? pack.req.city,
+    address: pack.place?.address,
+    website: pack.place?.website ?? pack.req.website,
+  });
+  ledger.subjectCheck = (claim, field, cites) => subjectIssue(claim, field, cites, subject);
+  return ledger;
+}
+
 /** Steps 3-4: write the plan from an evidence pack and verify every claim in code. */
 export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOptions = {}): Promise<WriteReport> {
   const routing = opts.routing ?? defaultRouting();
   const { signal } = opts;
   const { language, goal, context } = pack;
-  const ledger = SourceLedger.from(pack.sources);
-  // A claim may name the restaurant and its street without a source repeating them.
-  ledger.ignoreWords(pack.req.restaurant, pack.req.city, pack.place?.name, pack.place?.address);
-  // Claims are written in the plan's language; words are only matched against sources in that language.
-  ledger.claimLanguage = language === "Español" ? "es" : "en";
+  const ledger = verifierFor(pack);
   const report: WriteReport = {
     ok: false,
     finish: null,
@@ -660,7 +675,7 @@ ${sourcesForPrompt(ledger)}`,
   const groups = evidenceGroups(pb);
   for (const g of groups) {
     report.claims += g.list.length;
-    report.verifiedFirstPass += g.list.filter((e) => ledger.verifyEvidence(e).verified).length;
+    report.verifiedFirstPass += g.list.filter((e) => ledger.verifyEvidence(e, g.label).verified).length;
   }
   // A quote that is word for word in a different source than the one cited gets that source's id (code, no model).
   const moved = groups.reduce((n, g) => n + ledger.reattribute(g.list), 0);
@@ -680,7 +695,7 @@ ${sourcesForPrompt(ledger)}`,
   let ok = 0;
   const cited = new Set<string>();
   for (const g of groups) {
-    const v = ledger.verifyAll(g.list);
+    const v = ledger.verifyAll(g.list, g.label);
     g.list.splice(0, g.list.length, ...v.items);
     total += v.checked;
     ok += v.verified;

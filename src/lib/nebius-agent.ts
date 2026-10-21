@@ -574,7 +574,7 @@ export async function repairCitations(opts: {
   const failing: { g: EvidenceGroup; e: Evidence; issue: string }[] = [];
   for (const g of groups)
     for (const e of g.list) {
-      const v = ledger.verifyEvidence(e);
+      const v = ledger.verifyEvidence(e, g.label);
       if (!v.verified) failing.push({ g, e, issue: v.issue ?? "unverified" });
     }
   if (!failing.length) return { failing: 0, fixed: 0, dropped: 0 };
@@ -640,7 +640,7 @@ ${JSON.stringify({ claim: e.text, cited, candidate_sentences: candidates })}`,
     if (!it) return;
     if (it.action === "fix" && it.text && it.cites?.length) {
       const fixedCites = it.cites.map((c) => ({ source: c.span.split(".")[0].toUpperCase(), quote: "", span: c.span }));
-      if (ledger.verifyEvidence({ text: it.text, cites: fixedCites }).verified) {
+      if (ledger.verifyEvidence({ text: it.text, cites: fixedCites }, f.g.label).verified) {
         const idx = f.g.list.indexOf(f.e);
         if (idx >= 0) f.g.list[idx] = { text: it.text, cites: fixedCites };
         fixed += 1;
