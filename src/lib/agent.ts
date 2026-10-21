@@ -811,7 +811,10 @@ ${sourcesForPrompt(ledger)}`,
       .map((m) => ({ name: m.name.replace(/\s*\([^)]*\)\s*/g, " ").trim(), price: m.price }))
       // Headings like "New Menu" or "Carta" are not dishes.
       .filter((m) => m.name.length > 2 && !/\b(menu|men[uú]|carta|dinner|lunch|brunch|drinks|bebidas)\b/i.test(m.name))
-      .filter((m) => menuText.includes(` ${normalizeText(m.name)} `));
+      .filter((m) => menuText.includes(` ${normalizeText(m.name)} `))
+      // A price is shown only if the page prints it next to that name (the same rule the price check uses): the writer
+      // read "Cacio e Pepe $28" off a page where $28 is the next dish's price.
+      .map((m) => ({ ...m, price: m.price != null && ledger.hasPriceFor(m.name, m.price) ? m.price : null }));
     if (seen.length >= 3) emit({ type: "menu", items: seen, from: "web", url: ledger.get(pb.menu_seen[0]?.source ?? "")?.url });
   }
 
