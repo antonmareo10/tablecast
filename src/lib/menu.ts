@@ -4,7 +4,8 @@
 // Chile, Breadcrumb" is the description of the dish before it, not a dish. This splits the first kind
 // and drops the second. Display only: the verifier never reads these entries.
 
-import type { MenuItem } from "./types";
+import { normalizeText, numbersIn, segment } from "./evidence";
+import type { MenuItem, Source } from "./types";
 
 export type MenuEntry = { name: string; price: number | null; description: string | null; section: string | null };
 
@@ -76,4 +77,31 @@ export function cleanMenu(items: MenuItem[]): MenuEntry[] {
     out.push(e);
   }
   return out;
+}
+
+/**
+ * The same rule the server applies before it shows a menu (a price only if the page prints it next to that dish,
+ * agent.ts), for what the browser still has of the pages: a recorded run keeps the first 600 characters of each.
+ * A price is dropped when that text shows the dish without its price on the line before, on or after it (Gjelina's
+ * recorded "Cacio e Pepe $28", where the page reads "$27 / Cacio e Pepe / Saffron Spaghetti / $28"). A dish the text
+ * doesn't show keeps its price: the text can't settle it. Pure; display only.
+ */
+export function dropContradictedPrices(items: MenuItem[], sources: Pick<Source, "kind" | "text">[]): MenuItem[] {
+  const pages = sources.filter((s) => s.kind === "menu" || s.kind === "site").map((s) => segment(s.text.replace(/…$/, "")));
+  return items.map((item) => {
+    if (item.price == null) return item;
+    const name = normalizeText(item.name ?? "");
+    const price = numbersIn(String(item.price));
+    if (!name || !price.length) return item;
+    let seen = false;
+    for (const lines of pages) {
+      for (let i = 0; i < lines.length; i++) {
+        if (!` ${normalizeText(lines[i])} `.includes(` ${name} `)) continue;
+        seen = true;
+        const near = normalizeText([lines[i - 1], lines[i], lines[i + 1]].filter(Boolean).join(" ")).split(" ");
+        if (price.every((x) => near.includes(x))) return item;
+      }
+    }
+    return seen ? { ...item, price: null } : item;
+  });
 }

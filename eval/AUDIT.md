@@ -55,7 +55,7 @@ Half of each sample comes from plans written for restaurants never used to tune 
 
 Three more verified claims are true as written but sit in the wrong section: #88 (Bestia) and #98 (Gjusta) under Gjelina's watch-outs, and #97 (a block count) under Zuni's "loved for". The subject check (v6.1) rejects competitor facts that pretend to be about the restaurant. These pass because they name the competitor openly.
 
-**Before this sample**, the replay a judge found had two errors of the same kinds. "Add egg $3", listed under the BLT, had been paired with the Vegetable Sandwich, and v7's add-on rule now rejects that. A second claim gave "Honeynut Squash … at $27", which is the next dish's price on that page. The word and number check still can't see that (see *Limits*). That replay was re-recorded with v7, and I read its six menu facts against the page by hand. All six are right.
+**Before this sample**, the replay a judge found had two errors of the same kinds. "Add egg $3", listed under the BLT, had been paired with the Vegetable Sandwich, and v7's add-on rule now rejects that. A second claim gave "Honeynut Squash … at $27", which is the next dish's price on that page. The word and number check still can't see that (see *Limits*). That replay was re-recorded with v7, and I read its six menu facts against the page by hand. All six are right. Its "On your menu now" list still showed "Cacio e Pepe $28" (the page prints $27 for that dish). The app now shows a menu price only if the page prints it next to that dish. For recorded runs, the browser drops a price that the saved page text contradicts.
 
 ## The false rejections, and why
 

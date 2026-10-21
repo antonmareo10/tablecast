@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanMenu, parseMenuEntry } from "../src/lib/menu";
+import { cleanMenu, dropContradictedPrices, parseMenuEntry } from "../src/lib/menu";
 
 // Entries as the writer copied them from a menu page flattened to one line (recorded Gjelina run).
 describe("parseMenuEntry", () => {
@@ -74,5 +74,66 @@ describe("cleanMenu", () => {
       ["Squash Blossom", 29],
       ["Saffron Spaghetti", 28],
     ]);
+  });
+});
+
+describe("dropContradictedPrices (recorded runs)", () => {
+  // The first 600 characters of gjelina.com/los-angeles-menus as the Gjelina replay (21 Oct) keeps them.
+  const excerpt = [
+    "$22",
+    "Warm Crouton, Parmesan, Cream Anchovy Dressing",
+    " Smoked Trout",
+    "$22",
+    "Arugula, Citrus, Avocado, Red Onion, Lemon & Olive Oil",
+    " Le Puy Lentil Soup",
+    "$22",
+    "Cilantro, Dill, Spice Blend Oil",
+    " Beef Tartare",
+    "$27",
+    "Sourdough, Dijon Mustard, Caper, Shallot",
+    " $30",
+    "Honeynut Squash, Miso Butter, Pepita Gremolata, Belper Knolle Cheese",
+    " $27",
+    "Cacio e Pepe",
+    " Saffron Spaghetti",
+    "$28",
+    "Bottarga, Confit Tomato, Garlic, Calabrian Chile, Breadcrumb",
+    " $32",
+    "Wagyu Beef Cheek Bolognese, Whipped Ricotta",
+    " Braised Pork Meatball",
+    "$23",
+    "Tomato Sauce, Parmesan, Sourdough Toast",
+    " Grilled Squid",
+    "$22",
+    "Pickled Melon, Arugula, Cherry Tomato, Salsa Verde…",
+  ].join(String.fromCharCode(10));
+  const sources = [
+    { kind: "menu" as const, text: excerpt },
+    { kind: "weather" as const, text: "Wed 21 Oct: heavy rain, max 23°C / min 16°C, 22.4 mm" },
+  ];
+
+  it("drops the replay's “Cacio e Pepe $28”: the page prints $27 before it and $28 after the next dish", () => {
+    const out = dropContradictedPrices(
+      [
+        { name: "Le Puy Lentil Soup", price: 22 },
+        { name: "Cacio e Pepe", price: 28 },
+        { name: "Saffron Spaghetti", price: 28 },
+        { name: "Wagyu Beef Cheek Bolognese, Whipped Ricotta", price: 23 },
+        { name: "BLT", price: 19 },
+      ],
+      sources,
+    );
+    expect(out.map((i) => [i.name, i.price])).toEqual([
+      ["Le Puy Lentil Soup", 22],
+      ["Cacio e Pepe", null],
+      ["Saffron Spaghetti", 28],
+      ["Wagyu Beef Cheek Bolognese, Whipped Ricotta", null],
+      ["BLT", 19], // not in the saved text: it can't be settled, so it stays
+    ]);
+  });
+
+  it("leaves items without a price and pages that aren't menus alone", () => {
+    expect(dropContradictedPrices([{ name: "Smoked Trout", price: null }], sources)).toEqual([{ name: "Smoked Trout", price: null }]);
+    expect(dropContradictedPrices([{ name: "Heavy Rain", price: 9 }], [{ kind: "weather", text: `Heavy Rain${String.fromCharCode(10)}$1` }])).toEqual([{ name: "Heavy Rain", price: 9 }]);
   });
 });
