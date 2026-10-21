@@ -384,7 +384,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                   <div className="mt-1 text-[11px] text-muted">claims verified · Quick</div>
                 </div>
                 <p className="text-[13px] leading-snug text-ink-2">
-                  <span className="font-semibold text-ink">Measured, not promised.</span> In our latest routing eval of 8 restaurants, 84% of Quick claims (Nemotron Ultra; 89% the round before)
+                  <span className="font-semibold text-ink">Measured, not promised.</span> In my latest routing eval of 8 restaurants, 84% of Quick claims (Nemotron Ultra; 89% the round before)
                   passed a strict code check after one repair pass: every number and nearly every word must be in the sentences they cite,
                   and every price in the plan must match a dish or a checked claim. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
                   <a
