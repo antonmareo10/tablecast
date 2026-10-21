@@ -11,6 +11,7 @@ export type DemoPreview = {
   events: Record<string, number>; // events within 5 km per date
   holidays: Record<string, string>; // holiday name per date
   verification?: { verified: number; checked: number; sources: number };
+  writer?: "quick" | "economy"; // which writer the recorded run used (Nemotron Ultra or Super), from its engine log
 };
 
 // Populated by the recorder (see scripts/record-demo.mjs).
@@ -24,7 +25,9 @@ function preview(events: RecordedEvent[]): DemoPreview | undefined {
   const v = events.find((e): e is Extract<RecordedEvent, { type: "playbook" }> => e.type === "playbook")?.playbook.verification;
   const byDate: Record<string, number> = {};
   for (const ev of week.events) byDate[ev.date] = (byDate[ev.date] ?? 0) + 1;
+  const written = events.find((e): e is Extract<RecordedEvent, { type: "engine" }> => e.type === "engine" && e.call.phase === "synthesize");
   return {
+    writer: written ? (/super/i.test(written.call.model) ? "economy" : "quick") : undefined,
     days: week.days.map(({ date, weekday, condition, tmax, precip_mm }) => ({ date, weekday, condition, tmax, precip_mm })),
     events: byDate,
     holidays: Object.fromEntries(week.holidays.map((h) => [h.date, h.local_name || h.name])),

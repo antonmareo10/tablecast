@@ -105,6 +105,11 @@ export default function ReplayWeek({ demos, onPlay, className = "" }: { demos: D
       >
         <p className="rise text-[13px] leading-snug text-ink-2">
           <strong className="font-semibold text-ink">{run.restaurant}</strong>, {run.city} · recorded {recorded(run.recordedAt)}
+          {week.writer ? (
+            <span className="ml-1.5 inline-flex rounded-full border border-line bg-paper/70 px-2 py-px align-[1px] text-[11px] font-medium text-ink-2">
+              {week.writer === "economy" ? "Economy · Nemotron Super" : "Quick · Nemotron Ultra"}
+            </span>
+          ) : null}
           {run.goal ? <span className="block text-muted">Goal: “{run.goal}”</span> : null}
         </p>
         <button
@@ -168,7 +173,7 @@ export default function ReplayWeek({ demos, onPlay, className = "" }: { demos: D
                 <span className="sr-only">{v.verified}</span>
               </span>
               <span className="text-[13px] leading-tight text-ink-2">
-                <span className="tabular-nums">/ {v.checked}</span> claims checked
+                <span className="tabular-nums">/ {v.checked}</span> claims verified
                 <br />
                 against {v.sources} sources
               </span>

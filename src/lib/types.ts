@@ -183,5 +183,5 @@ export type AgentRequest = {
   goal?: string;
   language?: "English" | "Español";
   menu_photo?: string; // optional data: URL (jpeg/png/webp), read by Nemotron VL
-  mode?: "quick" | "economy"; // quick: Nemotron Ultra writes (~1 min); economy: Nemotron Super (~2 min, a third to half the cost)
+  mode?: "quick" | "economy"; // quick: Nemotron Ultra writes (~1–2 min end to end, the writer ~30 s); economy: Nemotron Super (~2–3 min, a third to half the cost)
 };

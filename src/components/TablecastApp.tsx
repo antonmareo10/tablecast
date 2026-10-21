@@ -15,8 +15,8 @@ import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } fr
 
 // Routing measured in eval/SUMMARY.md (v5 and v6, strict verifier): Ultra at medium effort has the best average and is fast; Super is as faithful at a third to half the cost, but slower.
 const MODES = [
-  { id: "quick", label: "Quick", hint: "Nemotron Ultra · about a minute, most claims verified" },
-  { id: "economy", label: "Economy", hint: "Nemotron Super · about 2 min, a third to half the cost" },
+  { id: "quick", label: "Quick", hint: "Nemotron Ultra · ~1–2 min, best average in my eval" },
+  { id: "economy", label: "Economy", hint: "Nemotron Super · ~2–3 min, a third to half the cost" },
 ] as const;
 
 const LANGUAGES = [
@@ -207,7 +207,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
               <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-ink-2">
                 Rain on Thursday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tablecast reads your week —
                 forecast, events, your block, your menu and what guests say online — and turns it into three dishes to test, an event, a post and a
-                supplier order. Every claim links to the exact sentence it stands on, checked in code.
+                supplier order. Every cited claim links to the exact sentence it stands on, checked in code.
               </p>
             </div>
 
@@ -688,7 +688,7 @@ function HowItWorks() {
     ["Your week", "The 7-day forecast at your door, public holidays, and the concerts and matches within 5 km."],
     ["Your block", "Every restaurant, bar and café within 600 m from OpenStreetMap — who serves your cuisine next door."],
     ["The live web", "An agent reads your menu, what guests and critics say, local news and a rival’s prices, with Tavily."],
-    ["A plan you can check", "Three dishes, an event, a post and a supplier order — every claim linked to a source and verified in code."],
+    ["A plan you can check", "Three dishes, an event, a post and a supplier order — every cited claim linked to the sentence it stands on and checked in code."],
   ];
   return (
     <section aria-label="How it works" className="grid gap-6 border-t border-line py-10 sm:grid-cols-2 lg:grid-cols-4">

@@ -190,7 +190,7 @@ const STAGE_LINE = [
   "Reading the week around this restaurant…",
   "Researching the live web for this restaurant…",
   "Writing this week's plan from the sources…",
-  "Checking every claim against its sources…",
+  "Checking every cited claim against its sources…",
 ];
 
 function Hero({ live, running, stage }: { live: LiveState; running: boolean; stage: number }) {
@@ -253,7 +253,7 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
                 <span className="text-sm text-paper/75">/ {v.checked}</span>
               </div>
               <div className="leading-tight">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-paper/90">Claims checked against their sources</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-paper/90">Claims verified against their sources</p>
                 <p className="text-[11px] text-paper/75">
                   against {v.sources} sources fetched live{v.providers.length ? ` · ${v.providers.join(", ")}` : ""}
                 </p>

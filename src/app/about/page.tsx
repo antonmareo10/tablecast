@@ -34,12 +34,12 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   {
     step: "4 · Write",
     who: "Nemotron 3 Ultra (Quick) or Nemotron 3 Super (Economy)",
-    what: "The owner picks the writer: Ultra at medium reasoning effort, fast and the best average in my eval (Quick, about a minute), or Super at medium effort, as faithful at a third to half the cost but slower (Economy, about 2 min; if it runs out of time, Ultra takes over). It writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
+    what: "The owner picks the writer: Ultra at medium reasoning effort, fast and the best average in my eval (Quick: about 1–2 minutes end to end, the writer itself ~30 s), or Super at medium effort, as faithful at a third to half the cost but slower (Economy: about 2–3 minutes; if it runs out of time, Ultra takes over). It writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
   },
   {
     step: "5 · Verify",
     who: "Code, then Ultra once",
-    what: "Code checks that every cited sentence exists, that every number in the claim appears in it, and that it talks about the claim. Failures go to Nemotron Ultra (low effort) once — one small call per claim, in parallel — with candidate sentences; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
+    what: "Code checks that every cited sentence exists, that every number in the claim appears in it, and that it says what the claim says (its specific words; numbers and names only when the page is written in another language). Claims about the restaurant must cite pages about it, an add-on goes with the dish it belongs to, and no date in the plan may fall before today. Failures go to Nemotron Ultra (low effort) once — one small call per claim, in parallel — with candidate sentences; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
   },
 ];
 
