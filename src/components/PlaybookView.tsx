@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
+import { formatMm } from "@/lib/sources/format";
 import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
@@ -279,6 +280,7 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
           const hol = holidays.find((h) => h.date === d.date);
           const ev = byDate(d.date);
           const wet = d.precip_mm >= 1 || (d.precip_prob ?? 0) >= 60;
+          const mm = formatMm(d.precip_mm); // same rounding as the forecast source the claims cite
           return (
             <li
               key={d.date}
@@ -297,7 +299,7 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
               </p>
               <p className={`text-[11px] tabular-nums ${wet ? "font-semibold text-olive" : "text-muted"}`}>
                 {d.condition}
-                {d.precip_mm > 0 ? ` · ${d.precip_mm.toFixed(1)} mm` : ""}
+                {mm !== "0.0" ? ` · ${mm} mm` : ""}
               </p>
               {hol && <p className="mt-1 text-[11px] font-semibold leading-tight text-ink">{hol.local_name || hol.name}</p>}
               {ev.length > 0 && (
