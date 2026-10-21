@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
 import { formatMm } from "@/lib/sources/format";
+import { cleanMenu } from "@/lib/menu";
 import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
@@ -423,6 +424,9 @@ function Snapshot({ playbook: p }: { playbook: Playbook }) {
 }
 
 function MenuNow({ menu, currency }: { menu: NonNullable<LiveState["menu"]>; currency?: string }) {
+  // Split "Four Onion $24 Goat Cheese, …" into name / price / description; drop ingredient lists and repeats.
+  const items = useMemo(() => cleanMenu(menu.items), [menu.items]);
+  if (!items.length) return null;
   return (
     <section className="rise rounded-2xl border border-line bg-card px-5 py-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
@@ -438,8 +442,8 @@ function MenuNow({ menu, currency }: { menu: NonNullable<LiveState["menu"]>; cur
         )}
       </p>
       <ul className="mt-2 flex flex-wrap gap-1.5">
-        {menu.items.slice(0, 30).map((m, i) => (
-          <li key={`${m.name}-${i}`}>
+        {items.slice(0, 30).map((m, i) => (
+          <li key={`${m.name}-${i}`} title={m.description ?? undefined}>
             <Pill>
               {m.name}
               {m.price != null && currency ? <span className="ml-1 tabular-nums text-muted">{money(m.price, currency)}</span> : null}
