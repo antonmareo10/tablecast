@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { AnimatePresence, m } from "motion/react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
 import { formatMm } from "@/lib/sources/format";
@@ -9,6 +10,9 @@ import { cleanMenu } from "@/lib/menu";
 import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
+import { CursorLight, EASE_OUT, REVEAL, Reveal, SPRING, STAGGER, SeenGate, scrollToEl, usePillClip, useReveal } from "./motion";
+import { useToast } from "./toast";
+import { WeatherIcon } from "./weather";
 
 const BlockMap = dynamic(() => import("./BlockMap"), {
   ssr: false,
@@ -37,7 +41,17 @@ function money(v: number, currency: string): string {
   }
 }
 
-export default function PlaybookView({ live, running, language }: { live: LiveState; running: boolean; language?: "English" | "Español" }) {
+export default function PlaybookView({
+  live,
+  running,
+  language,
+  stage = 0,
+}: {
+  live: LiveState;
+  running: boolean;
+  language?: "English" | "Español";
+  stage?: number;
+}) {
   const p = live.playbook;
   const sourceMap = useMemo(() => new Map(live.sources.map((s) => [s.id, s] as const)), [live.sources]);
   const name = p?.restaurant.name ?? live.place?.name;
@@ -45,32 +59,12 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
   return (
     <SourcesProvider value={sourceMap}>
       <div className="space-y-5">
-        {(live.place || p) && <Hero live={live} running={running} />}
+        {(live.place || p) && <Hero live={live} running={running} stage={stage} />}
 
-        {p && !running && (
-          // One row at every width: short labels on a phone, and it scrolls sideways rather than wrapping.
-          <nav
-            aria-label="Playbook sections"
-            className="no-print sticky top-2 z-[1100] flex gap-0.5 overflow-x-auto whitespace-nowrap rounded-full border border-line bg-card/90 p-1.5 backdrop-blur [scrollbar-width:none] sm:gap-2"
-          >
-            {[
-              ["act-week", "1 · ", "Your week", ""],
-              ["act-moves", "2 · ", "The moves", ""],
-              ["act-launch", "3 · ", "Launch", ""],
-              ["act-proof", "", "Proof", " & engine"],
-            ].map(([id, n, label, more]) => (
-              <a
-                key={id}
-                href={`#${id}`}
-                className="shrink-0 rounded-full px-2.5 py-1 text-[13px] text-ink-2 transition hover:bg-paper hover:text-ink sm:px-3"
-              >
-                <span className="hidden sm:inline">{n}</span>
-                {label}
-                <span className="hidden sm:inline">{more}</span>
-              </a>
-            ))}
-          </nav>
-        )}
+        {/* While Nemotron writes, its draft sits right under the header: the plan visibly writing itself. */}
+        {running && live.draft && !p && <DraftPreview draft={live.draft} writer={live.writer} />}
+
+        {p && !running && <SectionNav />}
 
         {live.week && (live.week.days.length > 0 || live.week.events.length > 0) && (
           <>
@@ -118,8 +112,6 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
         {p && (p.snapshot.loved_for.length > 0 || p.snapshot.watch_outs.length > 0 || p.snapshot.summary) && <Snapshot playbook={p} />}
 
         {live.menu && live.menu.items.length > 0 && <MenuNow menu={live.menu} currency={p?.currency} />}
-
-        {running && live.draft && !p && <DraftPreview draft={live.draft} writer={live.writer} />}
 
         {p && (
           <>
@@ -193,19 +185,26 @@ export default function PlaybookView({ live, running, language }: { live: LiveSt
 
 // ---- Hero -----------------------------------------------------------------------------------
 
-function Hero({ live, running }: { live: LiveState; running: boolean }) {
+const STAGES = ["Context", "Research", "Write", "Verify"];
+
+function Hero({ live, running, stage }: { live: LiveState; running: boolean; stage: number }) {
   const p = live.playbook;
   const v = p?.verification;
   return (
-    <section className="rise overflow-hidden rounded-2xl border border-line bg-olive text-paper">
-      <div className="grain px-6 py-6 sm:px-8 sm:py-8">
+    <section id="playbook-hero" className="on-dark rise relative isolate scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-olive text-paper">
+      <CursorLight
+        size={560}
+        rest={[0.88, 0.1]}
+        style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--saffron) 24%, transparent), transparent)" }}
+      />
+      <div className="grain relative px-6 py-6 sm:px-8 sm:py-8">
         <div className="flex items-start justify-between gap-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-paper/70">This week’s playbook</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-paper/75">This week’s playbook</p>
           {p && !running && (
             <button
               type="button"
               onClick={() => window.print()}
-              className="no-print inline-flex items-center gap-1.5 rounded-full border border-paper/30 px-3 py-1 text-xs text-paper/90 transition hover:bg-paper/10"
+              className="no-print inline-flex min-h-8 items-center gap-1.5 rounded-full border border-paper/30 px-3 py-1 text-xs text-paper/90 transition-[background-color,scale] hover:bg-paper/10 motion-safe:active:scale-[0.97]"
             >
               <IconDownload size={13} /> Save as PDF
             </button>
@@ -219,59 +218,258 @@ function Hero({ live, running }: { live: LiveState; running: boolean }) {
           </p>
         )}
         {p?.restaurant.website && (
-          <a href={p.restaurant.website} target="_blank" rel="noopener noreferrer" className="mt-2 block text-xs text-paper/75 underline underline-offset-2">
+          <a href={p.restaurant.website} target="_blank" rel="noopener noreferrer" className="mt-2 block w-fit text-xs text-paper/80 underline underline-offset-2">
             {p.restaurant.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
           </a>
         )}
-        {p?.headline && <p className="font-display mt-5 max-w-3xl text-xl leading-snug text-paper sm:text-2xl">“{p.headline}”</p>}
+        {p?.headline && (
+          <m.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...REVEAL, delay: 0.1 }}
+            className="font-display mt-5 max-w-3xl text-xl leading-snug text-paper sm:text-2xl"
+          >
+            “{p.headline}”
+          </m.p>
+        )}
         {v && v.checked > 0 ? (
-          <div className="mt-5 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-paper/25 bg-paper/10 px-4 py-2.5">
-            <div className="flex items-baseline gap-1">
-              <span className="font-display text-4xl leading-none">
-                <CountUp value={v.verified} />
-              </span>
-              <span className="text-sm text-paper/70">/ {v.checked}</span>
+          <m.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...REVEAL, delay: 0.2 }}
+            className="mt-5 inline-flex max-w-full flex-col rounded-2xl border border-paper/25 bg-paper/10 px-4 py-2.5"
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-baseline gap-1">
+                <span className="font-display text-4xl leading-none">
+                  <CountUp value={v.verified} duration={1100} />
+                </span>
+                <span className="text-sm text-paper/75">/ {v.checked}</span>
+              </div>
+              <div className="leading-tight">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-paper/90">Claims checked against their sources</p>
+                <p className="text-[11px] text-paper/75">
+                  against {v.sources} sources fetched live{v.providers.length ? ` · ${v.providers.join(", ")}` : ""}
+                </p>
+              </div>
             </div>
-            <div className="leading-tight">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-paper/90">Claims checked against their sources</p>
-              <p className="text-[11px] text-paper/70">
-                against {v.sources} sources fetched live{v.providers.length ? ` · ${v.providers.join(", ")}` : ""}
-              </p>
-            </div>
-          </div>
+            <span aria-hidden className="mt-2.5 block h-1 w-full overflow-hidden rounded-full bg-paper/15">
+              <span className="grow-x block h-full rounded-full bg-saffron [animation-delay:350ms]" style={{ width: `${(v.verified / v.checked) * 100}%` }} />
+            </span>
+          </m.div>
         ) : running ? (
-          <p className="mt-5 text-sm text-paper/70">Reading the week around this restaurant…</p>
+          <div className="mt-5">
+            <p className="text-sm text-paper/75">Reading the week around this restaurant…</p>
+            <ol className="mt-3 flex flex-wrap gap-2" aria-label="Where the agent is">
+              {STAGES.map((label, i) => {
+                const state = stage > i ? "done" : stage === i ? "active" : "waiting";
+                return (
+                  <li
+                    key={label}
+                    aria-current={state === "active" ? "step" : undefined}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors duration-500 ${
+                      state === "active"
+                        ? "border-saffron/70 bg-saffron/15 text-paper"
+                        : state === "done"
+                          ? "border-paper/30 text-paper/90"
+                          : "border-paper/15 text-paper/75"
+                    }`}
+                  >
+                    <span aria-hidden className="grid h-3 w-3 place-items-center">
+                      {state === "done" ? (
+                        <m.svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="var(--saffron)"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          initial={{ scale: 0.4, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={SPRING}
+                        >
+                          <path d="M5 12.5l4.5 4.5L19 7.5" />
+                        </m.svg>
+                      ) : state === "active" ? (
+                        <span className="pulse-ring relative h-1.5 w-1.5 rounded-full bg-saffron [--ring:var(--saffron)]" />
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full border border-current opacity-70" />
+                      )}
+                    </span>
+                    {label}
+                    <span className="sr-only">{state === "done" ? " (done)" : state === "active" ? " (now)" : ""}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         ) : null}
       </div>
     </section>
   );
 }
 
-function ActHeader({ id, n, title, subtitle }: { id: string; n: number; title: string; subtitle: string }) {
+const ACTS = [
+  ["act-week", "1 · ", "Your week", ""],
+  ["act-moves", "2 · ", "The moves", ""],
+  ["act-launch", "3 · ", "Launch", ""],
+  ["act-proof", "", "Proof", " & engine"],
+] as const;
+
+/**
+ * The playbook's sticky table of contents. The act you are reading is marked by a pill that slides between
+ * items (clip-path, so the label turns light exactly under it); a click glides to the act.
+ */
+function SectionNav() {
+  const [active, setActive] = useState(0);
+  const scroller = useRef<HTMLElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const lockUntil = useRef(0); // while we glide to an act, don't let the scroll spy step through the ones between
+  usePillClip(inner, active);
+
+  useEffect(() => {
+    let raf = 0;
+    const spy = () => {
+      raf = 0;
+      if (performance.now() < lockUntil.current) return;
+      const line = window.innerHeight * 0.35;
+      let idx = 0;
+      ACTS.forEach(([id], i) => {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top < line) idx = i;
+      });
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) idx = ACTS.length - 1;
+      setActive(idx);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(spy);
+    };
+    spy();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
+  // On a phone the row scrolls sideways: keep the active act in sight.
+  useEffect(() => {
+    const row = scroller.current;
+    const item = inner.current?.querySelectorAll<HTMLElement>("[data-pill-item]")[active];
+    if (!row || !item || row.scrollWidth <= row.clientWidth) return;
+    row.scrollTo({ left: Math.max(0, item.offsetLeft - 24), behavior: "smooth" });
+  }, [active]);
+
+  const go = (e: MouseEvent<HTMLAnchorElement>, id: string, i: number) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    lockUntil.current = e.timeStamp + 1300; // event time is on the performance.now() clock
+    setActive(i);
+    scrollToEl(el, -72);
+    history.replaceState(null, "", `#${id}`);
+    el.focus({ preventScroll: true });
+  };
+
+  const label = (n: string, text: string, more: string) => (
+    <>
+      <span className="hidden sm:inline">{n}</span>
+      {text}
+      <span className="hidden sm:inline">{more}</span>
+    </>
+  );
+  const item = "block shrink-0 whitespace-pre rounded-full px-3 py-2 text-[13px] leading-5 sm:px-3.5 sm:py-1.5";
   return (
-    <header id={id} className="scroll-mt-20 pt-4">
-      <p className="font-display text-sm text-terracotta">{n <= 3 ? `Act ${n}` : "Appendix"}</p>
-      <h2 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h2>
-      <p className="mt-1 max-w-2xl text-sm text-ink-2">{subtitle}</p>
-    </header>
+    <nav
+      ref={scroller}
+      aria-label="Playbook sections"
+      className="no-print sticky top-2 z-[1100] overflow-x-auto rounded-full border border-line bg-card/90 p-1.5 shadow-[0_10px_30px_-24px_rgba(29,27,23,0.5)] backdrop-blur [scrollbar-width:none]"
+    >
+      <div ref={inner} className="relative w-max min-w-full">
+        <div className="flex gap-0.5 sm:gap-1.5">
+          {ACTS.map(([id, n, text, more], i) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              data-pill-item=""
+              data-active={i === active}
+              aria-current={i === active ? "true" : undefined}
+              onClick={(e) => go(e, id, i)}
+              className={`${item} text-ink-2 transition-colors hover:bg-paper hover:text-ink`}
+            >
+              {label(n, text, more)}
+            </a>
+          ))}
+        </div>
+        <div aria-hidden className="pill-layer pointer-events-none absolute inset-0 flex gap-0.5 rounded-full bg-olive sm:gap-1.5">
+          {ACTS.map(([id, n, text, more]) => (
+            <span key={id} className={`${item} font-medium text-paper`}>
+              {label(n, text, more)}
+            </span>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/** Act titles: the words rise out of a mask and a hairline draws under them, the first time they scroll in. */
+function ActHeader({ id, n, title, subtitle }: { id: string; n: number; title: string; subtitle: string }) {
+  const words = title.split(" ");
+  const { ref, phase, initial } = useReveal<HTMLElement>();
+  const now = { duration: 0 };
+  const fade = {
+    hidden: { opacity: 0, y: 8, transition: now },
+    shown: { opacity: 1, y: 0, transition: REVEAL },
+    static: { opacity: 1, y: 0, transition: now },
+  };
+  return (
+    <m.header ref={ref} id={id} tabIndex={-1} data-reveal="" initial={initial} animate={phase} className="scroll-mt-20 pt-6 outline-none">
+      <m.p data-reveal="" variants={fade} className="font-display text-sm text-terracotta">
+        {n <= 3 ? `Act ${n}` : "Appendix"}
+      </m.p>
+      <h2 className="font-display text-3xl leading-tight sm:text-4xl">
+        {words.map((w, i) => (
+          <span key={i}>
+            <span className="inline-block overflow-hidden pb-[0.12em] align-top [margin-bottom:-0.12em]">
+              <m.span
+                data-reveal=""
+                className="inline-block"
+                variants={{
+                  hidden: { y: "108%", transition: now },
+                  shown: { y: 0, transition: { ...REVEAL, delay: 0.06 + i * STAGGER } },
+                  static: { y: 0, transition: now },
+                }}
+              >
+                {w}
+              </m.span>
+            </span>
+            {i < words.length - 1 ? " " : null}
+          </span>
+        ))}
+      </h2>
+      <m.p data-reveal="" variants={fade} className="mt-1 max-w-2xl text-sm text-ink-2">
+        {subtitle}
+      </m.p>
+      <m.span
+        aria-hidden
+        data-reveal=""
+        variants={{
+          hidden: { scaleX: 0, transition: now },
+          shown: { scaleX: 1, transition: { duration: 0.9, ease: EASE_OUT, delay: 0.15 } },
+          static: { scaleX: 1, transition: now },
+        }}
+        className="mt-3 block h-px origin-left bg-line"
+      />
+    </m.header>
   );
 }
 
 // ---- Act 1: the week ---------------------------------------------------------------------------
-
-const WEATHER_GLYPH: [RegExp, string][] = [
-  [/thunder/, "⛈️"],
-  [/snow/, "❄️"],
-  [/heavy rain|showers/, "🌧️"],
-  [/rain|drizzle/, "🌦️"],
-  [/fog/, "🌫️"],
-  [/overcast|cloudy/, "⛅"],
-  [/clear|sun/, "☀️"],
-];
-function glyph(condition: string): string {
-  const c = condition.toLowerCase();
-  return WEATHER_GLYPH.find(([re]) => re.test(c))?.[1] ?? "🌤️";
-}
 
 function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: Holiday[]; events: NearbyEvent[] }) {
   const byDate = (d: string) => events.filter((e) => e.date === d);
@@ -286,16 +484,14 @@ function WeekStrip({ days, holidays, events }: { days: DayForecast[]; holidays: 
           return (
             <li
               key={d.date}
-              style={{ animationDelay: `${i * 70}ms` }}
-              className={`rise flex min-h-[148px] flex-col rounded-xl border p-3 ${hol ? "border-saffron/60 bg-saffron/10" : "border-line bg-paper/40"}`}
+              style={{ "--d": `${i * 60}ms` } as React.CSSProperties}
+              className={`rise lift flex min-h-[148px] flex-col rounded-xl border p-3 ${hol ? "border-saffron/60 bg-saffron/10" : "border-line bg-paper/40"}`}
             >
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{d.weekday}</p>
               <p className="text-[12px] text-ink-2">
                 {d.date.slice(8, 10)}/{d.date.slice(5, 7)}
               </p>
-              <p className="mt-1 text-2xl leading-none" aria-hidden>
-                {glyph(d.condition)}
-              </p>
+              <WeatherIcon condition={d.condition} size={30} className="mt-1" />
               <p className="mt-1 text-sm font-semibold tabular-nums">
                 {Math.round(d.tmax)}° <span className="font-normal text-muted">/ {Math.round(d.tmin)}°</span>
               </p>
@@ -346,7 +542,7 @@ function Moments({ playbook: p }: { playbook: Playbook }) {
     <Section icon={<IconTrend size={16} />} kicker="Demand moments" title="What changes your week">
       <ol className="grid gap-3 md:grid-cols-2">
         {p.moments.map((m, i) => (
-          <li key={i} style={{ animationDelay: `${i * 90}ms` }} className="rise rounded-xl border border-line bg-paper/40 p-4">
+          <Reveal as="li" key={i} delay={i * STAGGER * 1.4} className="lift rounded-xl border border-line bg-paper/40 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-terracotta">{m.when}</p>
             <p className="font-display mt-0.5 text-lg leading-tight">{m.title}</p>
             <p className="mt-1.5 text-sm leading-snug">
@@ -358,7 +554,7 @@ function Moments({ playbook: p }: { playbook: Playbook }) {
                 <EvidenceLine key={j} evidence={e} />
               ))}
             </ul>
-          </li>
+          </Reveal>
         ))}
       </ol>
     </Section>
@@ -370,23 +566,26 @@ function CuisineBars({ data, highlight }: { data: { cuisine: string; count: numb
   const max = Math.max(1, ...top.map((d) => d.count));
   if (!top.length) return <p className="text-sm text-muted">OpenStreetMap lists no cuisines for the venues around you.</p>;
   return (
-    <div>
+    <SeenGate>
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Cuisines on your block</p>
       <ul className="space-y-1.5">
-        {top.map((d) => {
+        {top.map((d, i) => {
           const you = highlight?.includes(d.cuisine);
           return (
             <li key={d.cuisine} className="grid grid-cols-[96px_1fr_28px] items-center gap-2 text-[12px]">
               <span className={`truncate capitalize ${you ? "font-semibold text-terracotta" : "text-ink-2"}`}>{d.cuisine}</span>
               <span className="h-2 overflow-hidden rounded-full bg-paper-2">
-                <span className={`grow-x block h-full rounded-full ${you ? "bg-terracotta" : "bg-olive-2"}`} style={{ width: `${(d.count / max) * 100}%` }} />
+                <span
+                  className={`grow-x block h-full rounded-full ${you ? "bg-terracotta" : "bg-olive-2"}`}
+                  style={{ width: `${(d.count / max) * 100}%`, animationDelay: `${i * 50}ms` }}
+                />
               </span>
               <span className="text-right tabular-nums text-muted">{d.count}</span>
             </li>
           );
         })}
       </ul>
-    </div>
+    </SeenGate>
   );
 }
 
@@ -462,10 +661,10 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
   return (
     <Section icon={<IconPlate size={16} />} kicker="Menu moves" title="Three dishes to test this week">
       <div className="grid gap-4 lg:grid-cols-3">
-        {p.menu_moves.map((m) => {
+        {p.menu_moves.map((m, i) => {
           const ok = m.evidence.filter((e) => e.verified).length;
           return (
-            <article key={m.dish} className="flex flex-col rounded-xl border border-line bg-paper/40 p-4">
+            <Reveal as="article" key={m.dish} delay={i * STAGGER * 1.4} className="lift flex flex-col rounded-xl border border-line bg-paper/40 p-4">
               <div className="flex items-baseline justify-between gap-3">
                 <h4 className="font-display text-lg leading-tight">{m.dish}</h4>
                 <span className="shrink-0 text-sm font-semibold tabular-nums text-olive">{money(m.price, p.currency)}</span>
@@ -480,11 +679,11 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
                 <li className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                   Evidence · {ok}/{m.evidence.length} verified
                 </li>
-                {m.evidence.map((ev, i) => (
-                  <EvidenceLine key={`${m.dish}-${i}`} evidence={ev} />
+                {m.evidence.map((ev, j) => (
+                  <EvidenceLine key={`${m.dish}-${j}`} evidence={ev} />
                 ))}
               </ul>
-            </article>
+            </Reveal>
           );
         })}
       </div>
@@ -492,6 +691,7 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
   );
 }
 
+/** The plan as Nemotron streams it: each field fades in the moment it exists in the partial JSON. */
 function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; writer?: string }) {
   const headline = typeof draft.headline === "string" ? draft.headline : "";
   const moves = Array.isArray(draft.menu_moves) ? (draft.menu_moves as Array<Record<string, unknown>>) : [];
@@ -506,33 +706,94 @@ function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; write
     { label: "Shopping list", done: Array.isArray(draft.shopping_list) },
     { label: "7-day plan", done: Array.isArray(draft.week_plan) },
   ];
+  const titled = moments.filter((mo) => typeof mo.title === "string" && mo.title);
   return (
-    <section aria-live="polite" className="rise rounded-2xl border border-dashed border-olive/40 bg-card p-5 sm:p-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">Drafting live · {writer ?? "Nemotron"}</p>
-      {headline ? (
-        <p className="font-display mt-2 text-xl leading-snug sm:text-2xl">{headline}</p>
-      ) : (
-        <p className="mt-2 text-sm text-muted">Writing your week…</p>
+    <m.section
+      aria-live="polite"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-dashed border-olive/40 bg-card p-5 sm:p-6"
+    >
+      <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">
+        <span aria-hidden className="pulse-dot h-1.5 w-1.5 rounded-full bg-terracotta" />
+        Drafting live · {writer ?? "Nemotron"}
+      </p>
+      <AnimatePresence mode="wait" initial={false}>
+        {headline ? (
+          <m.p key="headline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="font-display mt-2 text-xl leading-snug sm:text-2xl">
+            {headline}
+          </m.p>
+        ) : (
+          <m.p key="waiting" exit={{ opacity: 0, transition: { duration: 0.15 } }} className="mt-2 text-sm text-muted">
+            Writing your week…
+          </m.p>
+        )}
+      </AnimatePresence>
+      {titled.length > 0 && (
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+          {titled.map((mo, i) => (
+            <m.li
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...REVEAL, delay: 0.1 + i * STAGGER }}
+              className="rounded-lg border border-line bg-paper/50 px-3 py-2"
+            >
+              {typeof mo.when === "string" && mo.when && (
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-terracotta">{mo.when}</p>
+              )}
+              <p className="text-sm leading-snug">{String(mo.title)}</p>
+            </m.li>
+          ))}
+        </ul>
       )}
       {moves.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-2">
-          {moves.map((m, i) =>
-            typeof m.dish === "string" && m.dish ? (
-              <li key={i} className="rounded-full border border-line bg-paper px-3 py-1 text-sm">
-                {m.dish}
-              </li>
+          {moves.map((mv, i) =>
+            typeof mv.dish === "string" && mv.dish ? (
+              <m.li
+                key={i}
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ ...SPRING, delay: 0.2 + i * STAGGER }}
+                className="rounded-full border border-line bg-paper px-3 py-1 text-sm"
+              >
+                {mv.dish}
+              </m.li>
             ) : null,
           )}
         </ul>
       )}
       <ol className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
         {steps.map((st) => (
-          <li key={st.label} className={st.done ? "text-olive" : "text-muted"}>
-            {st.done ? "✓" : "○"} {st.label}
+          <li key={st.label} className={`inline-flex items-center gap-1 transition-colors duration-300 ${st.done ? "text-olive" : "text-muted"}`}>
+            <span aria-hidden className="grid h-3.5 w-3.5 place-items-center">
+              {st.done ? (
+                <m.svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={SPRING}
+                >
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </m.svg>
+              ) : (
+                <span className="h-2 w-2 rounded-full border border-current" />
+              )}
+            </span>
+            {st.label}
+            <span className="sr-only">{st.done ? " (written)" : " (pending)"}</span>
           </li>
         ))}
       </ol>
-    </section>
+    </m.section>
   );
 }
 
@@ -562,6 +823,7 @@ function icsEscape(s: string): string {
 }
 
 function WeekPlan({ playbook: p }: { playbook: Playbook }) {
+  const toast = useToast();
   const download = () => {
     const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Tablecast//Week plan//EN"];
     const stamp = icsDate(new Date());
@@ -589,6 +851,7 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
     a.download = "tablecast-week.ics";
     a.click();
     URL.revokeObjectURL(url);
+    toast("Calendar file downloaded (.ics)");
   };
   return (
     <Section
@@ -599,7 +862,7 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
         <button
           type="button"
           onClick={download}
-          className="no-print inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
+          className="no-print inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
         >
           <IconDownload size={14} /> Add to calendar
         </button>
@@ -607,11 +870,11 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
     >
       <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {p.week_plan.map((it, i) => (
-          <li key={`${it.day}-${i}`} className="rounded-xl border border-line bg-paper/50 p-3">
+          <Reveal as="li" key={`${it.day}-${i}`} delay={i * STAGGER} y={12} className="lift rounded-xl border border-line bg-paper/50 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-terracotta">{it.day}</p>
             <p className="mt-1 text-sm leading-snug">{it.action}</p>
             <p className="mt-1 text-[12px] text-muted">{it.owner}</p>
-          </li>
+          </Reveal>
         ))}
       </ol>
     </Section>
@@ -619,6 +882,7 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
 }
 
 function ShoppingList({ playbook: p }: { playbook: Playbook }) {
+  const toast = useToast();
   if (!p.shopping_list.length) return null;
   const total = p.shopping_list.reduce((s, i) => s + (i.est_cost || 0), 0);
   const csv = [
@@ -644,7 +908,8 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`}
             download="tablecast-shopping-list.csv"
-            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
+            onClick={() => toast("Shopping list downloaded (CSV)")}
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
           >
             <IconDownload size={14} /> CSV
           </a>
@@ -814,26 +1079,42 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
       </p>
       {p.verification?.first_pass != null && (
         <ol className="mb-4 grid gap-2 sm:grid-cols-4" aria-label="How the verifier got there">
-          {[
-            [
-              "Passed first time",
-              `${p.verification.first_pass} / ${p.verification.written ?? p.verification.checked}`,
-              "claims the writer got right on its own",
-            ],
-            [
-              "Caught by code",
-              String((p.verification.written ?? p.verification.checked) - p.verification.first_pass),
-              "a number or detail the cited sentences don't contain",
-            ],
-            ["Fixed or dropped", `${p.verification.fixed ?? 0} / ${p.verification.dropped ?? 0}`, "one Nemotron repair pass, re-checked by code"],
-            ["Verified now", `${p.verification.verified} / ${p.verification.checked}`, "what you see in this plan"],
-          ].map(([t, v, d], i) => (
-            <li key={t} style={{ animationDelay: `${i * 120}ms` }} className="rise rounded-xl border border-line bg-paper/50 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t}</p>
-              <p className="font-display mt-0.5 text-2xl tabular-nums">{v}</p>
-              <p className="mt-0.5 text-[11px] leading-snug text-muted">{d}</p>
-            </li>
-          ))}
+          {(() => {
+            const v = p.verification;
+            const firstPass = v.first_pass ?? 0;
+            const written = v.written ?? v.checked;
+            const tiles: [string, ReactNode, string][] = [
+              [
+                "Passed first time",
+                <>
+                  <CountUp value={firstPass} whenVisible /> / {written}
+                </>,
+                "claims the writer got right on its own",
+              ],
+              ["Caught by code", <CountUp key="c" value={written - firstPass} whenVisible />, "a number or detail the cited sentences don't contain"],
+              [
+                "Fixed or dropped",
+                <>
+                  <CountUp value={v.fixed ?? 0} whenVisible /> / <CountUp value={v.dropped ?? 0} whenVisible />
+                </>,
+                "one Nemotron repair pass, re-checked by code",
+              ],
+              [
+                "Verified now",
+                <>
+                  <CountUp value={v.verified} whenVisible /> / {v.checked}
+                </>,
+                "what you see in this plan",
+              ],
+            ];
+            return tiles.map(([t, val, d], i) => (
+              <Reveal as="li" key={t} delay={i * STAGGER * 1.4} y={12} className="rounded-xl border border-line bg-paper/50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{t}</p>
+                <p className="font-display mt-0.5 text-2xl tabular-nums">{val}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-muted">{d}</p>
+              </Reveal>
+            ));
+          })()}
         </ol>
       )}
       {p.verification?.amounts && p.verification.amounts.checked > 0 && (
@@ -1059,7 +1340,7 @@ function EngineTimeline({ calls }: { calls: EngineCall[] }) {
   const pct = (x: number) => `${Math.max(0, Math.min(100, (x / span) * 100))}%`;
   const legend = [...new Map(timed.map((c) => [c.label, toneOf(c.label)])).entries()];
   return (
-    <figure className="mb-5 rounded-xl border border-line bg-paper/40 p-3 sm:p-4" aria-label="Timeline of model calls">
+    <SeenGate as="figure" className="mb-5 rounded-xl border border-line bg-paper/40 p-3 sm:p-4" aria-label="Timeline of model calls">
       <figcaption className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
         <span className="font-semibold uppercase tracking-[0.12em]">Where the time went</span>
         {legend.map(([label, tone]) => (
@@ -1105,6 +1386,6 @@ function EngineTimeline({ calls }: { calls: EngineCall[] }) {
           <span>{fmtMs(span)}</span>
         </span>
       </div>
-    </figure>
+    </SeenGate>
   );
 }

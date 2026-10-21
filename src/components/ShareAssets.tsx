@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import type { Playbook } from "@/lib/types";
 import { IconDownload } from "./icons";
 import { CopyButton, Section } from "./ui";
+import { useToast } from "./toast";
 
 type Language = "English" | "Español";
 
@@ -801,6 +802,7 @@ function AssetCard({
   children?: ReactNode;
 }) {
   const headingId = useId();
+  const toast = useToast();
   const ready = status === "ready" && Boolean(src);
 
   return (
@@ -816,6 +818,7 @@ function AssetCard({
           <a
             href={src}
             download={filename}
+            onClick={() => toast(`${title} downloaded (PNG)`)}
             className="no-print inline-flex shrink-0 items-center gap-1.5 rounded-full border border-olive bg-olive px-3.5 py-1.5 text-xs font-medium text-paper transition hover:border-olive-2 hover:bg-olive-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-olive"
           >
             <IconDownload size={14} />
