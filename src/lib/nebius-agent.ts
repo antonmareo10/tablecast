@@ -48,17 +48,18 @@ export function defaultRouting(): Routing {
     repair: process.env.NEBIUS_REPAIR_MODEL || process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     reasoning: process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
     vision: process.env.NEBIUS_VISION_MODEL || "nvidia/Nemotron-3.5-Super-VL",
-    // Measured (eval/SUMMARY.md): low ends as faithful as medium after repair and writes faster.
-    effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "low",
+    // Measured with the strict verifier (eval/SUMMARY.md, v5): medium effort ends the most faithful (89% verified vs
+    // 81% at low) and writes just as fast (median 27 s).
+    effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "medium",
   };
 }
 
-/** "Thorough": Nemotron Super writes. Measured: most faithful first time and a third of Ultra's cost, but ~2 min to write. */
-export function thoroughRouting(): Routing {
+/** "Economy": Nemotron Super writes. Measured (v5): about half of Ultra's cost per plan, but ~2 min to write and fewer claims verified (82%). */
+export function economyRouting(): Routing {
   const base = defaultRouting();
   return {
     ...base,
-    reasoning: process.env.NEBIUS_THOROUGH_MODEL || "nvidia/nemotron-3-super-120b-a12b",
+    reasoning: process.env.NEBIUS_ECONOMY_MODEL || process.env.NEBIUS_THOROUGH_MODEL || "nvidia/nemotron-3-super-120b-a12b",
     effort: "medium",
     writerMaxMs: 170_000,
     fallback: base.reasoning, // if Super is cut short, Ultra (fast) takes over

@@ -225,8 +225,20 @@ export function SourceChip({ cites }: { cites: Cite[] }) {
             </span>
             {src && <span className="mt-0.5 block font-medium text-ink-2">{src.title}</span>}
             {cites.map((c, i) => (
-              <span key={i} className="font-display mt-1.5 block text-[14px] leading-snug">
-                “{c.quote}”{c.ok === false && <span className="font-sans text-[11px] text-terracotta"> ✗</span>}
+              <span key={i} className="mt-1.5 block">
+                <span className="font-display block text-[14px] leading-snug">
+                  “{c.quote}”{c.ok === false && <span className="font-sans text-[11px] text-terracotta"> ✗</span>}
+                </span>
+                {c.context?.length ? (
+                  <span className="mt-1 block border-l-2 border-line pl-2 text-[11px] leading-snug text-ink-2">
+                    <span className="block text-[10px] uppercase tracking-[0.1em] text-muted">Next to it in the source</span>
+                    {c.context.map((line, j) => (
+                      <span key={j} className="block">
+                        “{line}”
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
               </span>
             ))}
             <span className={`mt-1.5 block text-[11px] ${bad ? "text-terracotta" : "text-olive"}`}>

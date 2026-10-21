@@ -1,6 +1,6 @@
 import { runTastecraft } from "@/lib/agent";
 import { acquireLiveRun, clientIp } from "@/lib/limits";
-import { defaultRouting, nebiusConfigured, thoroughRouting, type Routing } from "@/lib/nebius-agent";
+import { defaultRouting, economyRouting, nebiusConfigured, type Routing } from "@/lib/nebius-agent";
 import { encodeLine } from "@/lib/ndjson";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 
@@ -60,7 +60,8 @@ export async function POST(request: Request) {
     goal: clean(body.goal, 120) || undefined,
     language: body.language === "Español" ? "Español" : "English",
     menu_photo: cleanPhoto(body.menu_photo),
-    mode: body.mode === "thorough" ? "thorough" : "quick",
+    // "thorough" was the old name of the economy mode; old links keep working.
+    mode: ["economy", "thorough"].includes(String(body.mode)) ? "economy" : "quick",
   };
   if (!req.restaurant || !req.city) {
     return Response.json({ error: "restaurant and city are required" }, { status: 400 });
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
   if (!gate.ok) return Response.json({ error: gate.reason }, { status: 429 });
 
   const started = Date.now();
-  const routing = routingOverride(request) ?? (req.mode === "thorough" ? thoroughRouting() : undefined);
+  const routing = routingOverride(request) ?? (req.mode === "economy" ? economyRouting() : undefined);
   // Publish before the platform's limit (maxDuration), leaving room to stream the end of the run.
   const deadline = Date.now() + (maxDuration - 15) * 1000;
   const stream = new ReadableStream<Uint8Array>({

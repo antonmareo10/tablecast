@@ -808,8 +808,9 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
     <Section icon={<IconCheck size={16} />} kicker="Evidence ledger" title={`${sources.length} sources, ${ev.length} claims checked in code`}>
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
         Every source fetched in this run is cut into numbered sentences, and every claim cites the sentences it stands on — the chip shows the exact
-        text. Code checks that each cited sentence exists, that every number in the claim appears in it, and that it talks about the claim. No model is
-        asked whether a claim is true.
+        text. Code checks that each cited sentence exists, that every number in the claim appears in it, and that it says what the claim says: every
+        specific word of the claim must be there, give or take one in five. Prices elsewhere in the plan must match a dish or a checked claim. No
+        model is asked whether a claim is true.
       </p>
       {p.verification?.first_pass != null && (
         <ol className="mb-4 grid gap-2 sm:grid-cols-4" aria-label="How the verifier got there">
@@ -822,7 +823,7 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
             [
               "Caught by code",
               String((p.verification.written ?? p.verification.checked) - p.verification.first_pass),
-              "a number not in the cited sentence, or a citation about something else",
+              "a number or detail the cited sentences don't contain",
             ],
             ["Fixed or dropped", `${p.verification.fixed ?? 0} / ${p.verification.dropped ?? 0}`, "one Nemotron repair pass, re-checked by code"],
             ["Verified now", `${p.verification.verified} / ${p.verification.checked}`, "what you see in this plan"],
@@ -834,6 +835,22 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
             </li>
           ))}
         </ol>
+      )}
+      {p.verification?.amounts && p.verification.amounts.checked > 0 && (
+        <p
+          className={`mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] ${
+            p.verification.amounts.unbacked.length ? "border-terracotta/30 bg-terracotta/5 text-terracotta" : "border-line bg-paper/50 text-ink-2"
+          }`}
+        >
+          {p.verification.amounts.unbacked.length ? <IconAlert size={13} /> : <IconCheck size={13} className="text-olive" />}
+          <span>
+            <span className="font-semibold">Prices in the plan’s text:</span> {p.verification.amounts.checked} checked
+            {p.verification.amounts.fixed ? `, ${p.verification.amounts.fixed} corrected by the repair pass` : ""}
+            {p.verification.amounts.unbacked.length
+              ? ` — not backed: ${p.verification.amounts.unbacked.map((u) => `${u.amount} (${u.where})`).join(", ")}`
+              : " — each matches a dish price, the menu or a checked claim."}
+          </span>
+        </p>
       )}
       {failed.length > 0 && (
         <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-terracotta/30 bg-terracotta/5 px-3 py-1 text-[12px] text-terracotta">
@@ -857,7 +874,7 @@ const PHASE_LABEL: Record<EngineCall["phase"], string> = {
   vision: "Read menu photo",
   gather: "Web research turn",
   synthesize: "Write the plan",
-  verify: "Repair citations",
+  verify: "Repair failed checks",
   repair: "Repair schema",
 };
 
@@ -898,7 +915,7 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
     >
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
         Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra (Quick) or
-        Super (Thorough) writes the plan, and Ultra repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
+        Super (Economy) writes the plan, and Ultra repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
         <a href={PRICES_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           catalog
         </a>

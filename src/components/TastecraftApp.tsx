@@ -8,10 +8,10 @@ import Timeline, { type Step, type TimelineItem } from "./Timeline";
 import PlaybookView, { type LiveState } from "./PlaybookView";
 import { IconArrow, IconSearch } from "./icons";
 
-// Routing measured in eval/SUMMARY.md: Ultra is the fastest writer; Super is the most faithful and cheapest, but slower.
+// Routing measured in eval/SUMMARY.md (v5, strict verifier): Ultra at medium effort is the most faithful and fast; Super costs about half, but is slower.
 const MODES = [
-  { id: "quick", label: "Quick", hint: "Nemotron Ultra · about a minute" },
-  { id: "thorough", label: "Thorough", hint: "Nemotron Super · 2–3 min, most claims verified first time" },
+  { id: "quick", label: "Quick", hint: "Nemotron Ultra · about a minute, most claims verified" },
+  { id: "economy", label: "Economy", hint: "Nemotron Super · about 2 min, half the cost" },
 ] as const;
 
 const GOALS = ["Fill quiet weeknights", "Make the most of this week’s weather", "Win more lunch covers", "Launch a seasonal special", "Grow takeaway orders"];
@@ -172,13 +172,13 @@ export default function TastecraftApp({ demos = [] }: { demos?: DemoSummary[] })
             {!started && (
               <div className="mt-6 flex max-w-xl items-center gap-5 rounded-2xl border border-line bg-card p-4 sm:p-5">
                 <div className="shrink-0 text-center">
-                  <div className="font-display text-5xl leading-none text-olive tabular-nums">96%</div>
+                  <div className="font-display text-5xl leading-none text-olive tabular-nums">89%</div>
                   <div className="mt-1 text-[11px] text-muted">claims verified · Quick</div>
                 </div>
                 <p className="text-[13px] leading-snug text-ink-2">
-                  <span className="font-semibold text-ink">Measured, not promised.</span> In our routing eval of 8 restaurants, 96% of Quick
-                  claims (Nemotron Ultra) and 98% of Thorough ones (Nemotron Super) passed the code check against the sentences they cite,
-                  after one repair pass. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
+                  <span className="font-semibold text-ink">Measured, not promised.</span> In our routing eval of 8 restaurants, 89% of Quick claims (Nemotron Ultra)
+                  passed a strict code check after one repair pass: every number and nearly every word must be in the sentences they cite,
+                  and every price in the plan must match a dish or a checked claim. What fails is marked, not hidden. A plan costs a few cents of inference ·{" "}
                   <a
                     href="https://github.com/antonmareo10/tastecraft-open/blob/main/eval/SUMMARY.md"
                     target="_blank"
@@ -411,7 +411,7 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState 
     switch (ev.type) {
       case "note": {
         items.push({ kind: "note", text: ev.text, key: `note-${i}` });
-        // The writer is Ultra (Quick) or Super (Thorough), and Ultra may take over a retry: the agent says which.
+        // The writer is Ultra (Quick) or Super (Economy), and Ultra may take over a retry: the agent says which.
         const writer = /^🧠 (Nemotron [\w. ]+?) is writing your week/.exec(ev.text) ?? / — (Nemotron [\w. ]+?) takes over/.exec(ev.text);
         if (writer) live.writer = writer[1];
         break;
