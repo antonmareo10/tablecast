@@ -2,7 +2,10 @@
 
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { m } from "motion/react";
 import { IconAlert, IconCheck, IconCopy } from "./icons";
+import { Reveal, SPRING, useReveal } from "./motion";
+import { useToast } from "./toast";
 import type { Cite, Evidence, Source } from "@/lib/types";
 
 export function Section({
@@ -19,7 +22,7 @@ export function Section({
   aside?: ReactNode;
 }) {
   return (
-    <section className="rise scroll-mt-20 rounded-2xl border border-line bg-card p-5 sm:p-6">
+    <Reveal as="section" className="scroll-mt-20 rounded-2xl border border-line bg-card p-5 sm:p-6">
       <header className="mb-4 flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           {icon && (
@@ -35,12 +38,14 @@ export function Section({
         {aside}
       </header>
       {children}
-    </section>
+    </Reveal>
   );
 }
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
+  const what = label.replace(/^Copy\s*/, "");
   return (
     <button
       type="button"
@@ -48,12 +53,14 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
         try {
           await navigator.clipboard.writeText(text);
           setCopied(true);
+          toast(what ? `${what[0].toUpperCase()}${what.slice(1)} copied` : "Copied");
           setTimeout(() => setCopied(false), 1600);
         } catch {
           setCopied(false);
+          toast("Couldn’t copy here — select the text and copy it instead");
         }
       }}
-      className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition hover:border-ink-2/40 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-olive"
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
     >
       {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
       {copied ? "Copied" : label}
@@ -99,6 +106,7 @@ function placeNear(anchor: HTMLElement, card: HTMLElement) {
   const fitsBelow = a.bottom + gap + h <= vh - margin;
   const below = fitsBelow || vh - a.bottom >= a.top;
   card.style.top = `${below ? a.bottom + gap : Math.max(margin, a.top - gap - h)}px`;
+  card.style.transformOrigin = `${Math.max(0, a.left - Math.max(margin, Math.min(a.left, vw - w - margin))) + 12}px ${below ? "0%" : "100%"}`;
   card.style.left = `${Math.max(margin, Math.min(a.left, vw - w - margin))}px`;
   card.style.visibility = "visible";
 }
@@ -179,7 +187,7 @@ export function SourceChip({ cites }: { cites: Cite[] }) {
     setPinned(false);
   };
 
-  const cls = `inline-flex max-w-[16rem] items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] transition ${
+  const cls = `inline-flex max-w-[16rem] items-center gap-1 truncate rounded-full border px-2 py-0.5 text-[11px] transition pointer-coarse:px-2.5 pointer-coarse:py-1.5 ${
     bad ? "border-terracotta/30 text-terracotta" : "border-line text-ink-2 hover:border-ink-2/40 hover:text-ink"
   } ${open ? "border-ink-2/40 text-ink" : ""}`;
   return (
@@ -210,10 +218,13 @@ export function SourceChip({ cites }: { cites: Cite[] }) {
       </button>
       {open &&
         createPortal(
-          <div
+          <m.div
             ref={cardRef}
             id={cardId}
             style={{ visibility: "hidden" }}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={SPRING}
             onPointerEnter={enter}
             onPointerLeave={leave}
             onBlur={blur}
@@ -264,7 +275,7 @@ export function SourceChip({ cites }: { cites: Cite[] }) {
                 Open source ↗
               </a>
             )}
-          </div>,
+          </m.div>,
           document.body,
         )}
     </>
@@ -321,24 +332,55 @@ export function EvidenceLine({ evidence }: { evidence: Evidence }) {
 
 const LANGUAGE_LABEL: Record<string, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", pt: "Portuguese", de: "German", ca: "Catalan" };
 
-/** A number that counts up to its value when it first appears or changes (instant with reduced motion). */
-export function CountUp({ value, duration = 900 }: { value: number; duration?: number }) {
+/**
+ * A number that counts up to its value when it first appears or changes (instant with reduced motion).
+ * `whenVisible` waits until the reader reaches it (same rules as Reveal). Screen readers get the final value.
+ */
+export function CountUp({
+  value,
+  duration = 900,
+  decimals = 0,
+  format,
+  whenVisible = false,
+}: {
+  value: number;
+  duration?: number;
+  decimals?: number;
+  format?: (n: number) => string;
+  whenVisible?: boolean;
+}) {
+  const { ref, phase } = useReveal<HTMLSpanElement>();
   const [shown, setShown] = useState(0);
-  const from = useRef(0);
+  const cur = useRef(0);
+  const wait = whenVisible && phase === "hidden";
   useEffect(() => {
-    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (wait) {
+      // Hidden until the reader gets here: start again from zero when it is revealed.
+      cur.current = 0;
+      const raf = requestAnimationFrame(() => setShown(0));
+      return () => cancelAnimationFrame(raf);
+    }
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const start = performance.now();
-    const a = from.current;
+    const a = cur.current;
+    const k10 = 10 ** decimals;
     let raf = 0;
     const step = (now: number) => {
       const k = reduce ? 1 : Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - k, 3);
-      setShown(Math.round(a + (value - a) * eased));
+      const v = k >= 1 ? value : Math.round((a + (value - a) * eased) * k10) / k10;
+      cur.current = v;
+      setShown(v);
       if (k < 1) raf = requestAnimationFrame(step);
-      else from.current = value;
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [value, duration]);
-  return <span className="tabular-nums">{shown}</span>;
+  }, [value, duration, decimals, wait]);
+  const fmt = format ?? ((n: number) => n.toFixed(decimals));
+  return (
+    <span ref={ref} className="tabular-nums">
+      <span aria-hidden>{fmt(shown)}</span>
+      <span className="sr-only">{fmt(value)}</span>
+    </span>
+  );
 }
