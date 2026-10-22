@@ -13,7 +13,7 @@
 //      number must be in a cited source; failures get one repair pass, re-checked by code.
 
 import { z } from "zod";
-import { allowedAmounts, fieldLabel, proseFields, unbackedAmounts } from "./amounts";
+import { allowedAmounts, attributionContext, blockVenueNames, fieldLabel, proseFields, unbackedAmounts } from "./amounts";
 import { dateFieldLabel, datesIn, localToday, longDayLabel, pastDates, scheduleFields, weekOf } from "./dates";
 import { SourceLedger, normalizeText } from "./evidence";
 import { host, isAboutPlace, placeAnchors } from "./place";
@@ -724,22 +724,40 @@ ${sourcesForPrompt(ledger)}`,
   // ---- 4b. PRICES IN THE PLAN'S TEXT -------------------------------------------------------------
   // Every money amount in the headline, plays, event, post… must be a dish price, a price printed next to the
   // dish on the menu, or a number in a checked claim. One repair call fixes or removes the rest; code re-checks.
+  // An amount next to a competitor's name must come from that competitor (v7.1): "the nearest pizza is $22 at
+  // Abbot's" passed the number check only because the restaurant's own Pomodoro is $22.
   const fields = proseFields(pb);
-  const { numbers: allowed, labels } = allowedAmounts(
-    { ...pb, menu_seen: pb.menu_seen.filter((m) => m.price != null && ledger.hasPriceFor(m.name, m.price)) },
+  const menuPriced = pb.menu_seen.filter((m) => m.price != null && ledger.hasPriceFor(m.name, m.price));
+  const { numbers: allowed, labels } = allowedAmounts({ ...pb, menu_seen: menuPriced }, groups.flatMap((g) => g.list));
+  const attribution = attributionContext(
+    blockVenueNames(ledger.list(), pb.restaurant.name),
+    [...pb.menu_moves.map((m) => ({ name: m.dish, price: m.price })), ...menuPriced],
     groups.flatMap((g) => g.list),
   );
-  const firstAmounts = unbackedAmounts(fields, allowed);
+  const firstAmounts = unbackedAmounts(fields, allowed, attribution);
   let amounts = firstAmounts;
   if (amounts.unbacked.length && left() > 15_000) {
     const byField = new Map<string, string[]>();
-    for (const u of amounts.unbacked) byField.set(u.where, [...(byField.get(u.where) ?? []), u.amount]);
+    const notes = new Map<string, string[]>();
+    for (const u of amounts.unbacked) {
+      byField.set(u.where, [...(byField.get(u.where) ?? []), u.amount]);
+      if (u.venue)
+        notes.set(u.where, [
+          ...(notes.get(u.where) ?? []),
+          `${u.amount} is written next to ${u.venue}, and no source gives ${u.venue} that price: remove it, or tie it to the restaurant's own dish it belongs to.`,
+        ]);
+    }
     emit({
       type: "note",
       text: `🔎 Verifier: ${amounts.unbacked.length} price${amounts.unbacked.length > 1 ? "s" : ""} in the plan's text match${amounts.unbacked.length > 1 ? "" : "es"} no dish, menu price or checked claim — asking ${modelLabel(routing.repair || routing.reasoning)} to correct ${amounts.unbacked.length > 1 ? "them" : "it"}.`,
     });
     const proposals = await repairAmounts({
-      items: [...byField].map(([where, list]) => ({ where, text: fields.find((f) => f.where === where)?.get() ?? "", amounts: list })),
+      items: [...byField].map(([where, list]) => ({
+        where,
+        text: fields.find((f) => f.where === where)?.get() ?? "",
+        amounts: list,
+        ...(notes.has(where) ? { notes: notes.get(where) } : {}),
+      })),
       allowed: labels,
       currency: pb.currency,
       routing,
@@ -750,10 +768,10 @@ ${sourcesForPrompt(ledger)}`,
     for (const [where, text] of proposals) {
       const f = fields.find((x) => x.where === where);
       if (!f) continue;
-      const clean = unbackedAmounts([{ ...f, get: () => text }], allowed).unbacked.length === 0;
+      const clean = unbackedAmounts([{ ...f, get: () => text }], allowed, attribution).unbacked.length === 0;
       if (clean && text.length >= f.get().length * 0.5) f.set(text);
     }
-    amounts = unbackedAmounts(fields, allowed);
+    amounts = unbackedAmounts(fields, allowed, attribution);
     emit({
       type: "note",
       text: `🔎 Verifier: prices in the plan's text — ${firstAmounts.unbacked.length - amounts.unbacked.length} corrected${amounts.unbacked.length ? `, ${amounts.unbacked.length} still unbacked (listed under Proof)` : ""}.`,
@@ -844,7 +862,7 @@ ${sourcesForPrompt(ledger)}`,
       amounts: {
         checked: firstAmounts.checked,
         fixed: firstAmounts.unbacked.length - amounts.unbacked.length,
-        unbacked: amounts.unbacked.map((u) => ({ where: fieldLabel(u.where), amount: u.amount })),
+        unbacked: amounts.unbacked.map((u) => ({ where: fieldLabel(u.where), amount: u.amount, ...(u.venue ? { venue: u.venue } : {}) })),
       },
       dates: {
         today,

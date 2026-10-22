@@ -7,6 +7,7 @@ import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent,
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
 import { formatMm } from "@/lib/sources/format";
 import { cleanMenu, dropContradictedPrices } from "@/lib/menu";
+import { competitorPriceFlags, unbackedLabel } from "@/lib/amounts";
 import { IconAlert, IconArrow, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
@@ -174,7 +175,7 @@ export default function PlaybookView({
               subtitle="Every source this plan stands on, how each claim was checked, and what it cost to produce."
             />
             {live.baseline && <Compare baseline={live.baseline} playbook={p} engine={live.engine} />}
-            <SourcesLedger sources={live.sources} playbook={p} />
+            <SourcesLedger sources={live.sources} playbook={p} venues={live.block?.venues ?? []} menu={live.menu?.items ?? []} />
           </>
         )}
 
@@ -1141,8 +1142,27 @@ const KIND_LABEL: Record<Source["kind"], string> = {
   block: "Map",
 };
 
-function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: Playbook }) {
+function SourcesLedger({
+  sources,
+  playbook: p,
+  venues,
+  menu,
+}: {
+  sources: Source[];
+  playbook: Playbook;
+  venues: Venue[];
+  menu: MenuItem[];
+}) {
   const ev = allEvidence(p);
+  // Prices in the text: what the server listed, plus what the competitor-price check (v7.1) finds in a run recorded
+  // before it existed. Same rule, run on the block, menu and claims the browser already has.
+  const recordedAmounts = p.verification?.amounts?.unbacked ?? [];
+  const lateAmounts = competitorPriceFlags(
+    p,
+    venues,
+    dropContradictedPrices(menu, sources).map((m) => ({ name: m.name, price: m.price ?? null })),
+  ).filter((f) => !recordedAmounts.some((u) => u.amount === f.amount && u.where === f.where));
+  const unbackedAmounts = [...recordedAmounts, ...lateAmounts];
   const uses = new Map<string, number>();
   for (const e of ev) for (const c of e.cites) if (c.ok) uses.set(c.source, (uses.get(c.source) ?? 0) + 1);
   const failed = ev.filter((e) => !e.verified);
@@ -1223,15 +1243,17 @@ function SourcesLedger({ sources, playbook: p }: { sources: Source[]; playbook: 
       {p.verification?.amounts && p.verification.amounts.checked > 0 && (
         <p
           className={`mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border px-3 py-2 text-[12px] ${
-            p.verification.amounts.unbacked.length ? "border-terracotta/30 bg-terracotta/5 text-terracotta" : "border-line bg-paper/50 text-ink-2"
+            unbackedAmounts.length ? "border-terracotta/30 bg-terracotta/5 text-terracotta" : "border-line bg-paper/50 text-ink-2"
           }`}
         >
-          {p.verification.amounts.unbacked.length ? <IconAlert size={13} /> : <IconCheck size={13} className="text-olive" />}
+          {unbackedAmounts.length ? <IconAlert size={13} /> : <IconCheck size={13} className="text-olive" />}
           <span>
             <span className="font-semibold">Prices in the plan’s text:</span> {p.verification.amounts.checked} checked
             {p.verification.amounts.fixed ? `, ${p.verification.amounts.fixed} corrected by the repair pass` : ""}
-            {p.verification.amounts.unbacked.length
-              ? ` — not backed: ${p.verification.amounts.unbacked.map((u) => `${u.amount} (${u.where})`).join(", ")}`
+            {unbackedAmounts.length
+              ? ` — not backed: ${unbackedAmounts.map(unbackedLabel).join(", ")}.${
+                  lateAmounts.length ? " The competitor-price check was added after this run was recorded." : ""
+                }`
               : " — each matches a dish price, the menu or a checked claim."}
           </span>
         </p>

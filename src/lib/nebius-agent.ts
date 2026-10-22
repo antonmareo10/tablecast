@@ -700,7 +700,7 @@ const AmountFixSchema = z.object({
  * allowed price for the same item, or drops it. Returns the proposed texts; the caller re-checks them in code.
  */
 export async function repairAmounts(opts: {
-  items: { where: string; text: string; amounts: string[] }[];
+  items: { where: string; text: string; amounts: string[]; notes?: string[] }[];
   allowed: string[];
   currency: string;
   routing: Routing;
@@ -726,7 +726,7 @@ export async function repairAmounts(opts: {
           {
             role: "user",
             content: `These texts from a restaurant's weekly plan contain money amounts that match no price the plan can back (currency ${opts.currency}).
-For each text, change ONLY the listed amounts: use the allowed price of the same item if there is one, otherwise remove the amount and keep the sentence natural (e.g. "a half-portion of the lunch pasta" instead of "a $12 half-portion"). Keep everything else exactly as written, in the same language. Never add new amounts.
+For each text, change ONLY the listed amounts: use the allowed price of the same item if there is one, otherwise remove the amount and keep the sentence natural (e.g. "a half-portion of the lunch pasta" instead of "a $12 half-portion"). Where a text has notes, they say why an amount fails; follow them. Keep everything else exactly as written, in the same language. Never add new amounts.
 
 ${JSON.stringify({ allowed_prices: opts.allowed, texts: items })}`,
           },
