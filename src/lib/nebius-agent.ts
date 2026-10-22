@@ -141,6 +141,15 @@ function chatStream(body: Record<string, unknown>, signal?: AbortSignal): Promis
   );
 }
 
+/**
+ * One tiny call before a live run starts. If Nebius rejects the key or the account is out of credit, the caller
+ * stops right here (and pauses live runs) instead of after a minute of research that can't be written up.
+ * Throws the SDK error; any answer, even an empty one, means inference is available.
+ */
+export async function checkInference(model: string, signal?: AbortSignal): Promise<void> {
+  await chat({ model, messages: [{ role: "user", content: "Reply with OK." }], reasoning_effort: "none", temperature: 0, max_tokens: 1 }, signal, 10_000);
+}
+
 /** A short, one-line description of a failed request, for the engine log. */
 function errorText(err: unknown): string {
   return (err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 140);

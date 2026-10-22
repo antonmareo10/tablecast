@@ -1,6 +1,6 @@
 import { runTablecast } from "@/lib/agent";
-import { acquireLiveRun, clientIp } from "@/lib/limits";
-import { defaultRouting, economyRouting, nebiusConfigured, type Routing } from "@/lib/nebius-agent";
+import { acquireLiveRun, clientIp, describeLiveFailure, isAccountError, liveRunsDisabled } from "@/lib/limits";
+import { checkInference, defaultRouting, economyRouting, nebiusConfigured, type Routing } from "@/lib/nebius-agent";
 import { encodeLine } from "@/lib/ndjson";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 
@@ -72,11 +72,23 @@ export async function POST(request: Request) {
   if (!nebiusConfigured() || !process.env.TAVILY_API_KEY) {
     return Response.json({ error: "Live mode is not configured on this server. Open one of the recorded real runs instead." }, { status: 503 });
   }
+  const disabled = liveRunsDisabled();
+  if (disabled) return Response.json({ error: disabled }, { status: 503 });
   const gate = acquireLiveRun(clientIp(request));
   if (!gate.ok) return Response.json({ error: gate.reason }, { status: 429 });
 
   const started = Date.now();
   const routing = routingOverride(request) ?? (req.mode === "economy" ? economyRouting() : undefined);
+  // A rejected key or an empty account fails here in about a second, before any research is paid for.
+  // Anything else (a slow model, a 5xx) is left to the run, which has its own fallbacks.
+  try {
+    await checkInference((routing ?? defaultRouting()).fast, request.signal);
+  } catch (err) {
+    if (isAccountError(err)) {
+      gate.release();
+      return Response.json({ error: describeLiveFailure(err) }, { status: 503 });
+    }
+  }
   // Publish before the platform's limit (maxDuration), leaving room to stream the end of the run.
   const deadline = Date.now() + (maxDuration - 15) * 1000;
   const stream = new ReadableStream<Uint8Array>({
@@ -93,7 +105,7 @@ export async function POST(request: Request) {
       try {
         await runTablecast(req, emit, { routing, deadline, signal: request.signal });
       } catch (err) {
-        emit({ type: "error", message: err instanceof Error ? err.message : "Unexpected error" });
+        emit({ type: "error", message: describeLiveFailure(err) });
       }
       emit({ type: "done", elapsed_ms: Date.now() - started });
       closed = true;

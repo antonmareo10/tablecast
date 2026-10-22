@@ -647,6 +647,8 @@ function ErrorState({
   onReplay: (d: DemoSummary) => void;
 }) {
   const others = demos.filter((d) => d.slug !== replay?.slug).slice(0, 3);
+  // Paused, switched off or out of budget: retrying won't help, so offer only the recorded runs.
+  const resting = /paused|used up|switched off/i.test(message);
   return (
     <m.div
       role="alert"
@@ -658,19 +660,21 @@ function ErrorState({
         <IconAlert size={16} />
       </span>
       <div className="min-w-0">
-        <p className="font-semibold text-terracotta">The agent hit a problem</p>
+        <p className="font-semibold text-terracotta">{resting ? "Live runs are resting right now" : "The agent hit a problem"}</p>
         <p className="mt-1 text-ink-2">{message}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onRetry}
-            className="min-h-9 rounded-full bg-ink px-4 text-xs font-medium text-paper transition-[background-color,scale] hover:bg-olive motion-safe:active:scale-[0.97]"
-          >
-            Try again
-          </button>
+          {!resting && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="min-h-9 rounded-full bg-ink px-4 text-xs font-medium text-paper transition-[background-color,scale] hover:bg-olive motion-safe:active:scale-[0.97]"
+            >
+              Try again
+            </button>
+          )}
           {others.length > 0 && (
             <>
-              <span className="text-xs text-muted">or watch a recorded real run:</span>
+              <span className="text-xs text-muted">{resting ? "Watch a recorded real run:" : "or watch a recorded real run:"}</span>
               {others.map((d) => (
                 <button
                   key={d.slug}
