@@ -4,7 +4,7 @@
 
 **An AI agent on NVIDIA Nemotron (Nebius Token Factory) that reads an independent restaurant’s coming week — the forecast at its door, holidays, events nearby, the venues on its block, its own menu and what guests say online — and turns it into three dishes to test, an event, a ready-to-post campaign, a supplier order and a day-by-day plan. Every cited claim points to the exact sentences it stands on, and code checks that those sentences contain its numbers and its words.** In a claim-by-claim audit of 100 verified claims, 94 were correct ([eval/AUDIT.md](eval/AUDIT.md)).
 
-**Live demo: https://tablecast-app.vercel.app** · **Video (2:36): https://youtu.be/52BtENQusCs**
+**Live demo: https://tablecast-app.vercel.app** · **Video (2:56): https://youtu.be/52BtENQusCs**
 
 Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and Agents** · also entering **Best Use of Tavily** · License: MIT
 
@@ -17,7 +17,7 @@ Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and
 
 1. Open the [live demo](https://tablecast-app.vercel.app) and click one of the **instant replays** under the form — on a phone, right below the intro (real recorded runs, labelled as recorded and with the writer that made them — no waiting). London is the one with a moment only the live web knew: the Ballon d’Or comes to London on 26 Oct, found by Tavily, not by the events API.
 2. Look at **Your week**: the 7-day forecast, holidays and events within 5 km, then the **demand moments** the agent drew from them.
-3. In the green header, read **“N / N claims verified against their sources”**. Hover or tap any source chip (`S3 gjelina.com ×3`) to see the exact sentences it cites — plus any neighbouring line the check needed — with a link to open the page. A claim that failed the check is marked in place, with the reason.
+3. In the green header, **Do this week** lists the moves first: the three dishes with their days and prices, the event, when to post and the supplier order, each one a tap away from its card and its evidence. Next to it, read **“N / N claims verified against their sources”**. Hover or tap any source chip (`S3 gjelina.com ×3`) to see the exact sentences it cites — plus any neighbouring line the check needed — with a link to open the page. A claim that failed the check is marked in place, with the reason.
 4. Jump to **Proof & engine**: the evidence ledger (every source fetched in that run, and the check of every price in the plan’s text), Nemotron answering *without* data, and the **engine room** — every Nemotron call with its tokens, latency and cost.
 5. Then type any restaurant and city and run it live: **Quick** (Nemotron Ultra writes: about 1–2 minutes end to end, the writer itself ~30 s; the best average in my eval) or **Economy** (Nemotron Super writes: about 2–3 minutes, a third to half the cost, as faithful). Optionally add a photo of its menu.
 
@@ -159,6 +159,14 @@ Checks: `npm run typecheck` (generates Next's route types first, so it works on 
 - **The owner decides.** Dishes are bets to test for a week; nothing is ordered or posted automatically.
 - **Public demo limits.** Per-IP and daily caps on live runs; recorded runs are labelled as recorded.
 - **Credits.** Map data © OpenStreetMap contributors (ODbL); weather by Open-Meteo (CC BY 4.0); holidays by Nager.Date; events by Ticketmaster; web research by Tavily. Recorded runs contain third-party page excerpts, so they are shipped with the deployment and kept out of this repository.
+
+## Accessibility
+
+- Plans in English or Spanish, whatever language the sources are in.
+- Works on a 390 px phone, and **Save as PDF** prints the whole plan.
+- Everything works from the keyboard, with a visible focus ring; source chips open on keyboard focus as well as on hover or tap, and the agent log is a scroll box you can reach with Tab.
+- With reduced motion turned on, nothing slides or drifts and scrolling jumps instead of gliding.
+- axe-core 4.10 finds no violations on the home page or on a full plan, on desktop (1440 px) and on a phone (390 px). I checked on 22 Oct 2026 with `axe.run()` in headless Chromium.
 
 ## Known limitations
 

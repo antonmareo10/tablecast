@@ -45,7 +45,7 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
 
 export default function About() {
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 sm:px-6">
+    <main className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 sm:px-6">
       <Link
         href="/"
         className="group inline-flex min-h-9 items-center gap-1 text-sm text-ink-2 underline decoration-line underline-offset-4 transition-colors hover:text-ink"
@@ -115,6 +115,18 @@ export default function About() {
         </ul>
       </Block>
 
+      <Block title="Accessibility">
+        <ul className="list-disc space-y-2 pl-5">
+          <li>Plans in English or Spanish, whatever language the sources are in.</li>
+          <li>Works on a 390 px phone, and Save as PDF prints the whole plan.</li>
+          <li>
+            Everything works from the keyboard, with a visible focus ring; source chips open on keyboard focus as well as on hover or tap.
+          </li>
+          <li>With reduced motion turned on, nothing slides or drifts and scrolling jumps instead of gliding.</li>
+          <li>axe-core finds no violations on the home page or on a full plan, on desktop and on a phone (checked 22 Oct 2026).</li>
+        </ul>
+      </Block>
+
       <Block title="Why it’s a business">
         <ul className="list-disc space-y-2 pl-5">
           <li>
@@ -136,7 +148,7 @@ export default function About() {
           plan its week on gut feel is where Tablecast started.
         </p>
       </Block>
-    </div>
+    </main>
   );
 }
 
