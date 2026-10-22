@@ -150,7 +150,19 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
     run(req, d);
   }
 
+  // Cancel a live run: closing the stream aborts the server's model calls and frees the slot. Back to the form, which keeps what was typed.
+  function stop() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setEvents([]);
+    setError(null);
+    setReplay(null);
+    setPhase("idle");
+    requestAnimationFrame(() => scrollToEl(document.body));
+  }
+
   const started = phase !== "idle";
+  const liveEta = (form.mode ?? "quick") === "economy" ? "usually 2–3 min" : "usually 1–2 min";
   const hasPreview = demos.some((d) => d.preview);
   const inputCls =
     "w-full rounded-lg border border-line bg-paper/60 px-3 py-2.5 text-[15px] outline-none transition placeholder:text-muted focus:border-olive focus:bg-card focus-visible:ring-2 focus-visible:ring-olive/25";
@@ -421,7 +433,14 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
               {replay && <RecordedBanner replay={replay} running={phase === "running"} />}
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
                 <div className="no-print min-w-0 lg:sticky lg:top-4">
-                  <Timeline items={items} running={phase === "running"} elapsedMs={elapsed} agent={agent} />
+                  <Timeline
+                    items={items}
+                    running={phase === "running"}
+                    elapsedMs={elapsed}
+                    agent={agent}
+                    eta={replay ? undefined : liveEta}
+                    onStop={replay ? undefined : stop}
+                  />
                 </div>
                 <div className="min-w-0">
                   {error && (

@@ -41,11 +41,15 @@ export default function Timeline({
   running,
   elapsedMs,
   agent,
+  eta,
+  onStop,
 }: {
   items: TimelineItem[];
   running: boolean;
   elapsedMs: number;
   agent: AgentStatus;
+  eta?: string; // a live run's usual length, shown next to the timer ("usually 1–2 min")
+  onStop?: () => void; // live runs only: cancel the run (the server stops its model calls too)
 }) {
   // While the agent runs, follow the newest step, unless the reader has scrolled up to read.
   const list = useRef<HTMLOListElement>(null);
@@ -65,7 +69,7 @@ export default function Timeline({
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Agent log</p>
             <h2 className="font-display text-lg leading-tight">How Tablecast read your week</h2>
           </div>
-          <span className="tabular-nums text-xs text-muted">
+          <span className="flex shrink-0 flex-col items-end gap-1 text-right tabular-nums text-xs text-muted">
             {running ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-terracotta" />
@@ -74,6 +78,16 @@ export default function Timeline({
             ) : elapsedMs > 0 ? (
               `${(elapsedMs / 1000).toFixed(0)}s`
             ) : null}
+            {running && eta && <span className="text-[11px]">{eta}</span>}
+            {running && onStop && (
+              <button
+                type="button"
+                onClick={onStop}
+                className="min-h-7 rounded-full border border-line px-2.5 text-[11px] font-medium text-ink-2 transition-[color,border-color,scale] hover:border-terracotta/50 hover:text-terracotta motion-safe:active:scale-[0.97]"
+              >
+                Stop
+              </button>
+            )}
           </span>
         </div>
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Nemotron models in this run">
@@ -91,6 +105,9 @@ export default function Timeline({
       <ol
         ref={list}
         data-lenis-prevent
+        // A scroll box keyboard users can reach and scroll (axe: scrollable-region-focusable).
+        tabIndex={0}
+        aria-label="Agent log, step by step"
         onScroll={(e) => {
           if (Date.now() < autoUntil.current) return;
           const el = e.currentTarget;
