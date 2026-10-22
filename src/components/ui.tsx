@@ -9,12 +9,14 @@ import { useToast } from "./toast";
 import type { Cite, Evidence, Source } from "@/lib/types";
 
 export function Section({
+  id,
   icon,
   kicker,
   title,
   children,
   aside,
 }: {
+  id?: string; // an anchor the plan's first moves can glide to (and focus)
   icon?: ReactNode;
   kicker: string;
   title: string;
@@ -22,7 +24,12 @@ export function Section({
   aside?: ReactNode;
 }) {
   return (
-    <Reveal as="section" className="scroll-mt-20 rounded-2xl border border-line bg-card p-5 sm:p-6">
+    <Reveal
+      as="section"
+      id={id}
+      tabIndex={id ? -1 : undefined}
+      className="scroll-mt-20 rounded-2xl border border-line bg-card p-5 outline-none sm:p-6"
+    >
       <header className="mb-4 flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           {icon && (

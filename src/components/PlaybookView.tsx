@@ -7,7 +7,7 @@ import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent,
 import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
 import { formatMm } from "@/lib/sources/format";
 import { cleanMenu, dropContradictedPrices } from "@/lib/menu";
-import { IconAlert, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
+import { IconAlert, IconArrow, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
 import { CursorLight, EASE_OUT, REVEAL, Reveal, SPRING, STAGGER, SeenGate, scrollToEl, usePillClip, useReveal } from "./motion";
@@ -124,7 +124,7 @@ export default function PlaybookView({
             <MenuMoves playbook={p} />
 
             <div className="grid gap-5 lg:grid-cols-2">
-              <Section icon={<IconMusic size={16} />} kicker="This week's event" title={p.experience.event_idea}>
+              <Section id="move-event" icon={<IconMusic size={16} />} kicker="This week's event" title={p.experience.event_idea}>
                 <p className="text-sm leading-relaxed text-ink-2">{p.experience.event_why}</p>
                 {p.experience.evidence.length > 0 && (
                   <ul className="mt-3 space-y-2 border-t border-line pt-3">
@@ -135,6 +135,7 @@ export default function PlaybookView({
                 )}
               </Section>
               <Section
+                id="move-post"
                 icon={<IconMegaphone size={16} />}
                 kicker="Local marketing"
                 title="Ready-to-post"
@@ -196,6 +197,7 @@ const STAGE_LINE = [
 function Hero({ live, running, stage }: { live: LiveState; running: boolean; stage: number }) {
   const p = live.playbook;
   const v = p?.verification;
+  const done = Boolean(p && !running);
   return (
     <section id="playbook-hero" className="on-dark rise relative isolate scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-olive text-paper">
       <CursorLight
@@ -228,6 +230,9 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
             {p.restaurant.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
           </a>
         )}
+        {/* With the plan ready: the strategy and the trust number on the left, what to do this week on the right (stacked below xl). */}
+        <div className={done ? "xl:grid xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] xl:items-start xl:gap-8" : undefined}>
+        <div className="min-w-0">
         {p?.headline && (
           <m.p
             initial={{ opacity: 0, y: 10 }}
@@ -312,8 +317,81 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
             </ol>
           </div>
         ) : null}
+        </div>
+        {done && p && <FirstMoves playbook={p} />}
+        </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * What to do this week, before any of the reasons: each dish, the event, the post and the supplier order, one
+ * line each, and a tap glides to its card further down, where the evidence is.
+ */
+function FirstMoves({ playbook: p }: { playbook: Playbook }) {
+  const total = p.shopping_list.reduce((s, i) => s + (i.est_cost || 0), 0);
+  const rows: { key: string; tag: string; text: string; to: string }[] = p.menu_moves.slice(0, 3).map((mv, i) => ({
+    key: `dish-${i}`,
+    tag: mv.when,
+    // Long names read "Rain Bowl — braised white beans…": the list keeps the name, the card keeps the rest.
+    text: `${mv.dish.split(" — ")[0]} · ${money(mv.price, p.currency)}`,
+    to: `move-dish-${i}`,
+  }));
+  if (p.experience.event_idea) rows.push({ key: "event", tag: "Event", text: p.experience.event_idea, to: "move-event" });
+  if (p.marketing.post_when) rows.push({ key: "post", tag: "Post", text: p.marketing.post_when, to: "move-post" });
+  if (p.shopping_list.length) {
+    rows.push({
+      key: "order",
+      tag: "Supplier order",
+      text: `${p.shopping_list.length} items for a one-week test, about ${money(total, p.currency)}`,
+      to: "move-order",
+    });
+  }
+  if (!rows.length) return null;
+
+  const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    scrollToEl(el, -88);
+    history.replaceState(null, "", `#${id}`);
+    el.focus({ preventScroll: true });
+  };
+
+  return (
+    <m.nav
+      aria-label="This week's moves"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...REVEAL, delay: 0.3 }}
+      className="mt-6 overflow-hidden rounded-2xl border border-paper/20 bg-paper/[0.06] xl:mt-5"
+    >
+      <p className="px-4 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-paper/80">Do this week</p>
+      <ol className="mt-1.5 divide-y divide-paper/10">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <a
+              href={`#${r.to}`}
+              onClick={(e) => go(e, r.to)}
+              className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-paper/[0.08] focus-visible:bg-paper/[0.08] focus-visible:outline-offset-[-2px]"
+            >
+              <span className="min-w-0 flex-1">
+                <span title={r.tag} className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.12em] text-paper/75">
+                  {r.tag}
+                </span>
+                <span className="mt-0.5 block text-[14px] leading-snug text-paper">{r.text}</span>
+              </span>
+              <IconArrow size={14} className="nudge shrink-0 text-saffron" />
+            </a>
+          </li>
+        ))}
+      </ol>
+      <p className="border-t border-paper/10 px-4 py-2.5 text-[12px] leading-snug text-paper/75">
+        Each move links to its reasons below. Every claim there ends in a source chip like S3: hover or tap it to read the exact sentence. Claims in red
+        failed the code check.
+      </p>
+    </m.nav>
   );
 }
 
@@ -671,7 +749,14 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
         {p.menu_moves.map((m, i) => {
           const ok = m.evidence.filter((e) => e.verified).length;
           return (
-            <Reveal as="article" key={m.dish} delay={i * STAGGER * 1.4} className="lift flex flex-col rounded-xl border border-line bg-paper/40 p-4">
+            <Reveal
+              as="article"
+              key={m.dish}
+              id={`move-dish-${i}`}
+              tabIndex={-1}
+              delay={i * STAGGER * 1.4}
+              className="lift flex scroll-mt-24 flex-col rounded-xl border border-line bg-paper/40 p-4 outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
+            >
               <div className="flex items-baseline justify-between gap-3">
                 <h4 className="font-display text-lg leading-tight">{m.dish}</h4>
                 <span className="shrink-0 text-sm font-semibold tabular-nums text-olive">{money(m.price, p.currency)}</span>
@@ -906,6 +991,7 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
   const emailText = `Hello,\n\nFor ${p.restaurant.name}, we would like to order for this week's specials:\n\n${orderEmail}\n\nPlease confirm availability and price.\n\nThank you!`;
   return (
     <Section
+      id="move-order"
       icon={<IconBasket size={16} />}
       kicker="Supplier shopping list"
       title="What to buy for a one-week test"
@@ -996,9 +1082,15 @@ function allEvidence(p: Playbook): Evidence[] {
 function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook: Playbook; engine: EngineCall[] }) {
   const v = p.verification;
   // Name the models from the run itself (older recordings used Lightning for the baseline).
-  const without = engine.find((c) => c.phase === "baseline")?.label ?? "Nemotron";
+  const base = engine.find((c) => c.phase === "baseline");
+  const without = base?.label ?? "Nemotron";
   const writer = engine.findLast((c) => c.phase === "synthesize")?.label ?? "Nemotron";
   const same = without === writer;
+  // The receipt for each side, from the run's own telemetry: the generic answer is one call; the plan is everything else.
+  const rest = engine.filter((c) => c !== base);
+  const planUsd = rest.reduce((s, c) => s + (c.est_cost_usd ?? 0), 0);
+  const planCalls = rest.reduce((n, c) => n + callCount(c), 0);
+  const baseUsd = base?.est_cost_usd;
   return (
     <Section
       icon={<IconSpark size={16} />}
@@ -1008,7 +1100,10 @@ function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-line bg-paper/40 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{without}, no tools, no data</p>
-          <p className="mt-1 text-[11px] text-muted">0 sources · nothing to verify</p>
+          <p className="mt-1 text-[11px] text-muted">
+            0 sources · nothing to verify
+            {base && baseUsd != null ? ` · 1 call, ${usd(baseUsd)}, ${fmtMs(base.ms)}` : ""}
+          </p>
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-2">{baseline}</p>
         </div>
         <div className="rounded-xl border border-olive/30 bg-olive/5 p-4">
@@ -1016,6 +1111,7 @@ function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook
           {v && (
             <p className="mt-1 text-[11px] font-semibold text-olive">
               {v.sources} live sources · {v.verified}/{v.checked} claims verified in code
+              {planCalls > 0 ? ` · ${planCalls} calls, ${usd(planUsd)}` : ""}
             </p>
           )}
           <ul className="mt-2 space-y-2 text-sm leading-relaxed">
