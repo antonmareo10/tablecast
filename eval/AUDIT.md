@@ -77,9 +77,35 @@ Three more verified claims are true as written but sit in the wrong section: #88
 - **The audit didn't change v7.** The obvious next calibration is to let attribution words ("reviewers call", "guests note") through, and to send claims that name a competitor to rivals. I haven't done it, because this audit would then be grading its own tuning. It needs a fresh sample afterwards.
 - Earlier verifier versions were never audited this way, so there is no "before" precision to compare with.
 
+## The flagship replay, read in full (22 Oct)
+
+The audit above samples. The Gjelina replay is the run a judge opens first, so on 22 Oct I read all of it: every verified claim against its cited lines, every menu fact and money amount against gjelina.com/los-angeles-menus as fetched that day, and the free text around them. This is the same reader as above (the author, with Claude Code's help), not an independent one.
+
+**The 24 verified claims: 20 correct, 4 minor slips, 0 wrong.**
+
+| Claim (shortened) | Verdict | Why |
+|---|---|---|
+| "Reviewers highlight the labneh toast …, ricotta pancakes and crispy eggs … as standout brunch dishes" | M | One review lists them as brunch dishes. "Standout" and the plural "reviewers" are the plan's. |
+| "The takeaway counter GTA is an alternative to sit-down dining …" (twice) | M, M | The cited line says "the takeaway counter Gjelina has next door". The name GTA is true (the block lists "GTA (Gjelina Take Away)") but isn't on that line. |
+| "Saturday through Tuesday are dry, 0 mm rain, warming to 28°C" | M | It peaks at 29°C on Monday, then 28°C. |
+| The other 20: seven forecast claims, the block's counts and distances (2), the takeaway counter, the no-substitutions policy, the 8am opening, the sharing habit, Abbot Kinney as "the place to be", the labneh toast at brunch, the wine and corkage prices (see below), and four claims holding six menu facts | C | Le Puy Lentil Soup $22, Cured Chorizo $28, Fennel Salami $29, Braised Pork Meatball $24 (lunch; $23 at dinner), Grilled Peach Burrata $28 and the Pomodoro pizza $22 are all on the page as stated. |
+
+One of the 20 correct claims is **stale**: "a glass of wine costs around $8, and you can bring your own bottle for a $20 corkage fee". That is exactly what its source says, but the source is an undated blog post. Gjelina's own list, on the same menu page, sells wine by the glass from $14 (dessert wines) and $18 (the rest). The verifier checks a claim against what it cites, not the age of the source or a conflict with the restaurant's own page.
+
+**The free text (not claims) had one error code could catch and one it can't.**
+
+1. **An invented competitor price.** The block summary says "the nearest pizza is $22 at Abbot's, while Gjelina's Pomodoro is also $22". No source prices Abbot's Pizza Company. The price check only asked whether $22 was a price the plan could back, and Gjelina's Pomodoro is $22. This became **v7.1** ([SUMMARY.md](SUMMARY.md#v71-a-price-next-to-a-competitors-name)): an amount next to a competitor's name has to come from that competitor. The replay now lists it under Proof as not backed.
+2. **A misread menu.** Dish 2, a sharing board, is justified as showcasing "cured meats already on the dinner menu (Cured Chorizo $28, Fennel Salami $29)". The prices are right, but on the menu both are pizzas. The verified claim says only what the menu says; the plan's reasoning reads it wrong. Code can't see that.
+3. Smaller things a careful owner would notice: moment 1 calls the rain dish "lentil-based" while dish 1 is a white bean and kale stew; the plan orders and launches that stew on the same Wednesday (its ingredients are pantry staples, but it doesn't say so); and the event compares the $25 bowl-and-coffee deal with that stale $8 glass of wine.
+
+## Every verified claim of a new held-out round (22–23 Oct)
+
+A sample can be lucky. So for the second held-out round (8 more restaurants, listed before any run) I read **all 212 claims** its 16 plans show as verified, with the same categories as above: **186 correct (88%, CI 83–92%), 19 minor slips, 7 wrong**; correct or minor slip, 97%. That is lower than this sample's 94 of 100, and it is the number I'd quote first. Every verdict, with its reason: [heldout2-verdicts.tsv](heldout2-verdicts.tsv). Results and the 7 errors: [SUMMARY.md](SUMMARY.md#v71-held-out-round-2-every-verified-claim-read-by-hand). Reading them also found an empty claim that every check passed (v7.1 now rejects it) and a news page about Florence, Alabama accepted for a restaurant in Florence, Italy.
+
 ## Limits
 
 - **One reader, who also built the verifier.** The verdicts are in the open so they can be checked, but they are not independent.
-- **Verified = the cited lines say it, not that the world is so.** Two sources in the sample are weak: an AI-generated "scenario" page (#52) and a 2016 Eater guide (#48). Both claims are correct readings of their page.
+- **Verified = the cited lines say it, not that the world is so.** Two sources in the sample are weak: an AI-generated "scenario" page (#52) and a 2016 Eater guide (#48). Both claims are correct readings of their page. The flagship's "$8 glass of wine" is the same case, from an undated blog that the restaurant's own list contradicts.
 - **Menu layout.** A price on the line after a dish's description can belong to the next dish. The number check allows the line before and the two after, so a wrong pairing can pass (the old Gjelina dish 2). None turned up in this sample.
-- n = 100 + 50. The confidence intervals above are wide, especially for rejections.
+- **Same city name, other country.** The place check accepts a page that names the restaurant's city. "Florence" let a Florence, Alabama news page into a plan for Florence, Italy, and three verified claims stood on it.
+- n = 100 + 50 in the sample, 212 in the full read. The confidence intervals are wide, especially for rejections.

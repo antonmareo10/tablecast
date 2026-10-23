@@ -2,7 +2,7 @@
 
 Run on 2026-10-21 with `npx tsx scripts/eval-routing.ts`. Restaurants: [eval/restaurants.json](restaurants.json) (fixed before running).
 
-> **Latest (21 Oct, verifier v7):** [what changed](#v7-what-my-own-showcase-taught-the-verifier) after a review of my own showcase, a [held-out round](#v7-held-out-round) on 8 restaurants never used for tuning (Quick 73%, Economy 74% verified after repair), and a [hand audit](AUDIT.md) of 150 claims (94 of 100 verified claims correct). The table right below is the v6 round on the 8 tuning restaurants.
+> **Latest (22–23 Oct, verifier v7.1):** a [rule for prices next to a competitor](#v71-a-price-next-to-a-competitors-name) after reading my whole showcase, and a [second held-out round](#v71-held-out-round-2-every-verified-claim-read-by-hand) on 8 more new restaurants (Quick 74%, Economy 80% verified after repair) with **every** verified claim read by hand: 186 of 212 correct, 19 minor slips, 7 wrong. Before that (21 Oct, v7): [what changed](#v7-what-my-own-showcase-taught-the-verifier), the [first held-out round](#v7-held-out-round) (73%, 74%) and a [sampled audit](AUDIT.md) (94 of 100). The table right below is the v6 round on the 8 tuning restaurants.
 
 **Method.** For each restaurant the evidence is gathered once (OpenStreetMap, Open-Meteo, Nager.Date, Ticketmaster, Tavily Map, then Nemotron 3.5 Lightning researching the web with Tavily Search/Extract). Every writer configuration then writes a plan from that same evidence pack, and every claim is verified in code exactly as in production: each cited sentence must exist, every number in the claim must appear in a cited sentence (or its neighbouring lines), and the cited sentences must contain the claim's content words — at most one in five may be missing (one for claims of 4–9 words, none for shorter ones). "First pass" is the writer alone; then one repair pass (the same for every configuration: Nemotron Ultra at low effort, one call per failing claim) fixes or drops what failed; "final" is what the owner sees. Verification shares are pooled over all claims of a configuration (verified claims ÷ claims), not medians of per-plan rates. Money amounts in the plan's free text (headline, plays, event, post, reasoning) must equal a dish price, a price printed next to the dish on the menu, or a number in a verified claim; one repair call fixes or removes the rest. Costs are measured token counts × published Token Factory prices (writer + repair calls; the shared research step is reported separately).
 
@@ -71,6 +71,23 @@ The replays keep only 600 characters of each page, so 15 of their 47 claims coul
 
 All 28 past-dated fields in the cached plans are "Mon 19 Oct" in plans made on Tuesday 20 Oct, except one no-Tavily plan dated in 2025. Two plans even called Monday "today". **Effect on the tuning-set numbers:** the v6 plans re-checked with v7, with no new repair pass, go from 84% to 82% verified (Quick) and from 88% to 82% (Economy).
 
+## v7.1: a price next to a competitor's name
+
+On 22 Oct I read the Gjelina replay in full ([AUDIT.md](AUDIT.md#the-flagship-replay-read-in-full-22-oct)). Its 24 verified claims held up (20 correct, 4 minor slips, none wrong), but its block summary said "the nearest pizza is $22 at Abbot's, while Gjelina's Pomodoro is also $22". No source prices Abbot's Pizza Company. The price check only asked whether each amount in the free text was a price the plan could back, and $22 is Gjelina's own Pomodoro.
+
+**The rule.** When the clause around an amount names a venue from the block, the amount has to come from that venue: a checked claim that puts the venue's name and the amount in one clause. The restaurant's own dish named in the same clause at that price also counts ("our $22 Pomodoro against Abbot's slices"). A clause ends at a sentence end, a semicolon, a comma, a spaced dash, "+" or a joining word ("and", "while", "than"…), so "the nearest pizza is $22 at Abbot's" is judged apart from "Gjelina's Pomodoro is also $22". Names are matched as the block writes them, plus short forms ("Abbot's", "The Brig" or "Brig"), never a street that shares a word ("Abbot Kinney"). A failure goes to the same one-shot repair, with a note saying why; what still fails is listed under Proof. Code: [src/lib/amounts.ts](../src/lib/amounts.ts), tests: [tests/competitor-price.test.ts](../tests/competitor-price.test.ts).
+
+**Re-check with no model calls** ([scripts/amounts-recheck.ts](../scripts/amounts-recheck.ts)) over every cached plan of the v5, v6, Tavily and v7 held-out rounds, and the 4 replays:
+
+| | Plans | Money amounts in the text | Amounts next to a block venue | Flagged by v7.1 |
+|---|---|---|---|---|
+| Cached eval plans | 94 | 482 | 10 | 1 |
+| Recorded replays | 4 | – | – | 1 (Gjelina's "$22 at Abbot's") |
+
+Of the 10 cached amounts next to a venue, 8 are the name of a New York pizzeria called "$1.50 Pizza" and 1 is Masala Zone's group feasts at £32.50–£50.50, which a checked claim gives. The one flagged is a proposal, not a fact: "Gjelina patrons get $1 off at The Brig", in a plan written without Tavily. The number check had passed it only because a checked claim contains a 1. The new rule treats it like any proposed amount the plan can't back: in a live run it goes to the repair pass, and it is listed under Proof if it survives. Competitor prices are rare in the free text, and the rule touches almost nothing else.
+
+**Recorded runs.** The replays were recorded before v7.1, so their saved check never ran this rule. The browser runs it on what the replay already holds (the block's venues, the menu it shows, the plan's checked claims) and lists the result under Proof, labelled as a check added after the run was recorded. The run itself is not edited.
+
 ## v7 held-out round
 
 The v3–v6 numbers above come from the same 8 restaurants the verifier was tuned on. To check them, I committed 8 new restaurants to [heldout.json](heldout.json) before any run: Franklin Barbecue (Austin), Commander's Palace (New Orleans), Pai Northern Thai Kitchen (Toronto), Hawksmoor Manchester, Chin Chin (Melbourne), Cervejaria Ramiro (Lisbon), Contramar (Mexico City) and Salumeria Roscioli (Rome). They come from 8 cities, 3 of them with non-English pages, and 2 are multi-branch groups. The evidence was gathered once on 21 Oct. The production Quick and Economy writers then wrote from it with v7, next to the app's no-data baseline (the same writer model, no tools, no data). Code: [eval-routing.ts](../scripts/eval-routing.ts) `--restaurants eval/heldout.json`, then [eval-heldout.ts](../scripts/eval-heldout.ts). Per-plan numbers: [metrics-v7-heldout.csv](metrics-v7-heldout.csv).
@@ -96,3 +113,29 @@ Per restaurant, verified/written (Quick · Economy): Franklin Barbecue 12/23 · 
 - **Routing still holds:** Quick is fast (writer 20 s median, about a minute end to end), and Economy is as faithful at under half the cost but takes 2–3 minutes. Economy retried 2 of 8 plans at low effort, and both published.
 
 **Spend for this round:** $1.14 of Nemotron for writers, repairs and baselines, plus $0.015 for research, plus 56 Tavily credits. The failed first Franklin attempt reported no usage.
+
+## v7.1 held-out round 2, every verified claim read by hand
+
+Round 1 above was the held-out set the audit sampled from, and v7.1 came after reading my own showcase. So on 22 Oct I committed 8 more restaurants to [heldout2.json](heldout2.json) before any run (commit c5c31e2): Lilia (New York), Kasama (Chicago), Brat (London), Septime (Paris), Sobrino de Botín (Madrid), Trattoria Sostanza (Florence), Burnt Ends (Singapore) and Zahav (Philadelphia). Three have pages in another language. The same Quick and Economy writers planned them with the production code of the `final-polish` branch (v7.1). Code: [eval-routing.ts](../scripts/eval-routing.ts) `--restaurants eval/heldout2.json --runs runs-v71-heldout2`. Per-plan numbers: [metrics-runs-v71-heldout2.csv](metrics-runs-v71-heldout2.csv).
+
+| Writer | Plans published | Retries | Claims / plan | Verified, first pass | Verified, after repair | Prices in the text backed (first → final) | Dishes tied to this week | Writer time (median / slowest) | Cost / plan (median) |
+|---|---|---|---|---|---|---|---|---|---|
+| Quick (Ultra · medium) | 8/8 | 2 | 16.3 | 47% | **74%** | 85% → 100% (62) | 38% | 38 s / 314 s | $0.087 |
+| Economy (Super · medium) | 8/8 | 1 | 18.1 | 51% | **80%** ¹ | 50% → 100% (8) | 63% | 79 s / 135 s | $0.055 |
+
+¹ 81% as the run counted it: one Economy claim (Septime) was empty text with a valid cite, and nothing in an empty claim can fail a check. v7.1 now rejects an empty claim ([evidence.ts](../src/lib/evidence.ts), test in [evidence.test.ts](../tests/evidence.test.ts)); it was the only one in 1,651 cached claims.
+
+Per restaurant, verified/written (Quick · Economy): Lilia 6/13 · 14/17; Kasama 15/18 · 8/11; Brat 12/14 · 12/18; Septime 15/20 · 20/23; Botín 9/14 · 13/20; Sostanza 18/23 · 20/23; Burnt Ends 12/14 · 16/17; Zahav 9/14 · 13/16. Research: median 27 sources and 6.5 Tavily credits per restaurant. Two Quick plans needed a low-effort retry (Botín, Burnt Ends) and both published. All 13 unbacked prices of the first drafts were fixed by the repair pass.
+
+**Precision, read in full.** Instead of a sample, I read all 212 claims these 16 plans show as verified, each against its cited lines and any neighbouring line the check used ([heldout2-verdicts.tsv](heldout2-verdicts.tsv), one line per claim with the reason; categories as in [AUDIT.md](AUDIT.md)).
+
+| | Quick | Economy | Both |
+|---|---|---|---|
+| Correct | 82 of 96 (85%, CI 77–91%) | 104 of 116 (90%, CI 83–94%) | **186 of 212 (88%, CI 83–92%)** |
+| Minor slip | 12 | 7 | 19 |
+| Wrong | 2 | 5 | **7** |
+| Correct or minor slip | 98% | 96% | 97% |
+
+This is lower than the sampled audit (94 of 100). The 7 wrong ones: a theatre time taken from the line next to it (Brat), a Paris brasserie called "Rival" read as a rival of Septime, Botín's own Guía Repsol price range presented as "nearby spots", a weekly calendar's festival given a Saturday it doesn't state (Zahav), and three claims on one news article about a Halloween festival in **Florence, Alabama**, which the place check let into a plan for a trattoria in Florence, Italy because the page names "Florence". That last one is a gap in the place check, not in the claim check: a page that names the right city name in the wrong country passes. Most minor slips are a word the plan adds ("signature", "guests", "evening"). As in the audit, one reader did this, the author with Claude Code's help.
+
+**Spend for this round:** $1.16 of Nemotron for writers and repairs, $0.015 for research, and 52 Tavily credits. No baseline was run this time.

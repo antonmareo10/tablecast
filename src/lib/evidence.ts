@@ -447,7 +447,10 @@ export class SourceLedger {
       return { ...c, ok: r.ok, ...(context.length ? { context } : {}) };
     });
     let issue: string | undefined;
-    if (cites.length === 0) issue = "no source cited";
+    // An empty claim has no number or word to miss, so every other check passes it. One reached a plan in the second
+    // held-out round (a blank line with a source chip, counted as verified).
+    if (!normalizeText(e.text ?? "")) issue = "the claim is empty";
+    else if (cites.length === 0) issue = "no source cited";
     else {
       const bad = checks.find(({ r }) => !r.ok)?.r;
       if (bad && !bad.ok) issue = bad.reason;

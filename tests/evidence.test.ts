@@ -151,3 +151,15 @@ describe("sentence citations", () => {
     expect(out).not.toContain("S1.5");
   });
 });
+
+describe("an empty claim", () => {
+  it("is never verified, even with a valid cite (v7.1)", () => {
+    const l = ledger();
+    const v = l.verifyEvidence({ text: "", cites: [{ source: "S1", span: "S1.1", quote: "" }] });
+    expect(v.verified).toBe(false);
+    expect(v.issue).toBe("the claim is empty");
+    expect(l.verifyEvidence({ text: " — ", cites: [{ source: "S1", span: "S1.1", quote: "" }] }).verified).toBe(false);
+    // A short claim with content still goes through the normal checks.
+    expect(l.verifyEvidence({ text: "Thu 23 Oct: 6.2 mm of rain.", cites: [{ source: "S1", span: "S1.1", quote: "" }] }).verified).toBe(true);
+  });
+});

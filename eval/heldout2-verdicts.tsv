@@ -1,0 +1,214 @@
+claim	verdict	why
+brat-london__ultra-medium#1	C	Chop, cull yaw, "main event", the crusty bottom scraped: all in the review's lines.
+brat-london__ultra-medium#2	C	As the review says.
+brat-london__ultra-medium#3	C	Wood-fired ovens and grills; every dish a whisper of smoke.
+brat-london__ultra-medium#4	C	"Discreet black awning and small, chalk-scrawled blackboard", "an understated entrance"; "hard to find" is a fair reading of "in order to find Brat, look for".
+brat-london__ultra-medium#5	C	Forecast lines.
+brat-london__ultra-medium#6	W	Much Ado About Nothing starts at 19:30 on its line; the claim gives it 19:00, the comedy show's time on another cited line. A number paired with the wrong item.
+brat-london__ultra-medium#7	C	Forecast lines.
+brat-london__ultra-medium#8	C	Verbatim review line.
+brat-london__ultra-medium#9	C	Verbatim review line.
+brat-london__ultra-medium#10	C	Block line (the claim keeps "at least").
+brat-london__ultra-medium#11	C	Block lines.
+brat-london__ultra-medium#12	C	Forecast lines.
+kasama-chicago__ultra-medium#1	C	Instagram bio and the site's "Daytime Service and Bakery".
+kasama-chicago__ultra-medium#2	C	Menu page hours note and a Yelp tip.
+kasama-chicago__ultra-medium#3	C	Three event lines, times and distances right.
+kasama-chicago__ultra-medium#4	C	Site hours: Wednesday to Sunday, 9am to 3pm, kitchen until 2pm.
+kasama-chicago__ultra-medium#5	C	Site hours.
+kasama-chicago__ultra-medium#6	C	Forecast line.
+kasama-chicago__ultra-medium#7	M	The black truffle croissant is a favourite; the Yelp reviewer's favourite was the salmon danish, and the line cuts off at the ube huckleberry basque.
+kasama-chicago__ultra-medium#8	M	Pastries "subject to availability" is right; what closes at 2pm is the kitchen and dining room, not the counter (daytime service runs to 3pm).
+kasama-chicago__ultra-medium#9	C	Toast order page: Filipino Breakfast $19.55, Kasama Combo Sandwich $17.55 (each price after its own description).
+kasama-chicago__ultra-medium#10	M	Same as #8: the kitchen and dining room close at 2pm or capacity.
+kasama-chicago__ultra-medium#11	C	Toast description.
+kasama-chicago__ultra-medium#12	C	8% is the highest chance of rain in that week's forecast (checked against all seven lines).
+kasama-chicago__ultra-medium#13	M	The block line says "at least 77" (partial list); the claim drops "at least".
+kasama-chicago__ultra-medium#14	C	Block lines.
+kasama-chicago__ultra-medium#15	C	Site: Thursday to Sunday, reservation only, tasting menu $325.
+lilia-new-york__ultra-medium#1	C	Resy, 2026.
+lilia-new-york__ultra-medium#2	M	Grilled proteins and vegetables do the heavy lifting, with prawns and clams; bagna cauda is the dip for the broccolini, not a grilled dish.
+lilia-new-york__ultra-medium#3	C	Verbatim review line.
+lilia-new-york__ultra-medium#4	C	Event line; "today" is Thu 22 Oct, the run's date.
+lilia-new-york__ultra-medium#5	C	Forecast lines and the review's phrase.
+lilia-new-york__ultra-medium#6	C	Block lines (the claim keeps "117+" and "34+").
+brat-london__super-medium#1	C	Condé Nast Traveler line.
+brat-london__super-medium#2	C	The review's own rating, verbatim.
+brat-london__super-medium#3	M	The £45.84 service charge is on a £413.34 bill for four; without that, it reads like a fixed charge.
+brat-london__super-medium#4	C	Forecast line.
+brat-london__super-medium#5	C	Forecast lines.
+brat-london__super-medium#6	C	Forecast line.
+brat-london__super-medium#7	C	Forecast lines.
+brat-london__super-medium#8	C	Block line (keeps "at least").
+brat-london__super-medium#9	C	Block lines.
+brat-london__super-medium#10	C	Block lines.
+brat-london__super-medium#11	C	Forecast lines.
+brat-london__super-medium#12	C	Event line.
+kasama-chicago__super-medium#1	M	The dish is the Filipino Breakfast; "make it a combo" is the option to get both meats, so "the breakfast combo includes longanisa or tocino" mixes the two.
+kasama-chicago__super-medium#2	C	Forecast line.
+kasama-chicago__super-medium#3	C	Forecast line.
+kasama-chicago__super-medium#4	C	Forecast line.
+kasama-chicago__super-medium#5	C	Forecast line.
+kasama-chicago__super-medium#6	M	Same as #1.
+kasama-chicago__super-medium#7	M	$19.55 is the Filipino Breakfast's price; calling it "the breakfast combo" may not be the combo's price.
+kasama-chicago__super-medium#8	C	Verbatim site note.
+lilia-new-york__super-medium#1	C	Verbatim review line.
+lilia-new-york__super-medium#2	C	Verbatim review line.
+lilia-new-york__super-medium#3	C	Verbatim review line.
+lilia-new-york__super-medium#4	C	The review's price tag.
+lilia-new-york__super-medium#5	C	Event line.
+lilia-new-york__super-medium#6	C	Event line.
+lilia-new-york__super-medium#7	C	Forecast line.
+lilia-new-york__super-medium#8	C	Forecast line.
+lilia-new-york__super-medium#9	C	Forecast line.
+lilia-new-york__super-medium#10	C	Forecast line.
+lilia-new-york__super-medium#11	C	Forecast line.
+lilia-new-york__super-medium#12	C	Block line.
+lilia-new-york__super-medium#13	C	Resy line ("a stone's throw away").
+lilia-new-york__super-medium#14	C	Event line.
+septime-paris__ultra-medium#1	C	A blog and an Instagram post: drops three weeks ahead at 10 a.m., gone in minutes.
+septime-paris__ultra-medium#2	C	Forecast line.
+septime-paris__ultra-medium#3	C	Three event lines, times and distances right.
+septime-paris__ultra-medium#4	C	Forecast lines.
+septime-paris__ultra-medium#5	C	Forecast lines.
+septime-paris__ultra-medium#6	C	Review lines (celeriac "tempura", light and fluffy, celery oil with labneh).
+septime-paris__ultra-medium#7	C	Forecast lines.
+septime-paris__ultra-medium#8	C	Review line.
+septime-paris__ultra-medium#9	C	Forecast lines.
+septime-paris__ultra-medium#10	C	A review line and a blog's dish list.
+septime-paris__ultra-medium#11	C	Forecast lines.
+septime-paris__ultra-medium#12	C	Block lines (keeps "at least").
+septime-paris__ultra-medium#13	W	"À la carte de Rival comptez environ de 30€ à 60€" is about a brasserie called Rival, in the 8th arrondissement. The claim reads the name as "a rival" of Septime. The 27 € lunch is right but its restaurant is unnamed.
+septime-paris__ultra-medium#14	C	Forecast and two event lines.
+septime-paris__ultra-medium#15	C	Septime's own site and the Instagram post.
+septime-paris__super-medium#1	C	World of Mouth's Septime entry: "a natural wine list". The second cite is the next entry (Clamato), not needed.
+septime-paris__super-medium#2	C	Review line.
+septime-paris__super-medium#3	C	Two reader comments on Paris by Mouth.
+septime-paris__super-medium#4	M	Two reviews give 70 € and 85 € for the five-course lunch, probably at different times; "70 to 85 €" reads as a range Septime offers.
+septime-paris__super-medium#5	C	Event line.
+septime-paris__super-medium#6	C	Event line.
+septime-paris__super-medium#7	C	Forecast line.
+septime-paris__super-medium#8	C	Forecast line.
+septime-paris__super-medium#9	C	Forecast line.
+septime-paris__super-medium#10	C	Review line.
+septime-paris__super-medium#11	C	Forecast line.
+septime-paris__super-medium#12	C	Review line.
+septime-paris__super-medium#13	C	Forecast line.
+septime-paris__super-medium#14	C	Review line.
+septime-paris__super-medium#15	C	Forecast line.
+septime-paris__super-medium#16	E	Empty claim text with a valid cite: nothing to check, so every check passed it. v7.1 now rejects an empty claim; not counted as verified.
+septime-paris__super-medium#17	C	Block line (keeps "at least").
+septime-paris__super-medium#18	C	Block line.
+septime-paris__super-medium#19	C	The Michelin page's "Nearby restaurants: Clamato, €€, Fish and Seafood".
+septime-paris__super-medium#20	C	Event line.
+septime-paris__super-medium#21	C	Event line.
+sobrino-de-boti-n-madrid__super-medium#1	M	1725 is on the line (read across languages: numbers and names only); "diners value" and the wood-fired oven are not.
+sobrino-de-boti-n-madrid__super-medium#2	C	The wine cellar and "exceptional Spanish wines".
+sobrino-de-boti-n-madrid__super-medium#3	C	Event line.
+sobrino-de-boti-n-madrid__super-medium#4	C	Event line.
+sobrino-de-boti-n-madrid__super-medium#5	C	Event line.
+sobrino-de-boti-n-madrid__super-medium#6	C	Forecast line.
+sobrino-de-boti-n-madrid__super-medium#7	C	Forecast lines.
+sobrino-de-boti-n-madrid__super-medium#8	C	Forecast lines.
+sobrino-de-boti-n-madrid__super-medium#9	M	The forecast is for the whole day, not the evening.
+sobrino-de-boti-n-madrid__super-medium#10	C	Block line (keeps "at least").
+sobrino-de-boti-n-madrid__super-medium#11	W	The Guía Repsol entry ("Entre 35€ y 60€", "según el Guinness") is Botín's own; the claim makes it "nearby spots" and "main-course prices".
+sobrino-de-boti-n-madrid__super-medium#12	C	Block line.
+sobrino-de-boti-n-madrid__super-medium#13	C	Three event lines.
+sobrino-de-boti-n-madrid__ultra-medium#1	C	Spanish and English pages on the Guinness record and 1725.
+sobrino-de-boti-n-madrid__ultra-medium#2	C	Calle de Cuchilleros, next to Plaza Mayor, the cellar tables.
+sobrino-de-boti-n-madrid__ultra-medium#3	C	Two review lines.
+sobrino-de-boti-n-madrid__ultra-medium#4	C	Event and forecast lines.
+sobrino-de-boti-n-madrid__ultra-medium#5	C	Event and forecast lines.
+sobrino-de-boti-n-madrid__ultra-medium#6	C	Event and forecast lines.
+sobrino-de-boti-n-madrid__ultra-medium#7	C	Forecast line.
+sobrino-de-boti-n-madrid__ultra-medium#8	C	Block lines.
+sobrino-de-boti-n-madrid__ultra-medium#9	M	The shows and distances are right; "evenings 19–22°C" reads daily highs as evening temperatures.
+trattoria-sostanza-florence__super-medium#1	C	Two review lines.
+trattoria-sostanza-florence__super-medium#2	C	Two review lines.
+trattoria-sostanza-florence__super-medium#3	C	Review lines.
+trattoria-sostanza-florence__super-medium#4	C	Review line.
+trattoria-sostanza-florence__super-medium#5	C	Review lines.
+trattoria-sostanza-florence__super-medium#6	W	The festival is in Florence, Alabama (The Flor-Ala, University of North Alabama). The page names "Florence", so the place check let it in for a restaurant in Florence, Italy.
+trattoria-sostanza-florence__super-medium#7	C	Forecast line.
+trattoria-sostanza-florence__super-medium#8	C	Forecast line.
+trattoria-sostanza-florence__super-medium#9	C	Forecast line.
+trattoria-sostanza-florence__super-medium#10	W	Same Alabama festival as #6.
+trattoria-sostanza-florence__super-medium#11	C	Forecast line.
+trattoria-sostanza-florence__super-medium#12	C	Forecast line.
+trattoria-sostanza-florence__super-medium#13	C	Forecast lines.
+trattoria-sostanza-florence__super-medium#14	C	Forecast line.
+trattoria-sostanza-florence__super-medium#15	C	Review line.
+trattoria-sostanza-florence__super-medium#16	C	Block line (keeps "at least").
+trattoria-sostanza-florence__super-medium#17	C	Block line.
+trattoria-sostanza-florence__super-medium#18	C	Block line.
+trattoria-sostanza-florence__super-medium#19	W	Same Alabama festival as #6.
+trattoria-sostanza-florence__super-medium#20	C	Forecast line.
+trattoria-sostanza-florence__ultra-medium#1	C	Review lines.
+trattoria-sostanza-florence__ultra-medium#2	C	The site's hours, in Italian and English.
+trattoria-sostanza-florence__ultra-medium#3	C	Forecast line.
+trattoria-sostanza-florence__ultra-medium#4	C	The site's hours.
+trattoria-sostanza-florence__ultra-medium#5	C	Forecast line.
+trattoria-sostanza-florence__ultra-medium#6	C	The site's hours.
+trattoria-sostanza-florence__ultra-medium#7	C	Forecast line.
+trattoria-sostanza-florence__ultra-medium#8	C	Block line (keeps "at least").
+trattoria-sostanza-florence__ultra-medium#9	C	Forecast lines.
+trattoria-sostanza-florence__ultra-medium#10	C	Italian review line.
+trattoria-sostanza-florence__ultra-medium#11	C	Forecast line and the site's hours.
+trattoria-sostanza-florence__ultra-medium#12	C	Forecast line.
+trattoria-sostanza-florence__ultra-medium#13	C	Italian review line and an English one.
+trattoria-sostanza-florence__ultra-medium#14	C	Block line.
+trattoria-sostanza-florence__ultra-medium#15	C	Block lines.
+trattoria-sostanza-florence__ultra-medium#16	C	The site's hours.
+trattoria-sostanza-florence__ultra-medium#17	C	Forecast line.
+trattoria-sostanza-florence__ultra-medium#18	M	The line lists them among "le ottime pietanze della tradizione"; "signature" is the plan's word.
+burnt-ends-singapore__super-medium#1	C	Review line.
+burnt-ends-singapore__super-medium#2	C	Review line.
+burnt-ends-singapore__super-medium#3	C	Review line.
+burnt-ends-singapore__super-medium#4	C	A review complaint, verbatim.
+burnt-ends-singapore__super-medium#5	C	Forecast line.
+burnt-ends-singapore__super-medium#6	C	Forecast lines.
+burnt-ends-singapore__super-medium#7	C	Review line.
+burnt-ends-singapore__super-medium#8	C	Review line.
+burnt-ends-singapore__super-medium#9	C	Review line.
+burnt-ends-singapore__super-medium#10	C	Review line.
+burnt-ends-singapore__super-medium#11	C	Review line.
+burnt-ends-singapore__super-medium#12	C	Review line.
+burnt-ends-singapore__super-medium#13	C	Block line.
+burnt-ends-singapore__super-medium#14	C	The restaurant's own site.
+burnt-ends-singapore__super-medium#15	C	The restaurant's own site.
+burnt-ends-singapore__super-medium#16	C	Event listing: dates, hours, free entry.
+burnt-ends-singapore__ultra-medium#1	M	"Cult-status" comes from a guide's table, not from "guests".
+burnt-ends-singapore__ultra-medium#2	C	Review line.
+burnt-ends-singapore__ultra-medium#3	C	Forecast line.
+burnt-ends-singapore__ultra-medium#4	C	Forecast line.
+burnt-ends-singapore__ultra-medium#5	M	Thursday's 18.2 mm is the week's peak, but Monday's 18.1 mm is more than Wednesday's 16.6 mm.
+burnt-ends-singapore__ultra-medium#6	C	The guide's table: S$30 to S$38.
+burnt-ends-singapore__ultra-medium#7	C	Review line about the quail egg.
+burnt-ends-singapore__ultra-medium#8	M	Price and "wood-fired" are on the line; "signature" is the plan's word.
+burnt-ends-singapore__ultra-medium#9	C	Block line.
+burnt-ends-singapore__ultra-medium#10	C	Block lines.
+burnt-ends-singapore__ultra-medium#11	M	Same as #5.
+burnt-ends-singapore__ultra-medium#12	M	The lamb chop is wood-fired; the burger line doesn't say so, and "signature" is the plan's word.
+zahav-philadelphia__super-medium#1	C	Event line.
+zahav-philadelphia__super-medium#2	C	Event line.
+zahav-philadelphia__super-medium#3	W	The source is a weekly calendar for 19 to 25 Oct and gives no day; "Saturday 24 Oct" comes from the forecast line it also cites.
+zahav-philadelphia__super-medium#4	C	Forecast line.
+zahav-philadelphia__super-medium#5	C	Forecast lines.
+zahav-philadelphia__super-medium#6	C	Event lines.
+zahav-philadelphia__super-medium#7	C	Forecast lines.
+zahav-philadelphia__super-medium#8	C	Forecast lines.
+zahav-philadelphia__super-medium#9	C	The calendar line, as written.
+zahav-philadelphia__super-medium#10	C	Block line (keeps "at least").
+zahav-philadelphia__super-medium#11	C	Block lines.
+zahav-philadelphia__super-medium#12	C	Event lines.
+zahav-philadelphia__super-medium#13	C	Forecast lines.
+zahav-philadelphia__ultra-medium#1	C	Three lines of a Philadelphia guide page.
+zahav-philadelphia__ultra-medium#2	C	Forecast line.
+zahav-philadelphia__ultra-medium#3	C	Forecast lines.
+zahav-philadelphia__ultra-medium#4	C	Forecast lines.
+zahav-philadelphia__ultra-medium#5	C	Forecast lines.
+zahav-philadelphia__ultra-medium#6	C	Zahav's menu line, under its grill section.
+zahav-philadelphia__ultra-medium#7	C	Zahav's mezze lines.
+zahav-philadelphia__ultra-medium#8	C	Block line (keeps "69+").
+zahav-philadelphia__ultra-medium#9	C	Block lines.

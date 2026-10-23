@@ -23,7 +23,10 @@ import { argOne, loadRestaurants, median, menuTextOf, onMenu, pct, readPack, RES
 
 const RUNS = argOne("runs") ?? "runs-v7-heldout";
 const LIST = argOne("restaurants") ?? path.join("eval", "heldout.json");
-const LABELS = path.join(ROOT, "eval", "heldout-baseline-labels.json");
+const LABELS = path.join(ROOT, argOne("labels") ?? path.join("eval", "heldout-baseline-labels.json"));
+// --csv and --table keep a second held-out round apart from the first.
+const CSV_OUT = path.join(ROOT, argOne("csv") ?? path.join("eval", "metrics-v7-heldout.csv"));
+const TABLE_OUT = path.join(ROOT, argOne("table") ?? path.join("eval", "results", "heldout-table.md"));
 const MODELS: Record<string, string> = { "ultra-medium": "nvidia/Nemotron-3-Ultra-550b-a55b", "super-medium": "nvidia/nemotron-3-super-120b-a12b" };
 
 type Run = {
@@ -174,8 +177,8 @@ async function main() {
     ``,
     `Per restaurant (verified/written, Quick · Economy): ${perRestaurant.join("; ")}.`,
   ].join("\n");
-  fs.writeFileSync(path.join(RESULTS, "heldout-table.md"), `${md}\n`);
-  fs.writeFileSync(path.join(ROOT, "eval", "metrics-v7-heldout.csv"), `${csv.join("\n")}\n`);
+  fs.writeFileSync(TABLE_OUT, `${md}\n`);
+  fs.writeFileSync(CSV_OUT, `${csv.join("\n")}\n`);
   console.log(md);
   if (process.argv.includes("--baselines")) for (const b of bases) console.log(`\n### ${b.slug} · ${b.config}\n${b.text}`);
 }
