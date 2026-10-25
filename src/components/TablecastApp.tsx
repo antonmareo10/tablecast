@@ -13,10 +13,11 @@ import { IconAlert, IconArrow, IconSearch } from "./icons";
 import { SplitWords, Underline } from "./kinetic";
 import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } from "./motion";
 
-// Routing measured in eval/SUMMARY.md (v5 and v6, strict verifier): Ultra at medium effort has the best average and is fast; Super is as faithful at a third to half the cost, but slower.
+// Routing measured in eval/SUMMARY.md: Ultra at medium effort has the best average and is fast; Super costs a third to a half of Quick on the
+// tuning set and 43–63% on held-out restaurants, verifies close to Quick within run-to-run noise (69% vs 79% in the latest round), but is slower.
 const MODES = [
   { id: "quick", label: "Quick", hint: "Nemotron Ultra · ~1–2 min, best average in my eval" },
-  { id: "economy", label: "Economy", hint: "Nemotron Super · ~2–3 min, a third to half the cost" },
+  { id: "economy", label: "Economy", hint: "Nemotron Super · ~2–3 min, about half to two thirds the cost" },
 ] as const;
 
 const LANGUAGES = [
@@ -399,7 +400,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                 <p className="text-[13px] leading-snug text-ink-2">
                   <span className="font-semibold text-ink">Measured, not promised.</span> On 8 restaurants it was never tuned on, I read every claim
                   the plans show as verified: 186 of 212 were right, 19 had a minor slip, 7 were wrong (a sampled audit gave 94 of 100). On new
-                  restaurants, 73–80% of claims pass the strict code check after one repair pass (82–88% on the 8 I tuned on): every number and
+                  restaurants, 69–80% of claims pass the strict code check after one repair pass (82–88% on the 8 I tuned on): every number and
                   nearly every word must be in the sentences they cite, and every price and date in the plan is checked. What fails is marked, not
                   hidden. A plan costs a few cents of inference ·{" "}
                   <a

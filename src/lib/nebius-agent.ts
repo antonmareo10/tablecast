@@ -54,7 +54,10 @@ export function defaultRouting(): Routing {
   };
 }
 
-/** "Economy": Nemotron Super writes. Measured (v5, v6): as faithful as Ultra (82%, 88%) at a third to half its cost per plan, but ~2 min to write (2–3 min end to end). */
+/**
+ * "Economy": Nemotron Super writes. Measured: 82% and 88% verified on the tuning set (v5, v6) at a third to half of Quick's cost per plan;
+ * on held-out restaurants 74%, 80% and 69% (Quick: 73%, 74%, 79%) at 43%, 63% and 61% of Quick's cost. ~2 min to write (2–3 min end to end).
+ */
 export function economyRouting(): Routing {
   const base = defaultRouting();
   return {
