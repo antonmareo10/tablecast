@@ -9,7 +9,7 @@
 Built for the **Nebius × NVIDIA Global AI Hackathon** · Track: **Best Apps and Agents** · also entering **Best Use of Tavily** · License: MIT
 
 - **Live demo:** [tablecast-app.vercel.app](https://tablecast-app.vercel.app)
-- **Routing eval:** [eval/SUMMARY.md](eval/SUMMARY.md) · **held-out rounds:** [8 new restaurants](eval/SUMMARY.md#v7-held-out-round), [8 more, every verified claim read](eval/SUMMARY.md#v71-held-out-round-2-every-verified-claim-read-by-hand) · **verifier audit:** [eval/AUDIT.md](eval/AUDIT.md) · **Tavily ablation:** [eval/TAVILY.md](eval/TAVILY.md)
+- **Routing eval:** [eval/SUMMARY.md](eval/SUMMARY.md) · **held-out rounds:** [8 new restaurants](eval/SUMMARY.md#v7-held-out-round), [8 more, every verified claim read](eval/SUMMARY.md#v71-held-out-round-2-every-verified-claim-read-by-hand) · **verifier audit:** [eval/AUDIT.md](eval/AUDIT.md) · **Tavily ablation:** [eval/TAVILY.md](eval/TAVILY.md) · **model comparison (four Nemotrons, alone and tiered, with cost):** [eval/SUMMARY.md](eval/SUMMARY.md#model-comparison-four-nemotrons-alone-and-tiered-with-cost-25-oct)
 
 ---
 
@@ -35,7 +35,7 @@ Every model call goes to **Nebius Token Factory** (`https://api.tokenfactory.neb
 | Menu photo | **Nemotron 3.5 Super VL** (`nvidia/Nemotron-3.5-Super-VL`) | image input → forced function call → structured menu (dish, price, section) | the only vision model in the family; grounds dishes in the real menu |
 | Writing the plan — **Quick** (default) | **Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`), `reasoning_effort: "medium"` | one **forced, streamed function call** against a strict Zod/JSON schema; the UI drafts the plan live from partial JSON | best average over my two strict eval rounds (89% and 84% of claims verified after repair; 73% on 8 held-out restaurants) and fast (writer median ~30 s, ~1–2 min end to end) |
 | Writing the plan — **Economy** | **Nemotron 3 Super** (`nvidia/nemotron-3-super-120b-a12b`), `reasoning_effort: "medium"` | same call; if it runs out of time, Ultra takes over | a third to a half of Ultra’s cost per plan and as faithful (82% and 88%; 74% held-out), but ~2 min to write (2–3 min end to end) |
-| Repairs | **Nemotron 3 Ultra** at `reasoning_effort: "low"` | forced function calls, only for what failed a code check: one call per failed claim (in parallel), one call for unbacked prices | Lightning fixed almost none of the failed citations; Ultra-low fixes or drops them in ~10 s; every fix is re-checked by code |
+| Repairs | **Nemotron 3 Ultra** at `reasoning_effort: "low"` | forced function calls, only for what failed a code check: one call per failed claim (in parallel), one call for unbacked prices | on 8 held-out restaurants, Ultra fixed 50–68% of the claims that failed, whichever Nemotron wrote them; Super, Lightning and Nano fixed 28–42% of their own ([model comparison](eval/SUMMARY.md#model-comparison-four-nemotrons-alone-and-tiered-with-cost-25-oct)). Ultra-low fixes or drops them in ~10 s; every fix is re-checked by code |
 | Generic baseline | **the writer model** (Ultra or Super) | no tools, no data | the honest “same model, without the week” comparison shown in the app |
 
 Engineering details that came out of running it live:
@@ -75,10 +75,30 @@ Held-out is lower. About 2–6 points of the drop come from v7's stricter check 
 
 **A second held-out round, read in full (22–23 Oct).** I committed 8 more new restaurants before running them ([eval/heldout2.json](eval/heldout2.json): New York, Chicago, London, Paris, Madrid, Florence, Singapore, Philadelphia) and ran both writers with v7.1. All 16 plans published. After repair, Quick verified 74% of its claims and Economy 80%, close to the first round's 73% and 74%. Then, instead of sampling, I read **every** claim those plans show as verified: **186 of 212 correct (88%, CI 83–92%), 19 minor slips, 7 wrong** ([verdicts](eval/heldout2-verdicts.tsv), [results](eval/SUMMARY.md#v71-held-out-round-2-every-verified-claim-read-by-hand)). That is below the sampled 94 of 100, and it's the number I trust more. Three of the 7 wrong claims stand on one news page about a festival in Florence, Alabama, which the place check let into a plan for Florence, Italy. The read also found a blank claim that every check had passed; v7.1 rejects empty claims now. The round cost $1.16 of inference and 52 Tavily credits.
 
+**Four Nemotrons, alone and tiered (25 Oct).** Which model should write the plan, and which should repair it? I committed the design before running anything ([eval/MODELS-DESIGN.md](eval/MODELS-DESIGN.md)): 7 strategies on the same 8 held-out evidence packs, so no new research and no Tavily credits. 56 plans cost $2.14 ([results](eval/SUMMARY.md#model-comparison-four-nemotrons-alone-and-tiered-with-cost-25-oct)).
+
+| Strategy (writer → repairer) | Plans published | Verified after repair (first pass) | Dishes tied to this week | Write + check (median) | Cost / plan (median) |
+|---|---|---|---|---|---|
+| Ultra alone (**Quick**) | 8/8 | **79%** (35%) | 58% | 39 s | $0.106 |
+| Super → Ultra (**Economy**) | 8/8 | **69%** (27%) | 33% | 97 s | $0.065 |
+| Lightning → Ultra | 8/8 | **82%** (56%) | 13% | 72 s | $0.025 |
+| Nano → Ultra | 5/8 | **62%** (24%) | 20% | 244 s | $0.029 |
+| Super alone | 8/8 | **66%** (50%) | 17% | 98 s | $0.021 |
+| Lightning alone | 8/8 | **76%** (67%) | 21% | 50 s | $0.005 |
+| Nano alone | 7/8 | **73%** (53%) | 71% | 308 s | $0.011 |
+
+![Model comparison: claims verified after repair against cost per plan for the seven strategies, with plans published, dishes tied to the week and time per plan](docs/models.png)
+
+- **Ultra is the repairer that makes tiering work.** It fixed 50–68% of the claims that failed the check, whichever Nemotron wrote them. Super, Lightning and Nano fixed 28–42% of their own. That is also why repairs are 68% of Quick's cost.
+- **Lightning writing, Ultra repairing verified the most for a quarter of Quick's cost**, but tied only 13% of its dishes to the week, against 58% for Ultra alone. Tying the plan to the week is the point of the product, so it is a candidate for a cheaper Economy, not a replacement.
+- **Nano can't write this plan reliably.** It ran out of tokens or looped in 8 of 16 first attempts, published 12 of 16 plans after a retry, and took 4–5 minutes to write.
+- **The noise is bigger than I thought.** On the same evidence, Economy went from 80% on 22 Oct to 69% today, and Quick from 74% to 79%. So the 73–82% group isn't ranked by this round; what separates the strategies is publishing, time, cost and ties to the week.
+- **Precision held across models.** Claude Code read a blind sample of 15 verified claims per strategy without knowing which wrote them: 96 of 105 correct, 4 minor slips, 5 wrong, and 13 to 15 of 15 correct for every strategy. Production routing stays as it is until judging ends, as the design said.
+
 ### Where Token Factory accelerated my workflow
 
-- **One endpoint, four Nemotrons.** Because Token Factory is OpenAI-compatible, the official `openai` SDK worked unchanged, and switching the writer between Ultra, Super and Lightning is a one-line routing change. That is what made the routing eval cheap enough to run five times while I changed the verifier.
-- **Measured decisions for a few dollars.** Five routing rounds (157 plans: 8 restaurants × 4 writer settings, each round after a change to the verifier) cost **$8.01** of inference in total at published Token Factory prices, the Tavily ablation $1.47, and the held-out round (16 plans and 16 no-data baselines on 8 new restaurants) $1.16. The Quick/Economy routing, the reasoning effort and the switch to sentence-id citations all came out of those numbers.
+- **One endpoint, five Nemotrons.** Because Token Factory is OpenAI-compatible, the official `openai` SDK worked unchanged, and switching the writer between Ultra, Super, Lightning and Nano is a one-line routing change. That is what made the routing eval cheap enough to run five times while I changed the verifier.
+- **Measured decisions for a few dollars.** Five routing rounds (157 plans: 8 restaurants × 4 writer settings, each round after a change to the verifier) cost **$8.01** of inference in total at published Token Factory prices, the Tavily ablation $1.47, the held-out round (16 plans and 16 no-data baselines on 8 new restaurants) $1.16, and the model comparison (56 plans, 7 strategies) $2.14. The Quick/Economy routing, the reasoning effort and the switch to sentence-id citations all came out of those numbers.
 - **Cost visible per call.** `usage` (with `reasoning_tokens`) plus the public price catalog let the app show what every plan cost, call by call, while it runs.
 
 ## How it uses Tavily
@@ -174,6 +194,7 @@ Checks: `npm run typecheck` (generates Next's route types first, so it works on 
 
 ## Known limitations
 
+- **What this is, and what it isn't.** Tablecast checks that each cited claim matches the sentences it cites, tested on 24 restaurants with one week of October evidence each. It isn't proof that a plan is right or that it sells: no restaurant has run a Tablecast week yet. When I read all 212 verified claims of a held-out round, 26 were wrong or slightly off.
 - Verification proves that every cited sentence exists in a fetched source and contains every number of the claim and nearly all of its words — not that the source is right or current, nor that the claim reads it correctly, nor that the plan's reasoning around it is sound. In my showcase, a verified "$8 glass of wine" comes from an undated blog that the restaurant's own list contradicts, and the plan reads two pizzas on the menu as "cured meats". One word in five may be missing, so a small embellishment can still pass; the source chip lets the owner check. In the audit, 2 of 100 verified claims were wrong in a way code can't see (all the words are there, the meaning isn't), and 4 had a minor slip. Nothing here measures sales: the plan is a set of bets to test for a week.
 - On a menu page, a price on the line after a dish's description can belong to the next dish; the number check allows the line before and the two after, so such a pairing can pass. True claims about a competitor can sit under the restaurant's own watch-outs when they name the competitor openly.
 - The strict check rejects some true claims for their wording (12 of 50 rejections in the audit); the repair pass gets one chance to rephrase each, and what still fails is shown as unverified. Held-out restaurants verify less than the 8 used for tuning (73–74% after repair vs 82% re-checked with v7).
@@ -181,7 +202,8 @@ Checks: `npm run typecheck` (generates Next's route types first, so it works on 
 - Forecasts beyond ~3 days are uncertain; event listings come from one ticketing API and miss free or local events unless the web research finds them.
 - Public Overpass servers are often saturated; the app then falls back to Nominatim, which caps results, and says so (“at least N venues, partial list”).
 - The place check accepts a web page that names the restaurant's city, street or postcode, so a city with the same name in another country can get in: a Florence, Alabama news page reached a plan for a trattoria in Florence, Italy.
-- Reviews found on the web are not a sample of all guests. Eight tuning restaurants and sixteen held-out ones is a small eval.
+- A page extract can join two parts of a page into one sentence with "[...]", so one item's details can be read as another's: 2 of the 5 wrong claims in the model comparison's blind sample (a Halloween attraction's prices given to a film festival, a bagna cauda read as a pasta).
+- Reviews found on the web are not a sample of all guests. Eight tuning restaurants and sixteen held-out ones is a small eval, and the same writer moved 11 points between two runs on the same evidence.
 
 ## What was built during the submission period
 
@@ -197,4 +219,6 @@ Everything here. The project started on 16 Oct 2026 as **Tastecraft**, an agent 
   - Throughput differs a lot by model, which shapes routing: median output tokens per second of writing time in v5 were about 320 for Ultra, 175 for Lightning and 125 for Super. Super's stream went silent for over a minute mid-plan in 2 of 8 plans in each of the last two rounds, and Lightning's in 2 of 8 when I tried it as the writer. Published per-model throughput and latency in the catalog, kept current, would help routing decisions.
   - On 21 Oct, for several minutes, Lightning requests with tools hung for 60+ s while plain Lightning calls, Ultra and Super answered in under a second. A per-model status page, or a fast error instead of a hang, would let agents fail over sooner.
   - In the held-out round a Quick stream failed server-side with Python's "Exceeds the limit (4300 digits) for integer string conversion": the model had streamed a 4,305-digit number inside the tool-call JSON and the server's parser rejected it mid-stream. A clear finish reason (or a cap on numeric literals in tool arguments) would be easier to handle than an exception; the app now treats it as a failed attempt and retries once.
-  - I couldn’t find a spend cap or per-key budget for a public demo; it would make hackathon deployments safer.
+  - I couldn’t find a spend cap or per-key budget for a public demo; it would make hackathon deployments safer. Nor could I read the account balance from the API, only in the console, so before a paid experiment I had to estimate what was left.
+  - Nano as the writer (model comparison, 25 Oct): at `reasoning_effort: "medium"` it hit `max_tokens` (28,000) or looped in 8 of 16 first attempts, and its `usage` has no `reasoning_tokens`, so I couldn't see how much of the budget went to thinking. In a one-line smoke test with a forced function call at low effort, it filled the only argument with the function's own name.
+  - The catalog's `tokens_per_second` differs from what I measure while writing (completion tokens per second after the first token, median per model, 25 Oct): Ultra about 390 (catalog 523), Lightning 220–240 (314), Super 160–210 (127), Nano 115–125 (60).

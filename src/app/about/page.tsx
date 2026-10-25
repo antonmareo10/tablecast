@@ -91,6 +91,46 @@ export default function About() {
         </ol>
       </Block>
 
+      <Block title="Which Nemotron writes, measured">
+        <p>
+          On 25 Oct I had seven strategies plan the same 8 restaurants from the same evidence, with the design committed before the run: each of
+          Ultra, Super, Lightning and Nano writing and repairing alone, and the three smaller ones writing with Ultra repairing. 56 plans cost
+          $2.14 of inference.
+        </p>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            <strong>Ultra alone (Quick):</strong> 79% of claims verified after repair, 58% of dishes tied to the week, $0.106 a plan.
+          </li>
+          <li>
+            <strong>Super writes, Ultra repairs (Economy):</strong> 69%, 33% of dishes tied to the week, $0.065 a plan.
+          </li>
+          <li>
+            <strong>Lightning writes, Ultra repairs:</strong> 82% for $0.025 a plan, but only 13% of its dishes tied to the week.
+          </li>
+          <li>
+            <strong>Nano:</strong> ran out of tokens or looped in 8 of 16 first attempts and took 4 to 5 minutes to write.
+          </li>
+        </ul>
+        <p>
+          Ultra fixed 50–68% of the claims that failed the check, whichever model wrote them, so it repairs in both modes. The same setting moved 11
+          points between two runs on the same evidence, so smaller gaps aren’t a ranking.{" "}
+          <a
+            href="https://github.com/antonmareo10/tablecast/blob/main/eval/SUMMARY.md#model-comparison-four-nemotrons-alone-and-tiered-with-cost-25-oct"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-line underline-offset-2 hover:text-ink"
+          >
+            Full table and blind precision sample
+          </a>
+          .
+        </p>
+        <p>
+          <strong>What this doesn’t prove.</strong> Tablecast checks that each cited claim matches the sentences it cites, tested on 24 restaurants
+          with one week of evidence each. It isn’t proof that a plan is right or that it sells: no restaurant has run a Tablecast week yet, and when
+          I read all 212 verified claims of a held-out round, 26 were wrong or slightly off.
+        </p>
+      </Block>
+
       <Block title="Responsible by design">
         <ul className="list-disc space-y-2 pl-5">
           <li>
