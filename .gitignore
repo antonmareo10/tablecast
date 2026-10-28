@@ -34,3 +34,6 @@ next-env.d.ts
 src/data/demos.json
 eval/results/
 *.ndjson
+
+# local scratch
+.session-key

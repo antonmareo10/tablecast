@@ -119,6 +119,7 @@ export async function startMockBuffer(opts: { clientId: string; redirectUri: str
     return [400, { error: "unsupported_grant_type" }];
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function api(body: { query: string; variables: Record<string, any> }): Record<string, unknown> {
     const op = /(?:query|mutation)\s+(\w+)/.exec(body.query)?.[1];
     const v = body.variables ?? {};
@@ -193,6 +194,13 @@ export async function startMockBuffer(opts: { clientId: string; redirectUri: str
         res.writeHead(status, { "content-type": "application/json", ...headers });
         res.end(JSON.stringify(json));
       };
+      if (path === "/auth") {
+        // The consent screen, approved: send the browser back with a code, like auth.buffer.com does.
+        const out = authorize(new URL(req.url ?? "/", "http://x").searchParams);
+        if ("error" in out) return send(400, { error: out.error });
+        res.writeHead(302, { location: out.redirect });
+        return res.end();
+      }
       if (path === "/token") {
         const form = new URLSearchParams(raw);
         requests.push({ path, body: Object.fromEntries(form) });
