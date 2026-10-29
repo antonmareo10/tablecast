@@ -1,14 +1,16 @@
-import { bufferConfig } from "@/lib/buffer/config";
+import { bufferContext, NoOrganization, selectedChannels } from "@/lib/buffer/context";
 import { errorResponse, publicOrigin, sameOrigin } from "@/lib/buffer/http";
-import { ReconnectRequired } from "@/lib/buffer/oauth";
-import { CookieTokenStore, requestClient } from "@/lib/buffer/session";
+import { asPosts, PostsSchema } from "@/lib/buffer/schemas";
 import { replayPosts } from "@/lib/demo-plans";
-import { checkPostTimes } from "@/lib/post-writer";
+import { checkPostTimes, LIMITS, type PostSpec } from "@/lib/post-writer";
 import { imageSecret } from "@/lib/post-image";
-import { schedulePlan } from "@/lib/schedule";
+import { networkOf } from "@/lib/week";
+import { schedulePlan, textFor } from "@/lib/schedule";
 
-// Replay a recorded plan: the posts are written with no model call, then created in the owner's Buffer.
-// GET previews the written posts (no Buffer call). POST creates them: drafts unless { draft: false } is sent.
+// GET previews a recorded plan's written posts (no Buffer call).
+// POST creates the posts in the owner's Buffer, as drafts unless { draft: false } is sent. It takes either
+// { plan } (a recorded plan, written here) or { posts, targets } (the posts as the owner edited them, with the
+// channels each one goes to). Edited posts are validated and re-checked by code before anything is sent.
 
 export async function GET(request: Request) {
   const slug = new URL(request.url).searchParams.get("plan") ?? "";
@@ -20,31 +22,60 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "forbidden" }, { status: 403 });
   try {
-    const body = (await request.json().catch(() => ({}))) as { plan?: string; organizationId?: string; channelIds?: string[]; draft?: boolean };
-    if (typeof body.plan !== "string" || !Array.isArray(body.channelIds) || body.channelIds.length === 0 || body.channelIds.length > 5 || !body.channelIds.every((c) => typeof c === "string")) {
-      return Response.json({ error: "bad_request", message: "Send plan and 1 to 5 channelIds." }, { status: 400 });
+    const body = (await request.json().catch(() => ({}))) as { plan?: string; posts?: unknown; targets?: Record<string, string[]>; organizationId?: string; channelIds?: string[]; draft?: boolean };
+    if (!Array.isArray(body.channelIds) || body.channelIds.length === 0 || body.channelIds.length > 5 || !body.channelIds.every((c) => typeof c === "string")) {
+      return Response.json({ error: "bad_request", message: "Send 1 to 5 channelIds." }, { status: 400 });
     }
-    const written = replayPosts(body.plan);
-    if (!written) return Response.json({ error: "unknown_plan" }, { status: 404 });
-    const problems = checkPostTimes(written.posts, new Date());
+
+    let specs: PostSpec[];
+    let skipped: { id: string; title: string; reason: string }[] = [];
+    if (body.posts !== undefined) {
+      const parsed = PostsSchema.safeParse(body.posts);
+      if (!parsed.success) return Response.json({ error: "bad_request", message: "A post is malformed.", issues: parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`) }, { status: 400 });
+      specs = asPosts(parsed.data);
+    } else if (typeof body.plan === "string") {
+      const written = replayPosts(body.plan);
+      if (!written) return Response.json({ error: "unknown_plan" }, { status: 404 });
+      specs = written.posts;
+      skipped = written.skipped;
+    } else {
+      return Response.json({ error: "bad_request", message: "Send plan or posts." }, { status: 400 });
+    }
+    const problems = checkPostTimes(specs, new Date());
     if (problems.length) return Response.json({ error: "bad_times", problems }, { status: 422 });
 
-    const cfg = bufferConfig();
-    const tokens = await new CookieTokenStore(cfg).get();
-    if (!tokens) throw new ReconnectRequired("Not connected to Buffer.");
-    const { client } = requestClient(cfg, tokens.accountId);
-    const orgs = await client.organizations();
-    const organizationId = orgs.find((o) => o.id === body.organizationId)?.id ?? orgs[0]?.id;
-    if (!organizationId) return Response.json({ error: "no_organization" }, { status: 409 });
-    const channels = (await client.channels(organizationId)).filter((c) => body.channelIds!.includes(c.id));
+    const { client, organizationId } = await bufferContext(body.organizationId);
+    const channels = await selectedChannels(client, organizationId, body.channelIds);
     if (channels.length === 0) return Response.json({ error: "no_channel", message: "None of those channels belongs to your Buffer organization." }, { status: 409 });
 
+    // Targets: only channels that were selected; a post with no channel left is not sent.
+    const chosen = new Set(channels.map((c) => c.id));
+    const targets = body.targets
+      ? Object.fromEntries(specs.map((s) => [s.id, (body.targets![s.id] ?? []).filter((id) => chosen.has(id))]))
+      : undefined;
+    const sending = targets ? specs.filter((s) => targets[s.id].length > 0) : specs;
+    if (sending.length === 0) return Response.json({ error: "nothing_to_send", message: "Every post was removed or has no channel." }, { status: 422 });
+
+    // The text each network gets must fit that network.
+    const over: string[] = [];
+    for (const s of sending) {
+      for (const c of channels) {
+        if (targets && !targets[s.id].includes(c.id)) continue;
+        const n = [...textFor(s, c.service)].length;
+        const limit = LIMITS[networkOf(c.service)];
+        if (n > limit) over.push(`${s.title} on ${c.displayName ?? c.name}: ${n} of ${limit} characters`);
+        if (n === 0) over.push(`${s.title} on ${c.displayName ?? c.name}: the text is empty`);
+      }
+    }
+    if (over.length) return Response.json({ error: "text_limit", message: "Some posts do not fit their network.", problems: over }, { status: 422 });
+
     const result = await schedulePlan({
-      client, organizationId, channels, specs: written.posts,
-      origin: publicOrigin(request), imageSecret: imageSecret(), draft: body.draft !== false,
+      client, organizationId, channels, specs: sending,
+      origin: publicOrigin(request), imageSecret: imageSecret(), draft: body.draft !== false, ...(targets ? { targets } : {}),
     });
-    return Response.json({ ...result, skippedByWriter: written.skipped, rate: client.rate });
+    return Response.json({ ...result, skippedByWriter: skipped, draft: body.draft !== false, rate: client.rate });
   } catch (err) {
+    if (err instanceof NoOrganization) return Response.json({ error: "no_organization", message: err.message }, { status: 409 });
     return errorResponse(err);
   }
 }

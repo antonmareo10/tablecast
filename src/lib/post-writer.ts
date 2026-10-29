@@ -102,7 +102,7 @@ function leadTime(text: string): { time: string; basis: string } {
 
 // ---- Text helpers -----------------------------------------------------------------------
 
-const LIMITS: Record<NetworkKey, number> = { instagram: 2200, facebook: 1500, linkedin: 1500, google: 1500, bluesky: 300, threads: 500, mastodon: 500, twitter: 280, default: 1000 };
+export const LIMITS: Record<NetworkKey, number> = { instagram: 2200, facebook: 1500, linkedin: 1500, google: 1500, bluesky: 300, threads: 500, mastodon: 500, twitter: 280, default: 1000 };
 const SHORT: NetworkKey[] = ["bluesky", "threads", "mastodon", "twitter"];
 
 /** Cuts at the last sentence end that fits, else at the last word, with an ellipsis. */
@@ -147,7 +147,7 @@ function firstSentence(s: string): string {
   return (m ? m[1] : s).trim();
 }
 
-function dayName(iso: string): string {
+export function dayName(iso: string): string {
   return dayLabel(iso); // "Wed 4 Nov"
 }
 

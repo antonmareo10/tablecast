@@ -8,7 +8,7 @@ import { CookieTokenStore, takeOAuthFlow } from "@/lib/buffer/session";
 // (the verifier is revealed only here), reads the account once, and stores the session.
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const back = (reason: string) => Response.redirect(new URL(`/?buffer=${reason}`, url), 302);
+  const back = (reason: string) => Response.redirect(new URL(`/week?buffer=${reason}`, url), 302);
   try {
     const cfg = bufferConfig();
     const flow = await takeOAuthFlow(cfg);

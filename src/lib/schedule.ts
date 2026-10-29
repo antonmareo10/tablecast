@@ -74,6 +74,8 @@ export async function schedulePlan(o: {
   origin: string;
   imageSecret: string;
   draft: boolean;
+  /** Which channels each post goes to (post id -> channel ids). Absent: every post to every channel. */
+  targets?: Record<string, string[]>;
 }): Promise<ScheduleResult> {
   const { client, organizationId, specs } = o;
   const start = client.calls;
@@ -103,6 +105,7 @@ export async function schedulePlan(o: {
 
   for (const ch of usable) {
     for (const spec of specs) {
+      if (o.targets && !o.targets[spec.id]?.includes(ch.id)) continue;
       const text = textFor(spec, ch.service);
       const dup = existing.find((p) => p.channelId === ch.id && p.dueAt && Date.parse(p.dueAt) === Date.parse(spec.post_at.utc) && p.text === text);
       if (dup) {

@@ -57,7 +57,8 @@ export function proposeMoves(o: {
     const date = spec.post_at.date;
     const from = { date, time: spec.post_at.time };
 
-    if (spec.image.tone === "rain" && rainy(prev.get(date)) && !rainy(next.get(date))) {
+    // A day the new forecast does not cover says nothing: never read "no forecast" as "the rain is gone".
+    if (spec.image.tone === "rain" && rainy(prev.get(date)) && next.has(date) && !rainy(next.get(date))) {
       const target = o.next.days.find((d) => d.date >= today && d.date > date && rainy(d) && !rainPostDates.has(d.date) && !claimed.has(d.date))
         ?? o.next.days.find((d) => d.date >= today && rainy(d) && !rainPostDates.has(d.date) && !claimed.has(d.date));
       if (target) {
@@ -104,4 +105,38 @@ export async function applyMoves(client: BufferClient, approved: Proposal[]): Pr
     out.push(r.ok ? { postId: p.postId, status: "moved" } : { postId: p.postId, status: "failed", reason: r.error.message });
   }
   return out;
+}
+
+// ---- What changed, and a labelled demo scenario ----------------------------------------------
+
+export type DayDiff = { date: string; before?: DayForecast; after?: DayForecast; changed: boolean };
+
+/** Day by day: the forecast the posts were written for against the new one. A day counts as changed when its rain flips. */
+export function diffForecasts(previous: DayForecast[], next: DayForecast[]): DayDiff[] {
+  const a = new Map(previous.map((d) => [d.date, d]));
+  const b = new Map(next.map((d) => [d.date, d]));
+  const dates = [...new Set([...a.keys(), ...b.keys()])].sort();
+  return dates
+    .filter((date) => a.has(date))
+    .map((date) => {
+      const before = a.get(date);
+      const after = b.get(date);
+      return { date, before, after, changed: !!after && rainy(before) !== rainy(after) };
+    });
+}
+
+/**
+ * A made-up forecast update for recorded plans, so the mechanism can be shown without waiting for the weather to
+ * change: the first rainy day of the plan dries out and the first later dry day turns wet. The UI labels it as
+ * simulated; it never touches a live plan.
+ */
+export function simulateUpdate(previous: Snapshot, rainPostDates: string[] = []): Snapshot {
+  const days = previous.days.map((d) => ({ ...d }));
+  const wet = days.findIndex((d) => rainy(d) && (rainPostDates.length === 0 || rainPostDates.includes(d.date)));
+  if (wet < 0) return { ...previous, days };
+  days[wet] = { ...days[wet], condition: "overcast", precip_mm: 0, precip_prob: 5, weather_code: 3 };
+  // The new rainy day is one that has no rain post yet, so the dried-out post has somewhere to go.
+  const dry = days.findIndex((d, i) => i > wet && !rainy(d) && !rainPostDates.includes(d.date));
+  if (dry >= 0) days[dry] = { ...days[dry], condition: "moderate rain", precip_mm: 12.4, precip_prob: 90, weather_code: 63 };
+  return { ...previous, days };
 }

@@ -3,7 +3,8 @@
 
 import { DEMOS } from "@/data/demos";
 import { writePosts, type WriterResult } from "./post-writer";
-import type { Playbook, Source } from "./types";
+import { addDaysIso } from "./sources/format";
+import type { DayForecast, NearbyEvent, Playbook, Source } from "./types";
 
 // The recorded places carry no IANA zone (the live agent sets one from Open-Meteo); these four are known.
 const ZONES: Record<string, string> = {
@@ -13,7 +14,16 @@ const ZONES: Record<string, string> = {
   "dishoom-covent-garden-london": "Europe/London",
 };
 
-export function replayPosts(slug: string, now = new Date()): (WriterResult & { restaurant: string; recordedAt: string; timezone: string }) | null {
+export type ReplayPlan = WriterResult & {
+  restaurant: string;
+  recordedAt: string;
+  timezone: string;
+  /** The forecast and listed events the recorded plan was written from, moved forward with the posts. */
+  snapshot: { days: DayForecast[]; events: NearbyEvent[] };
+  location: { lat: number; lon: number } | null;
+};
+
+export function replayPosts(slug: string, now = new Date()): ReplayPlan | null {
   const demo = DEMOS.find((d) => d.slug === slug);
   if (!demo) return null;
   const week = demo.events.find((e) => e.type === "week");
@@ -25,5 +35,11 @@ export function replayPosts(slug: string, now = new Date()): (WriterResult & { r
   if (!timezone) return null;
   const sources: Source[] = src?.type === "sources" ? src.sources : [];
   const r = writePosts({ playbook: play.playbook as Playbook, days: week.days, events: week.events, sources, timezone, now, rebase: true });
-  return { ...r, restaurant: demo.restaurant, recordedAt: demo.recordedAt, timezone };
+  const move = (iso: string) => (r.shiftDays ? (addDaysIso(iso, r.shiftDays) ?? iso) : iso);
+  const snapshot = {
+    days: week.days.map((d) => ({ ...d, date: move(d.date) })),
+    events: week.events.map((e) => ({ ...e, date: move(e.date) })),
+  };
+  const location = place?.type === "place" ? { lat: place.place.lat, lon: place.place.lon } : null;
+  return { ...r, restaurant: demo.restaurant, recordedAt: demo.recordedAt, timezone, snapshot, location };
 }
