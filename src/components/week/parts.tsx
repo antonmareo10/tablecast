@@ -64,10 +64,10 @@ export function ErrorNotice({ error, onRetry, retryLabel = "Try again", children
           <p className="text-[15px] font-medium text-ink">
             {e.kind === "rate_limit" ? "Buffer's request limit is used up for now" : e.kind === "reconnect" ? "Buffer needs you to connect again" : e.kind === "not_configured" ? "Buffer is not set up on this server" : e.kind === "network" ? "No connection" : "That did not work"}
           </p>
-          <p className="mt-1 text-[14px] leading-relaxed text-ink-2">{e.message}</p>
+          {e.kind !== "rate_limit" && <p className="mt-1 text-[14px] leading-relaxed text-ink-2">{e.message}</p>}
           {e.kind === "rate_limit" && (
             <p className="mt-1 text-[14px] text-ink-2">
-              {waiting ? <>You can try again in <strong className="font-semibold tabular-nums">{clock(left)}</strong>.</> : e.retryAfter ? "You can try again now." : "Wait a few minutes before trying again. The limit is shared by everyone using this app."}
+              {waiting ? <>Try again in <strong className="font-semibold tabular-nums">{clock(left)}</strong>.</> : e.retryAfter ? "You can try again now." : "Wait a few minutes before trying again. The limit is shared by everyone using this app."}
             </p>
           )}
           {e.problems && e.problems.length > 0 && (

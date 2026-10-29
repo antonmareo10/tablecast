@@ -57,3 +57,41 @@ Detalle en `docs/BUFFER_API_NOTES.md`. Lo que cambia:
 4. Un botón para llevar el plan de una ejecución en vivo al escritor (hoy solo planes grabados vía `src/lib/demo-plans.ts`; el escritor ya acepta uno en vivo).
 5. Ideas de Buffer (`ideas:write`) para el resto del plan, solo si sobra tiempo.
 6. Vídeo (≤ 2 min, contra la API real) y resumen de ~300 palabras, primera persona, sin lenguaje de IA.
+
+---
+
+# Actualización 29-oct-2026 (rama `ui-29oct`, sin push)
+
+## Qué se ha construido (pasos 2, 3 y 4)
+Todo vive en `/week` (`src/components/week/*`), con los seis pasos: Conectar, Semana, Revisar, Programar, Cola y Re-planificar. El estado (plan, ediciones, canales, lo programado) sobrevive al viaje de ida y vuelta a Buffer con sessionStorage; los tokens siguen solo en cookies HttpOnly.
+- Conectar: pantalla de consentimiento con lo que se pide y por qué, canales con avatar, servicio y zona horaria, máximo 5, avisa de canales desconectados o bloqueados, botón de desconectar.
+- Semana: 4 repeticiones grabadas (o el plan de una ejecución en vivo), columnas por día con tiempo, lluvia y eventos; cada post como tarjeta a su hora con la imagen, la etiqueta y el «why now» con cita y fuente; mover arrastrando (escritorio) o con el botón Mover (día y hora, también en móvil y con teclado). La hora exacta, el día de la semana del título y la imagen se recalculan al mover.
+- Revisar: texto por red con contador y límite de caracteres, quitar y volver a traer, deshacer ediciones, elegir canales por post, avisos del escritor, contador de límite diario (lee `dailyPostingLimits`; los borradores no cuentan).
+- Programar: borrador por defecto; «Programar de verdad» exige marcar una confirmación; resumen con llamadas estimadas, notas de zona horaria y un informe por post (creado, ya existe, omitido, fallido).
+- Cola: lo que Buffer tiene (`posts`) agrupado por día en la zona del canal, con su etiqueta, filtros y estados vacío, de carga, de error y de límite de ritmo.
+- Re-planificar: diferencia de previsión día a día y propuestas `editPost` que solo se aplican si pulsas aprobar; para repeticiones hay un botón «Simular un cambio de previsión» claramente marcado como simulado. Hoy solo se compara la previsión (los eventos no se vuelven a leer, y la pantalla lo dice).
+- Paso 4: en la home, el botón «Plan these posts in Buffer» en el resultado (enlace a la repetición, o traspaso del plan en vivo al escritor vía `/api/buffer/write`). Probado con el formato del plan en vivo contra la ruta, no con una ejecución en vivo real (gasta Nebius).
+- Etiqueta «Recorded replay» en la cabecera, el tablero, Revisar, Programar y Re-planificar. 429/Retry-After muestra cuenta atrás.
+
+Rutas nuevas: `/api/buffer/write`, `images`, `queue`, `replan`; `schedule` ahora acepta posts editados y destinos por post (valida con zod, repasa fechas y límites de caracteres antes de tocar Buffer). `replan` recalcula siempre en el servidor y solo aplica una propuesta si coincide con la aprobada (post y hora nuevos). Arreglo en `replan.ts`: un día que la previsión nueva no cubre ya no se lee como «la lluvia se fue».
+
+## Comprobaciones (29-oct)
+- typecheck y eslint limpios; `vitest`: 284 pasan, 5 saltados (antes 266). Nuevos: `tests/buffer/week.test.ts` (8) y `tests/buffer/routes.test.ts` (10: write, schedule con ediciones, 422 por texto largo o hora pasada, 429, queue, replan con aprobación, aprobación caducada).
+- `npm run build` correcto (rutas `/week` y las 5 API nuevas).
+- Navegador (Playwright, Chromium) contra el mock local (`npx tsx scripts/dev-mock-buffer.ts`, puerto de control 4011): flujo completo en 390×844 y 1440×900, sin scroll horizontal en ninguna pantalla; un único error de consola, el 429 provocado a propósito.
+- Capturas: `docs/screenshots/ui-29oct/` (32 PNG: `390-*` y `1440-*`; picker, consentimiento, canales, tablero, mover, revisar, texto largo, programar, hecho, cola, re-plan con propuestas, aplicado, previsión en vivo, cola con 429 y cola vacía).
+
+## Lo que no se ha podido hacer / límites honestos
+- Nada probado contra el Buffer real (sigue sin cliente de app). El mock es el mismo de los tests.
+- Eventos no se vuelven a consultar en Re-planificar; Ideas de Buffer sin hacer.
+- Arrastrar es HTML5 (no funciona en pantalla táctil; ahí se usa Mover).
+- Los avatares reales de Buffer pueden bloquearse por referrer; hay iniciales de respaldo.
+
+## Para la versión enviable del lun 2-nov
+1. Primer run real con el canal de Bluesky (solo borradores), grabar fixtures reales y corregir lo que la API diga distinto (p. ej. si `editPost` mantiene el borrador).
+2. Probar `/week` con un plan en vivo real desde la home (un run de Nebius).
+3. Ver en pantalla real el `Retry-After` y el tamaño de la cookie de sesión con el token real.
+4. Vídeo y resumen (pasos 6 del plan).
+
+## Lo que tiene que hacer Antón
+Lo de la sección anterior sigue en pie: crear el app client, pegar las claves con `pegar-clave.ps1` y arrancar con `npx next dev --experimental-https`. El único gesto nuevo es el «Allow»: abre `https://localhost:3000/week`, ve a Conectar, pulsa «Connect your Buffer account» y en la pantalla de auth.buffer.com pulsa Allow una vez. Vuelves a `/week` ya conectado, eliges el canal de pruebas de Bluesky y todo se crea como borrador.

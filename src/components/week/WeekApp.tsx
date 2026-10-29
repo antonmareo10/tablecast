@@ -53,12 +53,12 @@ export default function WeekApp({ demos }: { demos: DemoSummary[] }) {
         <header className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <Link href="/" className="group flex items-center gap-2.5" aria-label="Tablecast home">
             <Logo />
-            <span className="font-display text-xl tracking-tight">Tablecast <span className="text-olive">Week</span></span>
+            <span className="font-display whitespace-nowrap text-xl tracking-tight">Tablecast <span className="text-olive">Week</span></span>
           </Link>
           <div className="flex items-center gap-3 text-xs text-muted">
-            {w.plan?.source.kind === "replay" && <RecordedTag className="hidden sm:inline-flex" />}
+            {w.plan?.source.kind === "replay" && <span className="hidden sm:inline-flex"><RecordedTag /></span>}
             {rate && <span className="hidden tabular-nums sm:inline" title={`Buffer API window: ${rate.name}`}>{rate.remaining} API calls left, resets in {Math.ceil(rate.resetsInSeconds / 60)} min</span>}
-            <Link href="/" className="inline-flex min-h-11 items-center rounded-full border border-line bg-card/60 px-3 text-ink-2 transition hover:border-ink-2/40 hover:text-ink sm:min-h-9">Plan a new week</Link>
+            <Link href="/" className="inline-flex min-h-11 items-center rounded-full border border-line bg-card/60 px-3 text-ink-2 transition hover:border-ink-2/40 hover:text-ink sm:min-h-9"><span className="sm:hidden">New week</span><span className="hidden sm:inline">Plan a new week</span></Link>
           </div>
         </header>
 
@@ -67,7 +67,7 @@ export default function WeekApp({ demos }: { demos: DemoSummary[] }) {
             {STEPS.map((s, i) => {
               const st = state(s.id);
               return (
-                <li key={s.id} className="min-w-0 flex-1 sm:flex-none">
+                <li key={s.id} className={`min-w-0 sm:flex-none ${st === "now" ? "flex-[2.4]" : "flex-1"}`}>
                   <button
                     type="button"
                     onClick={() => w.setStep(s.id)}
