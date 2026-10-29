@@ -47,11 +47,14 @@ export default function PlaybookView({
   running,
   language,
   stage = 0,
+  toBuffer,
 }: {
   live: LiveState;
   running: boolean;
   language?: "English" | "Español";
   stage?: number;
+  /** Where the "Plan these posts in Buffer" button goes: a link (recorded plans) or a handler (a live run). */
+  toBuffer?: { href?: string; onClick?: () => void };
 }) {
   const p = live.playbook;
   const sourceMap = useMemo(() => new Map(live.sources.map((s) => [s.id, s] as const)), [live.sources]);
@@ -60,7 +63,7 @@ export default function PlaybookView({
   return (
     <SourcesProvider value={sourceMap}>
       <div className="space-y-5">
-        {(live.place || p) && <Hero live={live} running={running} stage={stage} />}
+        {(live.place || p) && <Hero live={live} running={running} stage={stage} toBuffer={toBuffer} />}
 
         {/* While Nemotron writes, its draft sits right under the header: the plan visibly writing itself. */}
         {running && live.draft && !p && <DraftPreview draft={live.draft} writer={live.writer} />}
@@ -195,7 +198,7 @@ const STAGE_LINE = [
   "Checking every cited claim against its sources…",
 ];
 
-function Hero({ live, running, stage }: { live: LiveState; running: boolean; stage: number }) {
+function Hero({ live, running, stage, toBuffer }: { live: LiveState; running: boolean; stage: number; toBuffer?: { href?: string; onClick?: () => void } }) {
   const p = live.playbook;
   const v = p?.verification;
   const done = Boolean(p && !running);
@@ -210,6 +213,16 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
         <div className="flex items-start justify-between gap-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-paper/75">This week’s playbook</p>
           {p && !running && (
+            <div className="no-print flex flex-wrap justify-end gap-2">
+              {toBuffer && (toBuffer.href ? (
+                <a href={toBuffer.href} className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-saffron px-3.5 py-1 text-xs font-semibold text-ink transition-[filter,scale] hover:brightness-105 motion-safe:active:scale-[0.97] sm:min-h-8">
+                  Plan these posts in Buffer <IconArrow size={12} />
+                </a>
+              ) : (
+                <button type="button" onClick={toBuffer.onClick} className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-saffron px-3.5 py-1 text-xs font-semibold text-ink transition-[filter,scale] hover:brightness-105 motion-safe:active:scale-[0.97] sm:min-h-8">
+                  Plan these posts in Buffer <IconArrow size={12} />
+                </button>
+              ))}
             <button
               type="button"
               onClick={() => window.print()}
@@ -217,6 +230,7 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
             >
               <IconDownload size={13} /> Save as PDF
             </button>
+            </div>
           )}
         </div>
         <h2 className="font-display mt-1 text-3xl leading-tight sm:text-4xl">{p?.restaurant.name ?? live.place?.name}</h2>

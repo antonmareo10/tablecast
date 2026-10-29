@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { m } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
@@ -9,6 +10,7 @@ import { readNdjson } from "@/lib/ndjson";
 import Timeline, { type AgentStatus, type ModelChip, type Step, type TimelineItem } from "./Timeline";
 import PlaybookView, { type LiveState } from "./PlaybookView";
 import ReplayWeek from "./ReplayWeek";
+import { LIVE_KEY } from "./week/store";
 import { IconAlert, IconArrow, IconSearch } from "./icons";
 import { SplitWords, Underline } from "./kinetic";
 import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } from "./motion";
@@ -62,6 +64,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
   const [phase, setPhase] = useState<Phase>("idle");
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const [replay, setReplay] = useState<DemoSummary | null>(null);
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(0);
@@ -103,6 +106,28 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
   }, [phase]);
 
   const { items, live, agent } = useMemo(() => derive(events), [events]);
+  // "Plan these posts in Buffer": a recorded run links to its replay, a live run hands its plan to the writer.
+  const toBuffer = useMemo(() => {
+    if (replay) return { href: `/week?plan=${encodeURIComponent(replay.slug)}` };
+    const place = live.place;
+    const tz = place?.timezone;
+    if (!live.playbook || !live.week || !place || !tz) return undefined;
+    const { playbook, week } = live;
+    return {
+      onClick: () => {
+        try {
+          sessionStorage.setItem(
+            LIVE_KEY,
+            JSON.stringify({
+              playbook, days: week.days, events: week.events, timezone: tz, location: { lat: place.lat, lon: place.lon },
+              sources: live.sources.map((s) => ({ id: s.id, title: s.title.slice(0, 300), url: s.url })),
+            }),
+          );
+        } catch { /* storage blocked: the week page then offers the recorded weeks */ }
+        router.push("/week?from=live");
+      },
+    };
+  }, [replay, live, router]);
   const doneEvent = events.find((e) => e.type === "done") as Extract<AgentEvent, { type: "done" }> | undefined;
   const elapsed = doneEvent ? doneEvent.elapsed_ms : phase === "running" && startedAt ? now - startedAt : 0;
 
@@ -194,6 +219,12 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
         </Link>
         <nav className="flex items-center gap-4 text-xs text-muted">
           <span className="hidden sm:inline">Live local data × NVIDIA Nemotron</span>
+          <Link
+            href="/week"
+            className="group hidden min-h-9 items-center gap-1 rounded-full border border-saffron/50 bg-saffron/15 px-3 text-ink-2 transition hover:border-saffron hover:text-ink sm:inline-flex"
+          >
+            Plan the week&rsquo;s posts <IconArrow size={12} className="nudge" />
+          </Link>
           <Link
             href="/about"
             className="group inline-flex min-h-9 items-center gap-1 rounded-full border border-line bg-card/60 px-3 text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
@@ -454,7 +485,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                       onReplay={startReplay}
                     />
                   )}
-                  <PlaybookView live={live} running={phase === "running"} language={form.language} stage={agent.stage} />
+                  <PlaybookView live={live} running={phase === "running"} language={form.language} stage={agent.stage} toBuffer={toBuffer} />
                   {phase === "running" && !live.place && !error && <SkeletonCards />}
                 </div>
               </div>

@@ -124,3 +124,15 @@ export function estimateCalls(posts: PostSpec[], targets: Record<string, string[
   const tagReads = 1 + new Set(posts.map((p) => p.tag)).size; // list + worst case one createTag each
   return writes + tagReads + 1 /* queue read */ + (real ? writes : 0) /* dailyPostingLimits per post */;
 }
+
+/** The tag colours Buffer gets (same values as the scheduler; kept here so the browser bundle stays free of server code). */
+export const TAG_DOT: Record<string, string> = {
+  "Tablecast · rain": "#2F6FB5",
+  "Tablecast · sun": "#DD9A2E",
+  "Tablecast · event": "#6B3B5A",
+  "Tablecast · dish": "#AD4823",
+};
+export const tagLabel = (tag: string) => tag.replace(/^Tablecast · /, "");
+
+/** The text a channel gets for a post. */
+export const textOn = (spec: PostSpec, service: Service): string => spec.variants[networkOf(service)];
