@@ -95,3 +95,32 @@ Rutas nuevas: `/api/buffer/write`, `images`, `queue`, `replan`; `schedule` ahora
 
 ## Lo que tiene que hacer Antón
 Lo de la sección anterior sigue en pie: crear el app client, pegar las claves con `pegar-clave.ps1` y arrancar con `npx next dev --experimental-https`. El único gesto nuevo es el «Allow»: abre `https://localhost:3000/week`, ve a Conectar, pulsa «Connect your Buffer account» y en la pantalla de auth.buffer.com pulsa Allow una vez. Vuelves a `/week` ya conectado, eliges el canal de pruebas de Bluesky y todo se crea como borrador.
+
+---
+
+# Actualización 31-oct-2026 (agente de entrega)
+
+## Bases leídas (buffer.com/api/commit y /terms, 31-oct) y cumplimiento
+- Vídeo de 2 min o menos que muestre el proyecto funcionando de punta a punta contra la API de Buffer real (las diapositivas no valen): PENDIENTE de la toma en vivo (ver abajo).
+- Enlace público vivo durante el jurado (16-20 nov): CUMPLE (https://tablecast-week.vercel.app/week, comprobado el 31-oct en 1440 y 390 px, sin desbordes ni errores de consola).
+- Resumen de unas 300 palabras (problema, público, API usada, próximos pasos): CUMPLE, `competiciones/buffer/ENTREGA.md` (ig-human 79,7).
+- Nombre legal, email y redes (los del registro): lo pone Antón. Client ID (no el secreto): lo pone Antón.
+- OAuth de Buffer y al menos una llamada real: CUMPLE (conectado el 30-oct por Antón; canal de Bluesky de prueba).
+- Proyecto existente: hay que indicar lo nuevo de la ventana: `BUFFER_CHANGES.md` (hay que añadir lo de la 29-oct, ver más abajo) y el resumen lo dice.
+- Plazo: 13-nov 23:59 PT (sáb 14-nov 08:59 Madrid). Envío definitivo, no editable según el manual de PLAN.md.
+- Posts de «build in public» (opcional, hasta 5, deben decir que promocionan el concurso): no hechos.
+
+## Qué no he podido hacer y por qué
+La sesión OAuth vive solo en el Chrome de Antón (cookies HttpOnly). Yo no tengo token, no uso Chrome y no puedo aceptar la pantalla de consentimiento. Por eso no hay fixtures reales ni toma contra el Buffer real todavía. No he llamado a la API de creación.
+Garantía de borrador: la documentación (examples/create-draft-post) dice que con `saveToDraft: true` el post queda en `draft` y «no se publicará hasta que se programe explícitamente»; el código lo manda siempre por defecto y el script de captura aborta si el modo no es borrador. NO verificado: si `editPost` con `mode: customScheduled` mantiene el estado de borrador. Por eso la toma en vivo NO pulsa «Approve» (se enseña la propuesta); solo se aplica con `MOVE_LIVE=1`, y antes habría que probarlo con un post suelto y borrarlo si pasa a `scheduled`.
+
+## Vídeo (herramientas en competiciones/_video-tools/video)
+- Narración Kokoro lista: `C:\Users\anton\data\buffer\video\guion.txt` y `tts\` (82 s).
+- `buffer-flow.mjs login`: abre Chromium (no Chrome) en la web publicada; Antón pulsa Connect y Allow una vez y se guarda `C:\Users\anton\data\buffer\pw-state.json` (contiene tokens, no subir).
+- `buffer-flow.mjs run`: toma continua del recorrido completo (canal Bluesky, 6 borradores reales, cola, re-plan), guarda las respuestas de `/api/buffer/*` como fixtures en `video\take\fixtures.json`. Luego `node buffer-assemble.mjs C:\Users\anton\data\buffer\video\tablecast-week-demo.mp4` (voz, subtítulos quemados, -16 LUFS).
+- Ensayo completo contra el mock local (no es para enviar): `C:\Users\anton\data\buffer\video\rehearsal-MOCK.mp4`, 85 s.
+
+## Lo que queda
+1. Antón: `cd C:\Users\anton\OneDrive\anton\competiciones\_video-tools\video; node buffer-flow.mjs login` (un Allow), y avisar. Después: `node buffer-flow.mjs run` y `node buffer-assemble.mjs ...`; revisar fotogramas.
+2. Antón: subir el vídeo a YouTube, rellenar nombre legal, email, redes y client ID, y enviar el formulario (el envío no se puede editar).
+3. Opcional: posts build in public (con aviso de que promocionan el concurso).
