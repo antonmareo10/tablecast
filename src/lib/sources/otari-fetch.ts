@@ -19,7 +19,7 @@ type Block = {
 export type FetchedPage = { url: string; text: string; served: Served; ms: number };
 
 /** Reads `url` with Otari's web fetch. Throws when Otari fetched nothing usable. */
-export async function otariFetchPage(url: string, opts: { focus?: string; maxChars?: number; signal?: AbortSignal } = {}): Promise<FetchedPage> {
+export async function otariFetchPage(url: string, opts: { focus?: string; maxChars?: number; signal?: AbortSignal; timeoutMs?: number } = {}): Promise<FetchedPage> {
   const t0 = Date.now();
   const run = currentRun();
   const res = await otariFetch("/v1/messages", {
@@ -33,7 +33,7 @@ export async function otariFetchPage(url: string, opts: { focus?: string; maxCha
     },
     headers: { "anthropic-version": "2023-06-01", "otari-web-fetch": "otari" },
     signal: opts.signal,
-    timeoutMs: 40_000,
+    timeoutMs: opts.timeoutMs ?? 40_000,
   });
   const data = (await res.json()) as { content?: Block[]; usage?: unknown };
   const served = servedFrom(res.headers);

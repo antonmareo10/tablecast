@@ -428,7 +428,12 @@ export async function gather(opts: {
       res = await turnCall(model);
     } catch (err) {
       if (signal?.aborted || model === backup || isStopError(err)) throw err;
-      emit({ type: "note", text: `${modelLabel(model)} didn't answer in time — ${modelLabel(backup)} takes over the research.` });
+      const timedOut = isOtariError(err) && err.code === "timeout";
+      console.warn(`[research] ${model} turn ${turn + 1} failed after ${Date.now() - t0} ms: ${errorText(err)}`);
+      emit({
+        type: "note",
+        text: `${modelLabel(model)} ${timedOut ? "didn't answer in time" : `failed (${isOtariError(err) ? `Otari ${err.status || "network"}${err.code ? ` ${err.code}` : ""}` : "error"})`} — ${modelLabel(backup)} takes over the research.`,
+      });
       model = backup;
       t0 = Date.now();
       res = await turnCall(model);

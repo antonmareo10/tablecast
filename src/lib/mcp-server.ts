@@ -95,7 +95,8 @@ export async function callTool(name: string, args: Record<string, unknown>, sign
       // The reader can't open PDFs or pages that refuse it; Otari's own fetcher often can.
       if (process.env.OTARI_API_KEY && !(err instanceof ReaderError && err.kind === "blocked")) {
         try {
-          const f = await otariFetchPage(url, { focus, maxChars: READ_PAGE_MAX_CHARS, signal });
+          // Otari gives an MCP tool call 30 s; the reader had up to 10, so the fetch gets 15.
+          const f = await otariFetchPage(url, { focus, maxChars: READ_PAGE_MAX_CHARS, signal, timeoutMs: 15_000 });
           return text(formatReadPage({ url: f.url, title: new URL(f.url).hostname, text: f.text, chars: f.text.length, truncated: false, kind, via: "otari web fetch" }));
         } catch {
           /* fall through to the reader's error */
