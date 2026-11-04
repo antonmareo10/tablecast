@@ -26,6 +26,7 @@ import {
   ensureSchema,
   gather,
   isStopError,
+  measured,
   modelLabel,
   readMenuPhoto,
   repairAmounts,
@@ -46,6 +47,7 @@ import type { OtariToolCall } from "./otari";
 import { otariSearch, recentEnough } from "./sources/otari-search";
 import { readPage } from "./sources/reader";
 import { GUARDRAIL_PROFILE, guardrailAvailable, SCREEN_MODEL, ScreenLog, screenText } from "./screen";
+import { codeExecutionAvailable, runQuartermaster } from "./quartermaster";
 import { forecastLine, weekForecast, type DayForecast } from "./sources/weather";
 import type { AgentRequest, MenuItem, Place, Playbook, Source, SourceKind } from "./types";
 
@@ -978,6 +980,42 @@ ${sourcesForPrompt(ledger)}`,
   };
   emit({ type: "sources", sources: ledger.list().map(publicSource) });
   emit({ type: "playbook", playbook });
+
+  // ---- 5. SUPPLIER ORDER (tablecast-quartermaster + Otari's code sandbox) ------------------------------------------
+  // The order's totals and each dish's break-even are computed by a program the model writes and Otari runs; the app
+  // shows the program's own output and checks its sums against the plan's lines.
+  if (routing.quartermaster && left() > 25_000) {
+    const tool = await codeExecutionAvailable(signal).catch(() => ({ available: false, reason: "the tools listing failed" }));
+    if (!tool.available) {
+      emit({ type: "note", text: `🧮 Otari's code execution isn't available to this workspace (${tool.reason ?? "not offered"}), so the supplier order is not computed this run.` });
+    } else {
+      const id = "quartermaster";
+      emit({ type: "tool_start", id, tool: "code_execution", label: `Computing the supplier order in Otari's code sandbox (${modelLabel(routing.quartermaster)})`, input: {} });
+      try {
+        const q = await runQuartermaster({ model: routing.quartermaster, playbook, signal, timeoutMs: Math.min(60_000, left() - 10_000) });
+        emit({
+          type: "engine",
+          call: measured("code", routing.quartermaster, q.ms, q.usage, {
+            served: q.served,
+            note: `${q.calls.length} program${q.calls.length === 1 ? "" : "s"} run in Otari's sandbox${q.report ? "" : ` · ${q.why}`}`,
+          }),
+        });
+        if (q.report) {
+          emit({ type: "quartermaster", report: q.report });
+          const c = q.report.checks;
+          emit({
+            type: "tool_end",
+            id,
+            tool: "code_execution",
+            summary: `Order ${q.report.result.grand_total.toFixed(2)} ${playbook.currency} in ${q.report.result.order.length} supplier groups · ${c.totals && c.break_even ? "sums checked in code" : "a sum differs from the plan (listed)"}`,
+          });
+        } else emit({ type: "tool_end", id, tool: "code_execution", summary: q.why ?? "no result", error: true });
+      } catch (err) {
+        if (signal?.aborted || isStopError(err)) throw err;
+        emit({ type: "tool_end", id, tool: "code_execution", summary: err instanceof Error ? err.message.slice(0, 140) : "failed", error: true });
+      }
+    }
+  }
   Object.assign(report, {
     ok: true,
     verifiedFinal: ok,

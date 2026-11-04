@@ -1,5 +1,6 @@
 // Shared types between the agent (server) and the UI (client).
 
+import type { QuartermasterReport } from "./quartermaster";
 import type { NearbyEvent } from "./sources/events";
 import type { Holiday } from "./sources/holidays";
 import type { Venue } from "./sources/places";
@@ -192,6 +193,10 @@ export type AgentEvent =
   // Where the run goes on Otari: its session id (Otari-Conversation-Id), the API and the model name of each step.
   | { type: "otari"; run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string }
   | { type: "guardrails"; screening: NonNullable<Playbook["verification"]>["screening"] & object }
+  // The restaurant as an Otari end user: its spend this budget period against the limit, before and after the run.
+  // The supplier order and break-even computed in Otari's code sandbox (src/lib/quartermaster.ts).
+  | { type: "quartermaster"; report: QuartermasterReport }
+  | { type: "budget"; stage: "start" | "end"; end_user: string; spend: number; limit: number | null; budget?: string; period?: string; before?: number }
   | { type: "error"; message: string }
   | { type: "done"; elapsed_ms: number };
 

@@ -2,7 +2,8 @@ import { runTablecast } from "@/lib/agent";
 import { acquireLiveRun, clientIp, describeLiveFailure, isAccountError, liveRunsDisabled } from "@/lib/limits";
 import { defaultRouting, economyRouting, inferenceConfigured, resolveRouting, type Routing } from "@/lib/model-runtime";
 import { encodeLine } from "@/lib/ndjson";
-import { newRunId, OTARI_API, withRun, type RunTag } from "@/lib/otari";
+import { newRunId, OTARI_API, restaurantEndUser, withRun, type RunTag } from "@/lib/otari";
+import { budgetLine, endUsersEnabled, endUserStatus, runEstimateUsd, type EndUserStatus } from "@/lib/otari-budget";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -83,6 +84,8 @@ export async function POST(request: Request) {
   let missing: string[] = [];
   // A rejected key fails here in about a second (GET /v1/models costs nothing), before any research is paid for.
   // The same call tells which of the app's routing policies the workspace has; a missing one runs on its catalog id.
+  // In parallel: whether the key is a service key (then the restaurant is an Otari end user with its own budget).
+  const serviceKeyPromise = endUsersEnabled(request.signal).catch(() => ({ enabled: false, budgets: [] }));
   try {
     ({ routing, missing } = await resolveRouting(routing, request.signal));
   } catch (err) {
@@ -92,8 +95,29 @@ export async function POST(request: Request) {
     }
     // Anything else (a slow listing, a 5xx) is left to the run, which has its own fallbacks.
   }
-  // Every Otari request of this run carries the same Otari-Conversation-Id, so the run is one session in Otari's traces.
-  const tag: RunTag = { id: newRunId() };
+  const serviceKey = await serviceKeyPromise;
+  const endUser = serviceKey.enabled ? restaurantEndUser(req.restaurant, req.city) : undefined;
+  // Where this restaurant stands on its weekly Otari budget. A restaurant that can't cover a plan is told so before
+  // anything is spent; otherwise Otari itself refuses the request that would pass the limit (budget_exceeded).
+  let before: EndUserStatus | null = null;
+  if (endUser) {
+    before = await endUserStatus(endUser, request.signal).catch(() => null);
+    const line = budgetLine(before, serviceKey.budgets);
+    if (before?.blocked || (line.limit != null && line.limit - line.spend < runEstimateUsd())) {
+      gate.release();
+      return Response.json(
+        {
+          error: before?.blocked
+            ? "This restaurant is blocked on Otari, so no live run can be billed to it. Recorded runs are always available."
+            : `This restaurant has $${Math.max(0, (line.limit ?? 0) - line.spend).toFixed(2)} left of its $${(line.limit ?? 0).toFixed(2)} AI budget on Otari, less than a plan can cost (about $${runEstimateUsd().toFixed(2)}). It resets with the budget's period. Recorded runs are always available.`,
+        },
+        { status: 429 },
+      );
+    }
+  }
+  // Every Otari request of this run carries the same Otari-Conversation-Id, so the run is one session in Otari's traces,
+  // and, on a service key, names the restaurant as the end user it is billed to.
+  const tag: RunTag = { id: newRunId(), ...(endUser ? { endUser } : {}) };
   // Publish before the platform's limit (maxDuration), leaving room to stream the end of the run.
   const deadline = Date.now() + (maxDuration - 15) * 1000;
   const stream = new ReadableStream<Uint8Array>({
@@ -108,12 +132,34 @@ export async function POST(request: Request) {
         }
       };
       try {
-        emit({ type: "otari", run_id: tag.id, api: OTARI_API, routing: { research: routing.fast, write: routing.reasoning, check: routing.repair ?? routing.reasoning, vision: routing.vision }, missing });
+        emit({
+          type: "otari",
+          run_id: tag.id,
+          api: OTARI_API,
+          routing: { research: routing.fast, write: routing.reasoning, check: routing.repair ?? routing.reasoning, vision: routing.vision, ...(routing.quartermaster ? { quartermaster: routing.quartermaster } : {}) },
+          missing,
+          ...(endUser ? { end_user: endUser } : {}),
+        });
+        if (endUser) emit({ type: "budget", stage: "start", end_user: endUser, ...budgetLine(before, serviceKey.budgets) });
+        else emit({ type: "note", text: "This Otari key is not a service key, so the run is billed to the app as a whole, not to the restaurant." });
         if (missing.length)
           emit({ type: "note", text: `Otari has no ${missing.join(", ")} routing polic${missing.length > 1 ? "ies" : "y"} in this workspace yet: ${missing.length > 1 ? "those steps run" : "that step runs"} on the model's catalog id instead.` });
         await withRun(tag, () => runTablecast(req, emit, { routing, deadline, signal: request.signal }));
       } catch (err) {
         emit({ type: "error", message: describeLiveFailure(err) });
+      }
+      // What Otari billed the restaurant, read back from its end-user record (usage settles a moment after the answer).
+      if (endUser) {
+        for (const wait of [2_500, 4_000]) {
+          await new Promise((r) => setTimeout(r, wait));
+          const after = await endUserStatus(endUser).catch(() => null);
+          if (!after) break;
+          const line = budgetLine(after, serviceKey.budgets);
+          if (line.spend !== (before?.spend ?? 0) || wait === 4_000) {
+            emit({ type: "budget", stage: "end", end_user: endUser, ...line, before: before?.spend ?? 0 });
+            break;
+          }
+        }
       }
       emit({ type: "done", elapsed_ms: Date.now() - started });
       closed = true;
