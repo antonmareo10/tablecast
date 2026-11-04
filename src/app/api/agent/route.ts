@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   if (body.menu_photo && !req.menu_photo) {
     return Response.json({ error: "The menu photo must be a JPEG, PNG or WebP under 2 MB." }, { status: 400 });
   }
-  if (!inferenceConfigured() || !process.env.TAVILY_API_KEY) {
+  if (!inferenceConfigured()) {
     return Response.json({ error: "Live mode is not configured on this server. Open one of the recorded real runs instead." }, { status: 503 });
   }
   const disabled = liveRunsDisabled();

@@ -28,6 +28,7 @@ import {
   type ChatResponse,
   type ChatUsage,
   type Served,
+  type OtariToolCall,
   type StreamChunk,
   type ToolCall,
 } from "./otari";
@@ -361,6 +362,15 @@ export async function gather(opts: {
   emit: Emit;
   signal?: AbortSignal;
   concurrency?: number;
+  /** More request fields for every research turn, e.g. `mcp_servers` so Otari runs MCP tools inside the turn. */
+  extra?: Record<string, unknown>;
+  /**
+   * The calls Otari ran itself during a turn (MCP tools, web searches…), from `otari_tool_calls`. What it returns is
+   * added to the conversation as a note, because those rounds happen inside Otari and are not in the message history.
+   */
+  onGatewayCalls?: (calls: OtariToolCall[]) => string | undefined;
+  /** How long one research turn may take (longer when Otari runs MCP calls inside it). */
+  turnMs?: number;
 }): Promise<void> {
   const { routing, tools, emit, signal } = opts;
   const byName = new Map(tools.map((t) => [t.name, t] as const));
@@ -383,11 +393,12 @@ export async function gather(opts: {
         tool_choice: "auto",
         temperature: 0.3,
         max_tokens: 2048,
+        ...opts.extra,
         // The backup is a reasoning model; research turns are short decisions.
         ...(m === routing.fast ? {} : { reasoning_effort: "low" }),
       },
       signal,
-      GATHER_TURN_MS,
+      opts.turnMs ?? GATHER_TURN_MS,
     );
   for (let turn = 0; turn < opts.maxTurns; turn++) {
     if (turn > 0 && Date.now() - started > opts.budgetMs) {
@@ -413,6 +424,8 @@ export async function gather(opts: {
     messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
 
     const calls = msg.tool_calls ?? [];
+    const gateway = (res.data.otari_tool_calls ?? []).filter((c) => c.status !== "in_progress");
+    const gatewayNote = gateway.length ? opts.onGatewayCalls?.(gateway) : undefined;
     const toolsStart = Date.now();
     const results = await mapLimit(calls, opts.concurrency ?? 4, async (call) => {
       const spec = byName.get(call.function.name);
@@ -433,11 +446,13 @@ export async function gather(opts: {
       }
     });
     calls.forEach((call, i) => messages.push({ role: "tool", tool_call_id: call.id, content: results[i] }));
+    if (gatewayNote && calls.length) messages.push({ role: "user", content: gatewayNote });
     emit({
       type: "engine",
       call: measured("gather", model, callMs, res.data.usage, {
         started_at: t0,
         tool_calls: calls.length,
+        ...(gateway.length ? { note: `${gateway.length} tool call${gateway.length > 1 ? "s" : ""} run inside Otari (${[...new Set(gateway.map((g) => (g.type === "mcp" ? `MCP ${g.name ?? ""}`.trim() : g.type)))].join(", ")})` } : {}),
         served: res.served,
         ...(calls.length ? { tools_ms: Date.now() - toolsStart } : {}),
       }),

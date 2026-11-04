@@ -1,15 +1,10 @@
-// Tavily Map → the restaurant's own menu page, in code. Map lists the pages its site links to, keeping only
-// paths that look like a menu (Tavily filters server-side with `select_paths`, so only those are billed); code
-// ranks them, sets aside other branches' menus ("/las-vegas-menus" for a Los Angeles restaurant), and Tavily
-// Extract reads the best one before the research model starts, so the plan stands on the real menu.
+// The restaurant's own menu page, in code: the reader (src/lib/sources/reader.ts) lists the links of the site's home
+// page and its sitemap.xml, code keeps the paths that look like a menu, ranks them, sets aside other branches' menus
+// ("/las-vegas-menus" for a Los Angeles restaurant), and the reader opens the best one before the research model
+// starts, so the plan stands on the real menu. (The Nebius version did this with Tavily Map and Extract.)
 
 import { citiesIn, host, ownCities, urlWords } from "./place";
-import { extract, map } from "./sources/tavily";
-
-/** Server-side path filter for Tavily Map: pages whose path looks like a menu or food page. */
-export const MENU_PATHS = [
-  "/.*(menu|men%C3%BA|carta|carte|food|drink|lunch|dinner|brunch|breakfast|tapas|platos|bebidas|comida|cena|almuerzo|raciones|speisekarte).*",
-];
+import { readPage, siteLinks } from "./sources/reader";
 
 const STRONG = /\b(menu|menus|carta|cartas|carte|speisekarte|food (and )?drinks?)\b/;
 const WEAK = /\b(food|drinks?|lunch|dinner|brunch|breakfast|tapas|platos|bebidas|comida|cena|almuerzo|raciones)\b/;
@@ -73,18 +68,24 @@ export function mappable(website: string | undefined): website is string {
 
 export type MenuPagesResult = MenuPagePick & { credits: number | null; error?: string };
 
-/** One Tavily Map call on the restaurant's site, filtered to menu pages and ranked for this branch. */
+/** The links of the restaurant's site (home page and sitemap.xml), filtered to menu pages and ranked for this branch. */
 export async function findMenuPages(website: string, anchors: string[]): Promise<MenuPagesResult> {
-  // A home page often links 100+ pages (Dishoom's: 137); Tavily's default breadth of 20 stops at the nav bar.
-  // Research waits for this, so it gets 15 s (most sites answer in under 2; script-built ones can take 15).
-  const m = await map(website, { maxDepth: 1, maxBreadth: 150, limit: 150, selectPaths: MENU_PATHS, timeoutMs: 15_000 });
-  return { ...pickMenuPages(m.urls, anchors), credits: m.credits, ...(m.error ? { error: m.error } : {}) };
+  try {
+    const urls = await siteLinks(website);
+    return { ...pickMenuPages(urls, anchors), credits: null };
+  } catch (err) {
+    return { pages: [], otherBranches: [], credits: null, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
-/** Tavily Extract on the best menu page, focused on dishes and prices. */
+/** The best menu page, read in full and focused on dishes and prices when it is long. */
 export async function readMenuPage(url: string): Promise<{ page: { url: string; content: string } | null; credits: number | null; failed: boolean }> {
-  const r = await extract([url], { query: "menu dishes and prices", chunksPerSource: 5 });
-  return { page: r.results[0] ?? null, credits: r.credits, failed: r.failed.length > 0 };
+  try {
+    const r = await readPage(url, { focus: "menu dishes and prices", maxChars: 8_000 });
+    return { page: { url: r.url, content: r.text }, credits: null, failed: false };
+  } catch {
+    return { page: null, credits: null, failed: true };
+  }
 }
 
 /** "https://www.dishoom.com/menu/covent-garden-all-day" → "dishoom.com/menu/covent-garden-all-day". */

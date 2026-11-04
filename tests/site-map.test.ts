@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { placeAnchors } from "@/lib/place";
 import { findMenuPages, mappable, pickMenuPages, readMenuPage, shortUrl } from "@/lib/site-map";
 import mapFixture from "./fixtures/tavily-map.json";
-import { jsonResponse, mockFetch, silenceWarnings } from "./sources/helpers";
+import { mockFetch, silenceWarnings } from "./sources/helpers";
+
+// The reader checks that every host resolves to a public address; tests resolve every name to one.
+vi.mock("node:dns/promises", () => ({ lookup: async () => [{ address: "93.184.216.34", family: 4 }] }));
 
 // Real Tavily Map responses (tests/fixtures/tavily-map.json, recorded 21 Oct 2026).
 const urls = (key: keyof typeof mapFixture) => (mapFixture[key] as { response: { results: string[] } }).response.results;
@@ -52,42 +55,46 @@ describe("mappable", () => {
   });
 });
 
-describe("findMenuPages + readMenuPage (Tavily Map → Extract)", () => {
+describe("findMenuPages + readMenuPage (the reader: site links → menu page)", () => {
   beforeEach(() => {
     silenceWarnings();
-    vi.stubEnv("TAVILY_API_KEY", "tvly-test");
   });
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("asks Map for menu paths only, ranks them and reports credits", async () => {
-    const { calls } = mockFetch(() => jsonResponse(mapFixture["dishoom.com/covent-garden select"].response));
-    const r = await findMenuPages("http://www.dishoom.com/covent-garden/", london);
-    const body = JSON.parse(String(calls[0].init?.body));
-    expect(body).toMatchObject({ max_depth: 1, max_breadth: 150, limit: 150 });
-    expect(body.select_paths[0]).toContain("menu");
-    expect(r.pages[0]).toBe("https://www.dishoom.com/menu/covent-garden-all-day");
-    expect(r.credits).toBe(2);
+  const html = (body: string) => new Response(`<html><head><title>Casa Lucio</title></head><body>${body}</body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
+
+  it("lists the home page's links and the sitemap, then ranks the menu pages for this branch", async () => {
+    mockFetch((url) => {
+      if (url.endsWith("/sitemap.xml"))
+        return new Response("<urlset><url><loc>https://www.gjelina.com/las-vegas-menus</loc></url><url><loc>https://www.gjelina.com/press</loc></url></urlset>", {
+          headers: { "content-type": "application/xml" },
+        });
+      return html('<nav><a href="/los-angeles-menus">Menus</a></nav><a href="/new-york-menus">NY</a><a href="https://elsewhere.com/menu">x</a>');
+    });
+    const r = await findMenuPages("https://www.gjelina.com", la);
+    expect(r.pages).toEqual(["https://www.gjelina.com/los-angeles-menus"]);
+    expect(r.otherBranches.sort()).toEqual(["https://www.gjelina.com/las-vegas-menus", "https://www.gjelina.com/new-york-menus"]);
+    expect(r.credits).toBeNull();
     expect(r.error).toBeUndefined();
   });
 
-  it("passes Map's failure on instead of returning a silent empty list", async () => {
-    mockFetch(() => jsonResponse({ detail: "boom" }, 500));
+  it("passes the site's failure on instead of returning a silent empty list", async () => {
+    mockFetch(() => new Response("boom", { status: 500 }));
     const r = await findMenuPages("https://casalucio.es", placeAnchors({ city: "Madrid" }));
     expect(r.pages).toEqual([]);
     expect(r.error).toMatch(/500/);
   });
 
-  it("reads the chosen page with Extract, focused on dishes and prices", async () => {
-    const { calls } = mockFetch(() =>
-      jsonResponse({ results: [{ url: "https://casalucio.es/carta", raw_content: "Huevos estrellados 18 €" }], failed_results: [], usage: { credits: 1 } }),
-    );
+  it("reads the chosen page's text, exactly as the page has it", async () => {
+    mockFetch(() => html("<main><h2>Carta</h2><ul><li>Huevos estrellados <span>18 €</span></li><li>Callos a la madrileña &ndash; 21 €</li></ul><p>Reservas: 913 653 252, todos los días.</p></main>"));
     const r = await readMenuPage("https://casalucio.es/carta");
-    expect(JSON.parse(String(calls[0].init?.body))).toMatchObject({ urls: ["https://casalucio.es/carta"], query: "menu dishes and prices", chunks_per_source: 5 });
-    expect(r).toEqual({ page: { url: "https://casalucio.es/carta", content: "Huevos estrellados 18 €" }, credits: 1, failed: false });
+    expect(r.failed).toBe(false);
+    expect(r.page?.url).toBe("https://casalucio.es/carta");
+    expect(r.page?.content).toContain("Huevos estrellados 18 €");
+    expect(r.page?.content).toContain("Callos a la madrileña – 21 €");
   });
 });
 
