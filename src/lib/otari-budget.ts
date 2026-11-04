@@ -46,7 +46,7 @@ export function parseEndUser(raw: Record<string, unknown>, externalId: string): 
     budget_id: str(first(raw, ["budget_id"])) ?? str(first(budget, ["budget_id", "id"])),
     spend: num(first(raw, ["spend", "spend_usd", "current_spend", "period_spend", "total_spend"])) ?? num(first(budget, ["spend", "current_spend"])),
     max_budget: num(first(raw, ["max_budget", "budget_limit"])) ?? num(first(budget, ["max_budget", "limit"])) ?? null,
-    resets_at: str(first(raw, ["budget_reset_at", "resets_at", "period_end", "reset_at"])) ?? str(first(budget, ["budget_reset_at", "resets_at"])),
+    resets_at: str(first(raw, ["next_budget_reset_at", "budget_reset_at", "resets_at", "period_end", "reset_at"])) ?? str(first(budget, ["budget_reset_at", "resets_at"])),
     blocked: typeof raw.blocked === "boolean" ? raw.blocked : undefined,
   };
 }

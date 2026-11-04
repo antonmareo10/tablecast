@@ -22,7 +22,9 @@ const only = args.includes("--only") ? args[args.indexOf("--only") + 1].split(",
 let workspace = args.includes("--workspace") ? args[args.indexOf("--workspace") + 1] : null;
 
 const ULTRA = "fireworks:accounts/fireworks/models/nemotron-3-ultra-nvfp4";
-const SUPER = "bedrock:nvidia.nemotron-super-3-120b";
+const SUPER = "bedrock:nvidia.nemotron-super-3-120b"; // takes no reasoning_effort: the Economy writer sends none
+const SUPER_DI = "deepinfra:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B"; // takes reasoning_effort
+const SMALL = "mistral:mistral-small-2603";
 
 // docs/OTARI_SETUP.md, section 3: every selector is an EU hosted offering of an open-weight model.
 const POLICIES = [
@@ -31,18 +33,18 @@ const POLICIES = [
     name: "tablecast-write",
     spec: {
       // A restaurant that has used 60% of its weekly budget gets the cheaper writer. The default must be last.
-      select: [{ when: { budget_used_pct: { gte: 60 } }, target: SUPER }, { default: ULTRA }],
-      on_failure: ["deepinfra:zai-org/GLM-5.2", "mistral:mistral-large-2512"],
+      select: [{ when: { budget_used_pct: { gte: 60 } }, target: SUPER_DI }, { default: ULTRA }],
+      on_failure: ["deepinfra:zai-org/GLM-5.2", SMALL],
     },
   },
-  { name: "tablecast-economy", spec: { select: [{ default: SUPER }], on_failure: ["mistral:mistral-small-2603", ULTRA] } },
-  { name: "tablecast-check", spec: { select: [{ default: ULTRA }], on_failure: ["deepinfra:zai-org/GLM-5.2", SUPER] } },
-  { name: "tablecast-quartermaster", spec: { select: [{ default: "deepinfra:openai/gpt-oss-120b" }], on_failure: ["fireworks:accounts/fireworks/models/gpt-oss-120b", SUPER] } },
+  { name: "tablecast-economy", spec: { select: [{ default: SUPER }], on_failure: ["deepinfra:deepseek-ai/DeepSeek-V4-Flash", ULTRA] } },
+  { name: "tablecast-check", spec: { select: [{ default: ULTRA }], on_failure: ["deepinfra:zai-org/GLM-5.2", SMALL] } },
+  { name: "tablecast-quartermaster", spec: { select: [{ default: "deepinfra:openai/gpt-oss-120b" }], on_failure: ["fireworks:accounts/fireworks/models/gpt-oss-120b", SMALL] } },
 ];
 if (DRILL)
-  // A failover drill: the first candidate's maximum output (8,192 tokens) is below what the drill request asks for, so
-  // it refuses the request and Otari moves to the second. Only scripts/otari-smoke.mjs --drill sends to it.
-  POLICIES.push({ name: "tablecast-drill", spec: { select: [{ default: "bedrock:nvidia.nemotron-nano-3-30b" }], on_failure: [ULTRA] } });
+  // A failover drill: Mistral Large refuses reasoning_effort with a 400, so a request that carries it (the app's
+  // /api/failover-drill) always fails over to the second candidate.
+  POLICIES.push({ name: "tablecast-drill", spec: { select: [{ default: "mistral:mistral-large-2512" }], on_failure: [ULTRA] } });
 
 const todo = POLICIES.filter((p) => !only || only.includes(p.name));
 

@@ -169,7 +169,7 @@ if (PAID) {
 const drillBody = (model) => ({ model, messages: [{ role: "user", content: "Reply with the single word OK." }], max_tokens: 12000, temperature: 0, metadata: { app: "tablecast", role: "drill", run: RUN } });
 if (process.argv.includes("--drill-probe")) await call("drill probe (first candidate)", "/v1/chat/completions", { body: drillBody("bedrock:nvidia.nemotron-nano-3-30b"), estimate: 0.004 });
 if (process.argv.includes("--drill")) {
-  const r = await call("drill policy", "/v1/chat/completions", { body: drillBody("tablecast-drill"), estimate: 0.03 });
+  const r = await call("drill policy", "/v1/chat/completions", { body: { ...drillBody("tablecast-drill"), reasoning_effort: "low" }, estimate: 0.03 });
   console.log(`drill: Otari-Fallback=${r.h["otari-fallback"]} attempts=${r.h["otari-attempt-count"]} served by ${r.h["otari-provider"]}:${r.h["otari-model"]}`);
 }
 
