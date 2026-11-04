@@ -368,7 +368,7 @@ export async function gather(opts: {
    * The calls Otari ran itself during a turn (MCP tools, web searches…), from `otari_tool_calls`. What it returns is
    * added to the conversation as a note, because those rounds happen inside Otari and are not in the message history.
    */
-  onGatewayCalls?: (calls: OtariToolCall[]) => string | undefined;
+  onGatewayCalls?: (calls: OtariToolCall[]) => string | undefined | Promise<string | undefined>;
   /** How long one research turn may take (longer when Otari runs MCP calls inside it). */
   turnMs?: number;
 }): Promise<void> {
@@ -425,7 +425,7 @@ export async function gather(opts: {
 
     const calls = msg.tool_calls ?? [];
     const gateway = (res.data.otari_tool_calls ?? []).filter((c) => c.status !== "in_progress");
-    const gatewayNote = gateway.length ? opts.onGatewayCalls?.(gateway) : undefined;
+    const gatewayNote = gateway.length ? await opts.onGatewayCalls?.(gateway) : undefined;
     const toolsStart = Date.now();
     const results = await mapLimit(calls, opts.concurrency ?? 4, async (call) => {
       const spec = byName.get(call.function.name);

@@ -45,6 +45,7 @@ import { inlineMcpServer, parseReadPageOutput } from "./mcp-server";
 import type { OtariToolCall } from "./otari";
 import { otariSearch, recentEnough } from "./sources/otari-search";
 import { readPage } from "./sources/reader";
+import { GUARDRAIL_PROFILE, guardrailAvailable, SCREEN_MODEL, ScreenLog, screenText } from "./screen";
 import { forecastLine, weekForecast, type DayForecast } from "./sources/weather";
 import type { AgentRequest, MenuItem, Place, Playbook, Source, SourceKind } from "./types";
 
@@ -183,16 +184,7 @@ What to write:
 - caveats: what the data cannot tell (forecasts beyond 3 days are uncertain; event listings may be incomplete; web reviews are not a sample of all guests; nothing here measures sales — test before scaling).
 Write warmly and practically for a busy owner. LANGUAGE: every text field (headline, moments, dishes, evidence sentences, the post, the plan, caveats) must be in the language requested; only the quotes stay exactly as written in the sources, in their original language. Keep proper names as they appear.`;
 
-function countryName(code?: string): string | undefined {
-  if (!code) return undefined;
-  try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(code.toUpperCase())?.toLowerCase();
-  } catch {
-    return undefined;
-  }
-}
-
-const KIND_CHARS: Partial<Record<SourceKind, number>> = { menu: 3500, site: 3000, review: 1800, rival: 1500, news: 800, block: 1800 };
+const KIND_CHARS: Partial<Record<SourceKind, number>> = { menu: 3500, site: 3000, review: 1800, rival: 1500, news: 800, web: 1500, block: 1800 };
 
 function sourcesForPrompt(ledger: SourceLedger): string {
   return ledger.forPrompt((s) => KIND_CHARS[s.kind] ?? 700);
@@ -217,7 +209,10 @@ export interface EvidencePack {
   photoMenu: boolean;
   tavilyCredits: number;
   today?: string; // the restaurant's local date (YYYY-MM-DD) when the evidence was gathered; the forecast starts on it
+  screening?: Screening; // what Otari's prompt-injection guardrail did with the web sources
 }
+
+export type Screening = NonNullable<NonNullable<Playbook["verification"]>["screening"]>;
 
 export async function runTablecast(req: AgentRequest, emit: Emit, opts: RunOptions = {}): Promise<void> {
   const routing = opts.routing ?? defaultRouting();
@@ -264,6 +259,17 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
 
   const goal = req.goal?.trim() || "a stronger week";
   const language = req.language ?? "English";
+
+  // Every web source passes Otari's prompt-injection guardrail before it enters the ledger (src/lib/screen.ts).
+  const guardPromise = guardrailAvailable(signal).catch(() => ({ available: false, profile: GUARDRAIL_PROFILE, names: [] as string[] }));
+  const screens = new ScreenLog();
+  /** True when the source may enter the ledger: Otari's guardrail did not flag what the writer would see of it. */
+  const admit = async (kind: SourceKind, source: { url?: string; title: string; text: string }): Promise<boolean> => {
+    if (!(await guardPromise).available) return true;
+    const s = await screenText(source.text.slice(0, KIND_CHARS[kind] ?? 700), signal);
+    screens.add(s, { url: source.url, title: source.title });
+    return s.verdict !== "flagged";
+  };
 
   // ---- 1. CONTEXT ----------------------------------------------------------------------
   emit({ type: "note", text: `Locating ${req.restaurant} in ${req.city}, then reading its week.` });
@@ -352,6 +358,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
           const r = await readMenuPage(pages[0]);
           tavilyCredits += r.credits ?? 0;
           if (!r.page) throw new Error(r.failed ? "The reader could not open the page" : "The page had no text");
+          if (!(await admit("menu", { url: r.page.url, title: shortUrl(r.page.url), text: r.page.content }))) throw new Error("Withheld: Otari's prompt-injection guardrail flagged the page");
           const src = ledger.add({ kind: "menu", provider: "Tablecast reader", title: shortUrl(r.page.url), url: r.page.url, text: r.page.content });
           // Some menus are images or PDFs: a page with little text doesn't spare the search.
           const thin = r.page.content.length < 600;
@@ -455,16 +462,19 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
           // Only results tied to this restaurant's location become sources (same-name places are common), and news
           // has to be from the last two weeks.
           const fresh = r.results.filter((x) => !(purpose === "local_news" || recent) || recentEnough(x, planToday));
-          const kept = fresh.filter((x) => about(x.url, `${x.title} ${x.content}`));
+          const about_ = fresh.filter((x) => about(x.url, `${x.title} ${x.content}`));
+          const allowed = await Promise.all(about_.map((x) => admit(purposeKind[purpose], { url: x.url, title: x.title, text: x.content })));
+          const kept = about_.filter((_, i) => allowed[i]);
+          const withheld = about_.length - kept.length;
           const ids = kept.map((x) => {
             titles.set(x.url, x.title);
             return ledger.add({ kind: purposeKind[purpose], provider: "Otari web search", title: x.title, url: x.url, published: x.published_date, text: x.content }).id;
           });
-          const dropped = fresh.length - kept.length;
+          const dropped = fresh.length - about_.length;
           const stale = r.results.length - fresh.length;
           return {
             value: { kept, ids, dropped, stale },
-            summary: `${kept.length} results${dropped ? ` · ${dropped} set aside (other place)` : ""}${stale ? ` · ${stale} older than two weeks` : ""}`,
+            summary: `${kept.length} results${dropped ? ` · ${dropped} set aside (other place)` : ""}${stale ? ` · ${stale} older than two weeks` : ""}${withheld ? ` · ${withheld} withheld by Otari's guardrail` : ""}`,
             sources: ids,
           };
         });
@@ -493,10 +503,18 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
           const settled = await Promise.allSettled(urls.map((u) => readPage(u, { focus, maxChars: 6_000, signal })));
           const pages = settled.flatMap((r) => (r.status === "fulfilled" ? [{ url: r.value.url, content: r.value.text, title: r.value.title }] : []));
           const failed = urls.filter((_, i) => settled[i].status === "rejected");
-          const kept = pages.filter((x) => about(x.url, `${titles.get(x.url) ?? x.title} ${x.content}`));
-          const rejected = pages.filter((x) => !kept.includes(x)).map((x) => x.url);
+          const near = pages.filter((x) => about(x.url, `${titles.get(x.url) ?? x.title} ${x.content}`));
+          const allowed = await Promise.all(near.map((x) => admit(kind, { url: x.url, title: x.title, text: x.content })));
+          const kept = near.filter((_, i) => allowed[i]);
+          const withheld = near.length - kept.length;
+          const rejected = pages.filter((x) => !near.includes(x)).map((x) => x.url);
           const ids = kept.map((x) => ledger.add({ kind, provider: "Tablecast reader", title: titles.get(x.url) ?? x.title ?? host(x.url), url: x.url, text: x.content }).id);
-          const parts = [`${kept.length} read`, rejected.length ? `${rejected.length} set aside (other place)` : "", failed.length ? `${failed.length} failed` : ""];
+          const parts = [
+            `${kept.length} read`,
+            rejected.length ? `${rejected.length} set aside (other place)` : "",
+            withheld ? `${withheld} withheld by Otari's guardrail` : "",
+            failed.length ? `${failed.length} failed` : "",
+          ];
           return { value: { kept, ids, rejected, failed }, summary: parts.filter(Boolean).join(" · "), sources: ids };
         });
         if (!res) return "Error: could not read those pages.";
@@ -509,7 +527,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     });
 
   // The pages the model read through the Tablecast MCP server inside a research turn, as Otari reported them.
-  const onGatewayCalls = (calls: OtariToolCall[]): string | undefined => {
+  const onGatewayCalls = async (calls: OtariToolCall[]): Promise<string | undefined> => {
     const lines: string[] = [];
     for (const c of calls) {
       if (c.type !== "mcp") continue;
@@ -539,6 +557,11 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
         continue;
       }
       const kind: SourceKind = page.kind && (readKinds as readonly string[]).includes(page.kind) ? (page.kind as SourceKind) : siteHost && host(page.url) === siteHost ? "site" : "web";
+      if (!(await admit(kind, { url: page.url, title: page.title, text: page.text }))) {
+        emit({ type: "tool_end", id, tool: "read_pages", summary: "withheld by Otari's prompt-injection guardrail", error: true });
+        lines.push(`- ${page.url}: withheld, Otari's guardrail flagged it as a prompt injection`);
+        continue;
+      }
       const src = ledger.add({ kind, provider: "Tablecast reader", title: titles.get(page.url) ?? page.title, url: page.url, text: page.text });
       emit({ type: "tool_end", id, tool: "read_pages", summary: `1 read (${kind})`, sources: [src.id] });
       lines.push(`- ${src.id}: ${page.url} (${kind}, ${page.text.length} characters)`);
@@ -593,13 +616,44 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     emit({ type: "note", text: "Web research hit a problem — writing the plan from the data already gathered." });
   }
   if (tavilyCredits > 0) emit({ type: "tavily", credits: tavilyCredits });
+  const guard = await guardPromise;
+  const screening: Screening = {
+    profile: guard.profile,
+    available: guard.available,
+    screened: screens.screened,
+    passed: screens.passed,
+    unscreened: screens.unscreened,
+    flagged: screens.flagged,
+    ...(screens.reasons.size ? { reasons: [...screens.reasons] } : {}),
+  };
+  if (guard.available && screens.screened) {
+    emit({
+      type: "engine",
+      call: {
+        phase: "screen",
+        model: SCREEN_MODEL,
+        label: `Guardrail · ${guard.profile}`,
+        ms: screens.ms,
+        count: screens.calls,
+        cost_usd: screens.cost,
+        note: `${screens.screened} web sources screened: ${screens.passed} passed, ${screens.flagged.length} withheld${screens.unscreened ? `, ${screens.unscreened} could not be screened` : ""}`,
+      },
+    });
+    emit({
+      type: "note",
+      text: `🛡️ Otari's ${guard.profile} guardrail screened ${screens.screened} web source${screens.screened > 1 ? "s" : ""}: ${screens.flagged.length ? `${screens.flagged.length} withheld from the writer` : "none flagged"}${screens.unscreened ? `, ${screens.unscreened} could not be screened (kept, marked)` : ""}.`,
+    });
+  } else if (!guard.available) {
+    emit({ type: "note", text: `🛡️ This Otari deployment offers no ${guard.profile} guardrail profile, so web sources were not screened.` });
+  }
+  emit({ type: "guardrails", screening });
   if (blockLate) {
     block = await blockPromise;
     emitBlock(block ?? null);
     context = buildContext(block);
   }
 
-  return { req, goal, language, place, context, sources: ledger.list(), photoMenu: !!photoMenu?.items.length, tavilyCredits, today: planToday };
+  return { req, goal, language, place, context, sources: ledger.list(), photoMenu: !!photoMenu?.items.length, tavilyCredits, today: planToday, screening };
 }
 
 /** What happened to the claims of one plan, for the engine room and the routing eval. */
@@ -912,6 +966,7 @@ ${sourcesForPrompt(ledger)}`,
         fixed: firstAmounts.unbacked.length - amounts.unbacked.length,
         unbacked: amounts.unbacked.map((u) => ({ where: fieldLabel(u.where), amount: u.amount, ...(u.venue ? { venue: u.venue } : {}) })),
       },
+      ...(pack.screening ? { screening: pack.screening } : {}),
       dates: {
         today,
         checked: firstDates.checked,

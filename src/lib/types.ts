@@ -114,6 +114,17 @@ export type Playbook = {
     // Explicit dates in the plan's scheduling fields (day-by-day plan, moments, dishes, the event, when to post),
     // checked against the restaurant's local date: re-dated by the repair, day-plan lines dropped, the rest listed.
     dates?: { today: string; checked: number; fixed: number; dropped: number; past: { where: string; text: string }[] };
+    // Otari's prompt-injection guardrail on every web source before the writer saw it: how many passed, which were
+    // withheld (flagged), and how many could not be screened (kept, and counted here rather than passed silently).
+    screening?: {
+      profile: string;
+      available: boolean;
+      screened: number;
+      passed: number;
+      unscreened: number;
+      flagged: { url?: string; title: string }[];
+      reasons?: string[];
+    };
   };
 };
 
@@ -180,6 +191,7 @@ export type AgentEvent =
   | { type: "tavily"; credits: number }
   // Where the run goes on Otari: its session id (Otari-Conversation-Id), the API and the model name of each step.
   | { type: "otari"; run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string }
+  | { type: "guardrails"; screening: NonNullable<Playbook["verification"]>["screening"] & object }
   | { type: "error"; message: string }
   | { type: "done"; elapsed_ms: number };
 
