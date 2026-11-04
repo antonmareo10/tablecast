@@ -61,13 +61,13 @@ export function ledgerTotal(file = ledgerPath()): number {
   if (!file) return 0;
   let size = 0;
   try {
-    size = fs.statSync(file).size;
+    size = fs.statSync(/*turbopackIgnore: true*/ file).size;
   } catch {
     return 0;
   }
   if (cached && cached.file === file && cached.size === size) return cached.total;
   let total = 0;
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+  for (const line of fs.readFileSync(/*turbopackIgnore: true*/ file, "utf8").split("\n")) {
     if (!line.trim()) continue;
     try {
       const e = JSON.parse(line) as LedgerEntry;
@@ -92,8 +92,8 @@ export function recordLocalSpend(entry: LedgerEntry): void {
   const file = ledgerPath();
   if (!file) return;
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.appendFileSync(file, `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`);
+    fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(file), { recursive: true });
+    fs.appendFileSync(/*turbopackIgnore: true*/ file, `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`);
   } catch (err) {
     console.warn(`[otari-ledger] could not write ${file}: ${err instanceof Error ? err.message : err}`);
   }
