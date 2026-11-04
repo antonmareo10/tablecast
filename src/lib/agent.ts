@@ -58,7 +58,7 @@ export { isAboutPlace, placeAnchors };
 const BLOCK_RADIUS_M = 600;
 const MAX_SEARCHES = 5; // each one is an Exa search on the organization's key
 const MAX_READS = 6; // in-loop search results are leads only: what the plan cites has to be read
-const RESEARCH_BUDGET_MS = Number(process.env.RESEARCH_BUDGET_MS || 70_000);
+const RESEARCH_BUDGET_MS = Number(process.env.RESEARCH_BUDGET_MS || 90_000);
 
 // ---- Playbook schema (what the writer model must return) --------------------------------
 
@@ -665,11 +665,11 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       budgetMs: RESEARCH_BUDGET_MS,
       emit,
       signal,
-      extra: { ...(mcp ? { mcp_servers: [mcp] } : {}), ...(mcp || !directSearch ? { max_tool_iterations: 4 } : {}) },
+      extra: { ...(mcp ? { mcp_servers: [mcp] } : {}), ...(mcp || !directSearch ? { max_tool_iterations: 3 } : {}) },
       // Otari's search, with what is left of the run's search budget (max_uses is per request).
       extraTools: () => (!directSearch && searches < MAX_SEARCHES ? [{ type: "otari_web_search", max_uses: MAX_SEARCHES - searches }] : []),
       onGatewayCalls,
-      ...(mcp || !directSearch ? { turnMs: 60_000 } : {}),
+      ...(mcp || !directSearch ? { turnMs: 90_000 } : {}),
     });
   } catch (err) {
     if (signal?.aborted || isStopError(err)) throw err;
