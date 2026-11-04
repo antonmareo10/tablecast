@@ -1,4 +1,4 @@
-// node scripts/video/record-otari-demo.mjs [--test] [--no-live | --live] [--keep-frames] [--voz DIR] [--out FILE] [--base URL]
+// node scripts/video/record-otari-demo.mjs [--plan] [--test] [--no-live | --live] [--only A-B] [--keep-frames] [--voz DIR] [--out FILE] [--base URL]
 //
 // Records the Otari demo video (MozFest Developers Wilding) as a real screen recording of the deployed app and of the
 // branch on GitHub, with Antón's own recorded voice as the only audio. Nothing here generates speech or images.
@@ -33,7 +33,8 @@ const VOZ = opt("--voz", path.join(DATA, "voz"));
 const OUT_DIR = path.join(DATA, "video");
 const WORK = path.join(OUT_DIR, "work");
 const BASE = opt("--base", "https://tablecast-otari.vercel.app").replace(/\/$/, "");
-const GH_TREE = "https://github.com/antonmareo10/tablecast/tree/otari-wilding";
+// File views of the branch (not the repo page, whose About box belongs to the earlier Nebius entry)
+const GH_README = "https://github.com/antonmareo10/tablecast/blob/otari-wilding/README.md";
 const GH_SETUP = "https://github.com/antonmareo10/tablecast/blob/otari-wilding/docs/OTARI_SETUP.md";
 const FFMPEG =
   process.env.FFMPEG ??
@@ -109,6 +110,9 @@ const clips = LINES.map((text, i) => {
   return { file: null, text, dur: words / WPS, real: false, pauses: [] };
 });
 const FINAL = clips.every((c) => c.real);
+// --only A-B: record just those scenes and save check frames (for scenes that need no earlier state: 12, 13)
+const ONLY = opt("--only", null)?.split("-").map(Number).map((v, _, a) => v || a[0]);
+if (ONLY && (ONLY.length !== 2 || ONLY.some((v) => !(v >= 1 && v <= LINES.length)) || ONLY[0] > ONLY[1])) throw new Error("--only takes a range like 12-13");
 const LIVE = FINAL ? !flag("--no-live") : flag("--live");
 const OUT = path.resolve(opt("--out", path.join(OUT_DIR, FINAL ? "tablecast_otari_demo.mp4" : "tablecast_otari_demo_TEST.mp4")));
 const missing = clips.map((c, i) => (c.real ? null : String(i + 1).padStart(2, "0"))).filter(Boolean);
@@ -592,11 +596,11 @@ const SCENES = [
       await at(s.D - 0.2);
     },
   },
-  // 12 · GitHub: the branch, and the README's "Built on Otari" table
+  // 12 · GitHub, README.md on the branch: the branch name, then the "Built on Otari" table
   {
     tab: "gh",
     async prep({ gh }) {
-      await gh.page.goto(GH_TREE, { settle: 1500 });
+      await gh.page.goto(GH_README, { settle: 1500 });
       await gh.page.scrollTo(0, 10);
       await gh.page.waitFor(`!!${ghHeading("Built on Otari")}`, { timeout: 15000 });
     },
@@ -607,7 +611,7 @@ const SCENES = [
       await gh.point(branch, 900, 0.5, 0.5);
       await at(say("This table maps"));
       await gh.hl(null);
-      await gh.scrollToEl(ghHeading("Built on Otari"), 16, 1300);
+      await gh.scrollToEl(ghHeading("Built on Otari"), 100, 1300); // under the file view's sticky header
       await gh.point(`${ghTableAfter("Built on Otari")}?.querySelector('th:nth-child(3)')`, 700, 0.5, 0.5);
       const rest = Math.max(1, s.D - elapsed() - 0.7);
       const t = await gh.box(ghTableAfter("Built on Otari"));
@@ -723,6 +727,7 @@ try {
   const tabs = { app, gh };
 
   for (const [k, sc] of SCENES.entries()) {
+    if (ONLY && (k + 1 < ONLY[0] || k + 1 > ONLY[1])) continue;
     const s = scenes[k];
     const tab = tabs[sc.tab];
     // the tab comes to the front first (a hidden tab does not paint); what prep does there is not in the video
@@ -748,6 +753,25 @@ try {
   await browser.close();
 }
 if (!ok) process.exit(1);
+
+// --only: no sound or video, just two frames per recorded scene (30% and 72% in) to look at
+if (ONLY) {
+  const CHECK = path.join(OUT_DIR, "check");
+  fs.mkdirSync(CHECK, { recursive: true });
+  recorder.windows.forEach((w, j) => {
+    const n = ONLY[0] + j;
+    for (const f of [0.3, 0.72]) {
+      const t = w.start + (w.end - w.start) * f;
+      const frame = [w.first, ...w.frames].filter((x) => x.t <= t).at(-1) ?? w.first;
+      fs.copyFileSync(frame.file, path.join(CHECK, `only_scene_${String(n).padStart(2, "0")}_${Math.round(f * 100)}.jpg`));
+    }
+  });
+  fs.rmSync(FRAMES, { recursive: true, force: true });
+  console.log(`
+Frames of scenes ${ONLY.join("-")} in ${CHECK} (only_scene_*.jpg)`);
+  for (const w of warnings) console.log(`  - ${w}`);
+  process.exit(0);
+}
 
 // ---- audio: Antón's clips, aligned to the scenes ------------------------------------------------------------------
 const pre = path.join(WORK, "voice_pre.wav");
