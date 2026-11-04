@@ -80,7 +80,10 @@ export function defaultRouting(): Routing {
     reasoning: process.env.OTARI_WRITE_MODEL || POLICIES.write.name,
     vision: process.env.OTARI_VISION_MODEL || POLICIES.vision.name,
     quartermaster: process.env.OTARI_QUARTERMASTER_MODEL || POLICIES.quartermaster.name,
-    effort: (process.env.WRITER_REASONING_EFFORT as Routing["effort"]) || "medium",
+    // Low, not the medium the Nebius eval chose: on Fireworks, Ultra at medium went silent for over a minute in my first
+    // Otari run (the stall watchdog cut it) and the low-effort retry wrote the plan in 36 s. The Nebius eval had low and
+    // medium within noise of each other (84% and 84% verified after repair in v6).
+    effort: (process.env.WRITER_REASONING_EFFORT as Routing["effort"]) || "low",
   };
 }
 
@@ -380,6 +383,8 @@ export async function gather(opts: {
   onGatewayCalls?: (calls: OtariToolCall[]) => string | undefined | Promise<string | undefined>;
   /** How long one research turn may take (longer when Otari runs MCP calls inside it). */
   turnMs?: number;
+  /** Gateway-run tools to declare on each turn, e.g. otari_web_search with what is left of the search budget. */
+  extraTools?: () => Record<string, unknown>[];
 }): Promise<void> {
   const { routing, tools, emit, signal } = opts;
   const byName = new Map(tools.map((t) => [t.name, t] as const));
@@ -398,7 +403,7 @@ export async function gather(opts: {
       {
         model: m,
         messages,
-        tools: tools.map(toOpenAITool),
+        tools: [...tools.map(toOpenAITool), ...(opts.extraTools?.() ?? [])],
         tool_choice: "auto",
         temperature: 0.3,
         max_tokens: 2048,

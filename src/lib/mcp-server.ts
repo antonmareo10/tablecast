@@ -12,6 +12,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { pickMenuPages } from "./site-map";
 import { placeAnchors } from "./place";
+import { otariFetchPage } from "./sources/otari-fetch";
 import { readPage, ReaderError, siteLinks } from "./sources/reader";
 
 export const MCP_SERVER_NAME = "tablecast";
@@ -68,16 +69,17 @@ export const TOOLS = [
 const text = (t: string, isError = false): ToolResult => ({ content: [{ type: "text", text: t }], ...(isError ? { isError: true } : {}) });
 
 /** The header line format the app parses back out of `otari_tool_calls[].output` (see parseReadPageOutput). */
-export function formatReadPage(p: { url: string; title: string; text: string; chars: number; truncated: boolean; kind?: string }): string {
+export function formatReadPage(p: { url: string; title: string; text: string; chars: number; truncated: boolean; kind?: string; via?: string }): string {
   const kind = p.kind ? `KIND: ${p.kind}\n` : "";
-  return `URL: ${p.url}\nTITLE: ${p.title.replace(/\s+/g, " ")}\n${kind}LENGTH: ${p.chars} characters${p.truncated ? ", cut to the parts that match the focus" : ""}\n\n${p.text}`;
+  const via = p.via ? `VIA: ${p.via}\n` : "";
+  return `URL: ${p.url}\nTITLE: ${p.title.replace(/\s+/g, " ")}\n${kind}${via}LENGTH: ${p.chars} characters${p.truncated ? ", cut to the parts that match the focus" : ""}\n\n${p.text}`;
 }
 
 /** Reads the page's URL, title and text back from a read_page output. Null for an error or another tool's output. */
-export function parseReadPageOutput(output: string | undefined): { url: string; title: string; text: string; kind?: string } | null {
+export function parseReadPageOutput(output: string | undefined): { url: string; title: string; text: string; kind?: string; via?: string } | null {
   if (!output) return null;
-  const m = /^URL: (\S+)\nTITLE: ([^\n]*)\n(?:KIND: (\w+)\n)?LENGTH: [^\n]*\n\n([\s\S]+)$/.exec(output);
-  return m ? { url: m[1], title: m[2], text: m[4], ...(m[3] ? { kind: m[3] } : {}) } : null;
+  const m = /^URL: (\S+)\nTITLE: ([^\n]*)\n(?:KIND: (\w+)\n)?(?:VIA: ([^\n]+)\n)?LENGTH: [^\n]*\n\n([\s\S]+)$/.exec(output);
+  return m ? { url: m[1], title: m[2], text: m[5], ...(m[3] ? { kind: m[3] } : {}), ...(m[4] ? { via: m[4] } : {}) } : null;
 }
 
 export async function callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
@@ -90,6 +92,15 @@ export async function callTool(name: string, args: Record<string, unknown>, sign
       const page = await readPage(url, { focus, maxChars: READ_PAGE_MAX_CHARS, signal });
       return text(formatReadPage({ ...page, kind }));
     } catch (err) {
+      // The reader can't open PDFs or pages that refuse it; Otari's own fetcher often can.
+      if (process.env.OTARI_API_KEY && !(err instanceof ReaderError && err.kind === "blocked")) {
+        try {
+          const f = await otariFetchPage(url, { focus, maxChars: READ_PAGE_MAX_CHARS, signal });
+          return text(formatReadPage({ url: f.url, title: new URL(f.url).hostname, text: f.text, chars: f.text.length, truncated: false, kind, via: "otari web fetch" }));
+        } catch {
+          /* fall through to the reader's error */
+        }
+      }
       return text(`Could not read ${url}: ${err instanceof ReaderError ? err.message : "the page failed to load"}.`, true);
     }
   }

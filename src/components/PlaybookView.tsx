@@ -1304,6 +1304,7 @@ const PHASE_LABEL: Record<EngineCall["phase"], string> = {
   verify: "Repair failed checks",
   repair: "Repair schema",
   search: "Otari web search",
+  fetch: "Otari web fetch",
   mcp: "MCP page read",
   screen: "Guardrail check",
   code: "Code execution",

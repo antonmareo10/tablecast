@@ -13,7 +13,7 @@ vi.stubGlobal(
   vi.fn(async (input: unknown, init?: RequestInit) => {
     const call = recordCall(input, init);
     calls.push(call);
-    if (call.url.endsWith("/v1/tools")) return otariJSONResponse({ data: [{ name: "otari_code_execution", available: true }, { name: "otari_web_fetch", available: false, reason: "not_configured" }] });
+    if (call.url.endsWith("/v1/tools")) return otariJSONResponse({ object: "list", data: [{ id: "otari_web_fetch", object: "tool", available: false, reason: "workspace_disabled" }, { id: "otari_code_execution", object: "tool", available: true, reason: null }] });
     return otariJSONResponse(
       {
         choices: [{ message: { content: "DONE" } }],
@@ -97,6 +97,7 @@ describe("quartermaster", () => {
   it("finds the last JSON line a program printed", () => {
     expect(lastJsonLine('{"a":1}\nlog\n{"b":2}\n')).toEqual({ b: 2 });
     expect(lastJsonLine("nothing")).toBeNull();
+    expect(lastJsonLine('log\n{\n  "a": 1,\n  "b": [2]\n}\n')).toEqual({ a: 1, b: [2] });
   });
 
   it("reads whether the workspace can run code", async () => {

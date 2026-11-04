@@ -22,7 +22,7 @@ export type SourceKind =
   | "event"
   | "block"; // the venues around the restaurant (OpenStreetMap)
 
-export type Provider = "Tavily" | "Otari web search" | "Tablecast reader" | "Open-Meteo" | "OpenStreetMap" | "Ticketmaster" | "Nager.Date" | "Nemotron VL" | "Vision model";
+export type Provider = "Tavily" | "Otari web search" | "Otari web fetch" | "Tablecast reader" | "Open-Meteo" | "OpenStreetMap" | "Ticketmaster" | "Nager.Date" | "Nemotron VL" | "Vision model";
 
 export type Source = {
   id: string; // "S1", "S2"… — what the model cites
@@ -152,7 +152,7 @@ export type MenuItem = { name: string; price?: number | null; section?: string |
 // One model call (or one gateway tool call) made by the agent through Otari, as measured on the server: the usage
 // fields and inline cost Otari returns, the headers that say who served it, and wall-clock timing.
 export type EngineCall = {
-  phase: "baseline" | "vision" | "gather" | "synthesize" | "verify" | "repair" | "search" | "mcp" | "screen" | "code";
+  phase: "baseline" | "vision" | "gather" | "synthesize" | "verify" | "repair" | "search" | "fetch" | "mcp" | "screen" | "code";
   model: string; // the name the app asked Otari for: a routing policy ("tablecast-write") or a catalog id
   label: string; // the model that answered, readable: "Nemotron 3 Ultra", "GLM 5.2"…
   ms: number;

@@ -1,6 +1,7 @@
 // Records a REAL run of the live agent into src/data/demos.json.
-// Usage: node scripts/record-demo.mjs "Casa Lucio" "Madrid" "Fill quiet weeknights" [baseUrl]
-// MODE=economy records a run written by Nemotron Super (default: quick, Nemotron Ultra).
+// Usage: node --env-file=.env.local scripts/record-demo.mjs "Casa Lucio" "Madrid" "Fill quiet weeknights" [baseUrl]
+// MODE=economy records a run written by tablecast-economy (default: quick, tablecast-write). When the server keeps live
+// runs for its owner (LIVE_RUNS_TOKEN), the same token from the environment is sent; it is never printed.
 import fs from "node:fs";
 
 const [restaurant, city, goal, baseUrl = "http://localhost:3000"] = process.argv.slice(2);
@@ -12,7 +13,7 @@ if (!restaurant || !city) {
 const started = Date.now();
 const res = await fetch(`${baseUrl}/api/agent`, {
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", ...(process.env.LIVE_RUNS_TOKEN ? { "x-tablecast-live": process.env.LIVE_RUNS_TOKEN } : {}) },
   body: JSON.stringify({ restaurant, city, goal, mode: process.env.MODE === "economy" ? "economy" : "quick" }),
 });
 if (!res.ok || !res.body) {

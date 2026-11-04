@@ -129,7 +129,7 @@ export function SourceChip({ cites }: { cites: Cite[] }) {
   const bad = cites.some((c) => c.ok === false);
   const sources = useContext(SourcesContext);
   const src = sources.get(cite.source);
-  const label = src ? (["Tavily", "Otari web search", "Tablecast reader"].includes(src.provider) ? hostOf(src.url) ?? src.title : src.provider) : cite.source;
+  const label = src ? (["Tavily", "Otari web search", "Otari web fetch", "Tablecast reader"].includes(src.provider) ? hostOf(src.url) ?? src.title : src.provider) : cite.source;
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [keyboard, setKeyboard] = useState(false);

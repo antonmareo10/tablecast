@@ -50,12 +50,12 @@ export async function codeExecutionAvailable(signal?: AbortSignal): Promise<{ av
   try {
     const { data } = await otariJSON<unknown>("/v1/tools", { method: "GET", signal, timeoutMs: 10_000 });
     const list = (Array.isArray(data) ? data : ((data as { data?: unknown[]; tools?: unknown[] }).data ?? (data as { tools?: unknown[] }).tools ?? [])) as {
+      id?: string;
       name?: string;
-      type?: string;
       available?: boolean;
-      reason?: string;
+      reason?: string | null;
     }[];
-    const t = list.find((x) => x.name === "otari_code_execution" || x.type === "otari_code_execution");
+    const t = list.find((x) => x.id === "otari_code_execution" || x.name === "otari_code_execution");
     codeTool = { at: Date.now(), available: t ? t.available !== false : false, ...(t?.reason ? { reason: t.reason } : t ? {} : { reason: "not listed" }) };
   } catch {
     codeTool = { at: Date.now(), available: true }; // the listing failed: let the request say for itself
@@ -79,20 +79,22 @@ function task(pb: Pick<Playbook, "menu_moves" | "shopping_list" | "currency">): 
 1. Builds the supplier order: the shopping_list lines grouped by supplier_category, each group's total est_cost, and the grand total.
 2. For each dish, matches its ingredients to shopping_list lines by item name (case-insensitive; a line counts for a dish when either name contains the other or they share their main noun), sums the est_cost of the matched lines as ingredient_cost (a line used by several dishes is split evenly between them), and computes break_even_portions = ceil(ingredient_cost / price).
 3. Lists shopping_list items no dish uses (not_used) and dish ingredients with no shopping_list line (missing).
-Copy the data below into the program exactly, as a Python literal. Round money to 2 decimals. The LAST line the program prints must be one JSON object with the keys order (a list of {category, lines: [{item, qty, unit, est_cost}], total}), grand_total, dishes (a list of {dish, price, ingredient_cost, break_even_portions}) and unmatched ({not_used, missing}).
+Copy the data below into the program exactly, as a Python literal. Round money to 2 decimals. The LAST line the program prints must be one JSON object, printed with json.dumps(result) on a single line, with the keys order (a list of {category, lines: [{item, qty, unit, est_cost}], total}), grand_total, dishes (a list of {dish, price, ingredient_cost, break_even_portions}) and unmatched ({not_used, missing}).
 
 ${JSON.stringify(data)}`;
 }
 
-/** The last JSON object a program printed. */
+/** The last JSON object a program printed, on one line or pretty-printed over several. */
 export function lastJsonLine(stdout: string | undefined): unknown {
-  for (const line of (stdout ?? "").trim().split("\n").reverse()) {
-    const t = line.trim();
-    if (!t.startsWith("{")) continue;
-    try {
-      return JSON.parse(t);
-    } catch {
-      /* keep looking */
+  const lines = (stdout ?? "").trim().split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].trimStart().startsWith("{")) continue;
+    for (const candidate of [lines[i].trim(), lines.slice(i).join("\n").trim()]) {
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        /* keep looking */
+      }
     }
   }
   return null;
