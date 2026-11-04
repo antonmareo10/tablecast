@@ -533,7 +533,9 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
     const lines: string[] = [];
     for (const c of calls) {
       if (c.type !== "mcp") continue;
-      const tool = (c.name ?? "").replace(/^.*[._:]/, "");
+      // Otari may prefix a tool with its server's name ("tablecast__read_page"); the tool names end the string.
+      const name = c.name ?? "";
+      const tool = /find_menu_pages$/.test(name) ? "find_menu_pages" : /read_page$/.test(name) ? "read_page" : name;
       const id = `mcp-${c.id}`;
       if (tool === "find_menu_pages") {
         emit({ type: "tool_start", id, tool: "site_map", label: "Finding a site's menu pages (Tablecast MCP, via Otari)", input: {} });
