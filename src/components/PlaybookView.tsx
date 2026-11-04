@@ -10,6 +10,7 @@ import { competitorPriceFlags, unbackedLabel } from "@/lib/amounts";
 import { IconAlert, IconArrow, IconBasket, IconCheck, IconDownload, IconMap, IconMegaphone, IconMusic, IconPlate, IconSpark, IconTrend, IconUsers } from "./icons";
 import { CopyButton, CountUp, EvidenceLine, Pill, Section, SourcesProvider } from "./ui";
 import ShareAssets from "./ShareAssets";
+import { OtariPanel, SandboxOrder, type OtariLive } from "./OtariPanel";
 import { CursorLight, EASE_OUT, REVEAL, Reveal, SPRING, STAGGER, SeenGate, scrollToEl, usePillClip, useReveal } from "./motion";
 import { useToast } from "./toast";
 import { WeatherIcon } from "./weather";
@@ -33,8 +34,7 @@ export type LiveState = {
   writer?: string; // the model writing the plan, as the agent announced it or Otari reported it
   researcher?: string; // the model that answered the research turns
   checker?: string; // the model that answered the repair calls
-  otari?: { run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string };
-};
+} & OtariLive;
 
 function money(v: number, currency: string): string {
   try {
@@ -156,7 +156,7 @@ export default function PlaybookView({
 
             <ActHeader id="act-launch" n={3} title="Launch" subtitle="Print-ready specials, the supplier order and the plan for the next 7 days." />
             <ShareAssets playbook={p} language={language} />
-            <ShoppingList playbook={p} />
+            <ShoppingList playbook={p} report={live.quartermaster} />
             {p.week_plan.length > 0 && <WeekPlan playbook={p} />}
 
             {p.caveats.length > 0 && (
@@ -181,6 +181,7 @@ export default function PlaybookView({
           </>
         )}
 
+        {live.engine.length > 0 && <OtariPanel calls={live.engine} live={live} />}
         {live.engine.length > 0 && <EngineRoom calls={live.engine} tavilyCredits={live.tavilyCredits} running={running} />}
       </div>
     </SourcesProvider>
@@ -720,7 +721,7 @@ function MenuNow({ menu, sources, currency }: { menu: NonNullable<LiveState["men
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
         On your menu now ·{" "}
         {menu.from === "photo" ? (
-          "read from your photo by Nemotron Super VL"
+          "read from your photo by the vision model"
         ) : menu.url ? (
           <a href={menu.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
             from your website
@@ -786,7 +787,7 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
   );
 }
 
-/** The plan as Nemotron streams it: each field fades in the moment it exists in the partial JSON. */
+/** The plan as the writer streams it: each field fades in the moment it exists in the partial JSON. */
 function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; writer?: string }) {
   const headline = typeof draft.headline === "string" ? draft.headline : "";
   const moves = Array.isArray(draft.menu_moves) ? (draft.menu_moves as Array<Record<string, unknown>>) : [];
@@ -811,7 +812,7 @@ function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; write
     >
       <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-olive">
         <span aria-hidden className="pulse-dot h-1.5 w-1.5 rounded-full bg-terracotta" />
-        Drafting live · {writer ?? "Nemotron"}
+        Drafting live · {writer ?? "the writer"}
       </p>
       <AnimatePresence mode="wait" initial={false}>
         {headline ? (
@@ -976,7 +977,7 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
   );
 }
 
-function ShoppingList({ playbook: p }: { playbook: Playbook }) {
+function ShoppingList({ playbook: p, report }: { playbook: Playbook; report?: LiveState["quartermaster"] }) {
   const toast = useToast();
   if (!p.shopping_list.length) return null;
   const total = p.shopping_list.reduce((s, i) => s + (i.est_cost || 0), 0);
@@ -1065,6 +1066,7 @@ function ShoppingList({ playbook: p }: { playbook: Playbook }) {
           </tfoot>
         </table>
       </div>
+      {report && <SandboxOrder report={report} money={money} />}
     </Section>
   );
 }
@@ -1086,8 +1088,8 @@ function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook
   const v = p.verification;
   // Name the models from the run itself (older recordings used Lightning for the baseline).
   const base = engine.find((c) => c.phase === "baseline");
-  const without = base?.label ?? "Nemotron";
-  const writer = engine.findLast((c) => c.phase === "synthesize")?.label ?? "Nemotron";
+  const without = base?.label ?? "the writer";
+  const writer = engine.findLast((c) => c.phase === "synthesize")?.label ?? "the writer";
   const same = without === writer;
   // The receipt for each side, from the run's own telemetry: the generic answer is one call; the plan is everything else.
   const rest = engine.filter((c) => c !== base);
@@ -1098,7 +1100,7 @@ function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook
     <Section
       icon={<IconSpark size={16} />}
       kicker="Why live data matters"
-      title={same ? `Same ${writer}, with and without the week` : "Nemotron with and without the week"}
+      title={same ? `Same ${writer}, with and without the week` : "The same writer, with and without the week"}
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-line bg-paper/40 p-4">
@@ -1222,7 +1224,7 @@ function SourcesLedger({
                 <>
                   <CountUp value={v.fixed ?? 0} whenVisible /> / <CountUp value={v.dropped ?? 0} whenVisible />
                 </>,
-                "one Nemotron repair pass, re-checked by code",
+                "one repair pass (tablecast-check), re-checked by code",
               ],
               [
                 "Verified now",

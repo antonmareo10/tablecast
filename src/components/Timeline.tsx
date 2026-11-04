@@ -14,14 +14,14 @@ export type Step = {
   error?: boolean;
   summary?: string;
   sources?: string[];
-  provider?: string; // overrides the per-tool default, e.g. which Nemotron drafts the plan
+  provider?: string; // overrides the per-tool default, e.g. which model drafts the plan
 };
 
 export type TimelineItem =
   | { kind: "step"; step: Step }
   | { kind: "note"; text: string; key: string };
 
-/** A Nemotron model's part in the run, as the agent's own events report it. */
+/** A model's part in the run, as the agent's own events report it. */
 export type ModelChip = { key: string; model: string; role: string; state: "waiting" | "active" | "done" };
 
 /** Live counters and stage, all derived from the run's events (nothing estimated on the client). */
@@ -30,6 +30,7 @@ export type AgentStatus = {
   chips: ModelChip[];
   sources: number;
   tavily?: number;
+  searches?: number;
   tokens: number;
   cost: number;
 };
@@ -90,16 +91,16 @@ export default function Timeline({
             )}
           </span>
         </div>
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Nemotron models in this run">
+        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Models in this run">
           {agent.chips.map((c) => (
             <ModelPill key={c.key} chip={c} />
           ))}
         </ul>
         <dl className="mt-3 grid grid-cols-4 divide-x divide-line overflow-hidden rounded-xl border border-line bg-paper/50 text-center">
           <Counter label="Sources" value={agent.sources} />
-          <Counter label="Tavily" hint=" credits" value={agent.tavily} />
+          {agent.searches != null || agent.tavily == null ? <Counter label="Searches" value={agent.searches} /> : <Counter label="Tavily" hint=" credits" value={agent.tavily} />}
           <Counter label="Tokens" value={agent.tokens} format={(n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n)))} />
-          <Counter label="Est. cost" value={agent.cost} format={(n) => `$${n.toFixed(3)}`} decimals={4} />
+          <Counter label="Cost" value={agent.cost} format={(n) => `$${n.toFixed(3)}`} decimals={4} />
         </dl>
       </header>
       <ol
@@ -201,11 +202,12 @@ const PROVIDER: Record<string, string> = {
   forecast: "Open-Meteo",
   holidays: "Nager.Date",
   events: "Ticketmaster",
-  web_search: "Tavily",
-  read_pages: "Tavily",
-  site_map: "Tavily",
-  menu_photo: "Nemotron Super VL",
-  draft_playbook: "Nemotron",
+  web_search: "Otari search",
+  read_pages: "Tablecast reader",
+  site_map: "Tablecast reader",
+  menu_photo: "Vision model",
+  draft_playbook: "Writer",
+  code_execution: "Otari sandbox",
 };
 
 function StatusIcon({ step, running }: { step: Step; running: boolean }) {

@@ -16,8 +16,8 @@ import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } fr
 // Routing measured in eval/SUMMARY.md: Ultra at medium effort has the best average and is fast; Super costs a third to a half of Quick on the
 // tuning set and 43–63% on held-out restaurants, verifies close to Quick within run-to-run noise (69% vs 79% in the latest round), but is slower.
 const MODES = [
-  { id: "quick", label: "Quick", hint: "Nemotron Ultra · ~1–2 min, best average in my eval" },
-  { id: "economy", label: "Economy", hint: "Nemotron Super · ~2–3 min, about half to two thirds the cost" },
+  { id: "quick", label: "Quick", hint: "tablecast-write · Nemotron 3 Ultra on Otari" },
+  { id: "economy", label: "Economy", hint: "tablecast-economy · Nemotron 3 Super, cheaper" },
 ] as const;
 
 const LANGUAGES = [
@@ -33,7 +33,7 @@ const SAMPLES: AgentRequest[] = [
   { restaurant: "Gjelina", city: "Los Angeles", goal: "Win more lunch covers" },
 ];
 
-const PROVIDERS = ["NVIDIA Nemotron", "Nebius Token Factory", "Tavily", "OpenStreetMap", "Open-Meteo", "Nager.Date", "Ticketmaster"];
+const PROVIDERS = ["Otari by Mozilla.ai", "Nemotron 3 Ultra", "Qwen3 235B", "gpt-oss-120b", "OpenStreetMap", "Open-Meteo", "Nager.Date", "Ticketmaster"];
 
 const MAX_PHOTO_EDGE = 1600;
 
@@ -193,7 +193,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
           <span className="font-display text-xl tracking-tight">Tablecast</span>
         </Link>
         <nav className="flex items-center gap-4 text-xs text-muted">
-          <span className="hidden sm:inline">Live local data × NVIDIA Nemotron</span>
+          <span className="hidden sm:inline">Live local data × open-weight models on Otari</span>
           <Link
             href="/about"
             className="group inline-flex min-h-9 items-center gap-1 rounded-full border border-line bg-card/60 px-3 text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
@@ -334,7 +334,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-2">
                 <span>Writer</span>
-                <Segmented label="Which Nemotron writes the plan" options={MODES} value={form.mode ?? "quick"} onChange={(mode) => setForm({ ...form, mode })} />
+                <Segmented label="Which writer plans the week" options={MODES} value={form.mode ?? "quick"} onChange={(mode) => setForm({ ...form, mode })} />
                 <span className="text-muted">{MODES.find((md) => md.id === (form.mode ?? "quick"))?.hint}</span>
               </div>
               <button
@@ -379,10 +379,10 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
             <div className="order-4 flex flex-wrap items-center gap-2 text-[12px] text-muted lg:order-none">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-olive" />
-                Runs on <strong className="font-medium text-ink-2">NVIDIA Nemotron</strong> · Nebius Token Factory
+                Every model call through <strong className="font-medium text-ink-2">Otari</strong> · open-weight models
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">⚡ Lightning researches · 👁 Super VL reads menus · 🧠 Ultra or Super writes</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">🔎 Live web by Tavily</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">⚡ Qwen3 researches · 🧠 Nemotron Ultra or Super writes · 🧮 gpt-oss computes the order</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">🛡️ Every web page screened by Otari guardrails</span>
             </div>
 
             {!started && (
@@ -395,14 +395,15 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                     </span>
                     <span className="sr-only">88 percent</span>
                   </div>
-                  <div className="mt-1 text-[11px] text-muted">verified claims right · read in full</div>
+                  <div className="mt-1 text-[11px] text-muted">verified claims right · Nebius version, read in full</div>
                 </div>
                 <p className="text-[13px] leading-snug text-ink-2">
                   <span className="font-semibold text-ink">Measured, not promised.</span> On 8 restaurants it was never tuned on, I read every claim
                   the plans show as verified: 186 of 212 were right, 19 had a minor slip, 7 were wrong (a sampled audit gave 94 of 100). On new
                   restaurants, 69–80% of claims pass the strict code check after one repair pass (82–88% on the 8 I tuned on): every number and
                   nearly every word must be in the sentences they cite, and every price and date in the plan is checked. What fails is marked, not
-                  hidden. A plan costs a few cents of inference ·{" "}
+                  hidden. These figures were measured on the Nebius version of Tablecast (Nemotron on Nebius, the same verifier); this Otari
+                  version uses other open-weight models for research and the reader, and has not been re-measured ·{" "}
                   <a
                     href="https://github.com/antonmareo10/tablecast/blob/main/eval/AUDIT.md"
                     target="_blank"
@@ -466,8 +467,8 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
       <footer className="no-print border-t border-line pt-5 pb-6 text-center text-xs leading-relaxed text-muted">
         <Marquee items={PROVIDERS} />
         <p className="mt-4 px-4 sm:px-6">
-          Built for the Nebius × NVIDIA Global AI Hackathon · Reasoning by NVIDIA Nemotron on Nebius Token Factory · Web research by Tavily · Map data
-          © OpenStreetMap contributors · Weather by Open-Meteo
+          Built for MozFest Developers Wilding (Mozilla.ai) · Every model call, web search, guardrail check and sandbox run through Otari · Open-weight
+          models on Otari’s hosted providers · Map data © OpenStreetMap contributors · Weather by Open-Meteo
         </p>
       </footer>
     </div>
@@ -545,6 +546,17 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
       case "otari":
         live.otari = { run_id: ev.run_id, api: ev.api, routing: ev.routing, missing: ev.missing, end_user: ev.end_user };
         break;
+      case "budget": {
+        const line = { end_user: ev.end_user, spend: ev.spend, limit: ev.limit, budget: ev.budget, period: ev.period, before: ev.before };
+        live.budget = { ...live.budget, [ev.stage]: line };
+        break;
+      }
+      case "guardrails":
+        live.screening = ev.screening;
+        break;
+      case "quartermaster":
+        live.quartermaster = ev.report;
+        break;
       case "engine":
         live.engine = [...live.engine, ev.call];
         if (ev.call.phase === "synthesize") live.writer = ev.call.label;
@@ -563,6 +575,12 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
     }
   });
 
+  // Pages read through the Tablecast MCP server (inside Otari's tool loop) or by the in-process reader.
+  for (const st of steps.values()) {
+    if (st.tool !== "read_pages" || !st.done || st.error || !st.sources?.length) continue;
+    if (/Tablecast MCP/.test(st.label)) live.mcpReads = (live.mcpReads ?? 0) + st.sources.length;
+    else live.inProcessReads = (live.inProcessReads ?? 0) + st.sources.length;
+  }
   const state = (s: number): ModelChip["state"] => (stage === s ? "active" : stage > s ? "done" : "waiting");
   // Older recordings (the Nebius version) name Nemotrons; Otari runs name whatever model Otari says answered.
   const short = (l?: string) => l?.replace(/^Nemotron (3\.?5? )?/, "");
@@ -576,6 +594,7 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
     chips,
     sources: Math.max(seenSources.size, live.sources.length),
     tavily: live.tavilyCredits,
+    searches: live.engine.filter((c) => c.phase === "search").length,
     tokens: live.engine.reduce((n, c) => n + (c.prompt_tokens ?? 0) + (c.completion_tokens ?? 0), 0),
     cost: live.engine.reduce((n, c) => n + (c.cost_usd ?? c.est_cost_usd ?? 0), 0),
   };
@@ -730,7 +749,7 @@ function HowItWorks() {
   const steps = [
     ["Your week", "The 7-day forecast at your door, public holidays, and the concerts and matches within 5 km."],
     ["Your block", "Every restaurant, bar and café within 600 m from OpenStreetMap — who serves your cuisine next door."],
-    ["The live web", "An agent reads your menu, what guests and critics say, local news and a rival’s prices, with Tavily."],
+    ["The live web", "An agent searches the web through Otari and reads your menu, what guests and critics say, local news and a rival’s prices."],
     ["A plan you can check", "Three dishes, an event, a post and a supplier order — every cited claim linked to the sentence it stands on and checked in code."],
   ];
   return (

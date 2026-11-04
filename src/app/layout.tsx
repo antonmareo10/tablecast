@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
   title: "Tablecast · plan your restaurant's week with what's happening around you",
   description:
-    "An AI agent on NVIDIA Nemotron that reads your restaurant's week — forecast, events, your block, your menu, what guests say online — and turns it into dishes to test, an event, a post and a supplier order, every cited claim checked against its source.",
+    "An AI agent on open-weight models, every call through the Otari gateway, that reads your restaurant's week — forecast, events, your block, your menu, what guests say online — and turns it into dishes to test, an event, a post and a supplier order, every cited claim checked against its source.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

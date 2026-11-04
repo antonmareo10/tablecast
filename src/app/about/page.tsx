@@ -6,7 +6,7 @@ import { Reveal } from "@/components/motion";
 export const metadata: Metadata = {
   title: "How it works · Tablecast",
   description:
-    "How Tablecast plans a restaurant's week on NVIDIA Nemotron and Nebius Token Factory: model routing, live web research with Tavily, open data, and claims verified in code.",
+    "How Tablecast plans a restaurant's week on open-weight models through Otari: routing policies with fallbacks, web search, an MCP page reader, guardrails, a code sandbox, per-restaurant budgets, and claims verified in code.",
 };
 
 const SOURCES = {
@@ -19,27 +19,32 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   {
     step: "1 · Context",
     who: "Code, in parallel",
-    what: "Locates the restaurant on OpenStreetMap, then fetches the 7-day forecast (Open-Meteo), public holidays (Nager.Date), events within 5 km (Ticketmaster) and every food & drink venue within 600 m (OpenStreetMap). Each item becomes a numbered source.",
+    what: "Locates the restaurant on OpenStreetMap, then fetches the 7-day forecast (Open-Meteo), public holidays (Nager.Date), events within 5 km (Ticketmaster) and every food & drink venue within 600 m (OpenStreetMap). Each item becomes a numbered source. The reader opens the restaurant's own menu page.",
   },
   {
     step: "2 · Menu photo",
-    who: "Nemotron 3.5 Super VL",
+    who: "Qwen3 VL 235B, through Otari",
     what: "If the owner uploads a photo of the menu, the vision model transcribes dishes and prices into a structured list through a forced function call.",
   },
   {
     step: "3 · Research",
-    who: "Nemotron 3.5 Lightning + Tavily",
-    what: "A fast agent loop (reasoning off) decides what to look up: the restaurant’s site and current menu, what guests and critics say, local news for the coming days, a same-cuisine rival’s prices. It searches, picks pages and reads them with Tavily Search and Extract; tools requested in one turn run in parallel.",
+    who: "tablecast-research (Qwen3 235B) + Otari web search + the Tablecast MCP server",
+    what: "An agent loop decides what to look up: the restaurant’s site and current menu, what guests and critics say, local news for the coming days, a same-cuisine rival’s prices. It searches through Otari’s search API and reads pages with the Tablecast MCP server, which Otari connects to it inside its tool loop. Every page and search result passes Otari’s prompt-injection guardrail before it can become a source.",
   },
   {
     step: "4 · Write",
-    who: "Nemotron 3 Ultra (Quick) or Nemotron 3 Super (Economy)",
-    what: "The owner picks the writer: Ultra at medium reasoning effort, fast and the best average in my eval (Quick: about 1–2 minutes end to end, the writer itself ~30 s), or Super at medium effort, for roughly half to two thirds of the cost on new restaurants but slower (Economy: about 2–3 minutes; if it runs out of time, Ultra takes over). Its verified share was close to Quick’s in earlier rounds, and 69% against 79% in the latest. It writes the plan as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on.",
+    who: "tablecast-write (Nemotron 3 Ultra) or tablecast-economy (Nemotron 3 Super)",
+    what: "The writer plans the week as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on. If Ultra fails, Otari falls back to GLM 5.2 and then Mistral Large 3; once a restaurant has used 60% of its weekly budget, Otari routes its writer to Nemotron 3 Super.",
   },
   {
     step: "5 · Verify",
-    who: "Code, then Ultra once",
-    what: "Code checks that every cited sentence exists, that every number in the claim appears in it, and that it says what the claim says (its specific words; numbers and names only when the page is written in another language). Claims about the restaurant must cite pages about it, an add-on goes with the dish it belongs to, and no date in the plan may fall before today. Failures go to Nemotron Ultra (low effort) once — one small call per claim, in parallel — with candidate sentences; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
+    who: "Code, then tablecast-check once",
+    what: "Code checks that every cited sentence exists, that every number in the claim appears in it, and that it says what the claim says (its specific words; numbers and names only when the page is written in another language). Claims about the restaurant must cite pages about it, an add-on goes with the dish it belongs to, and no date in the plan may fall before today. Failures go to the checker once, one small call per claim, in parallel, with candidate sentences; a fix is kept only if it passes the same check. What still fails is shown as unverified.",
+  },
+  {
+    step: "6 · Supplier order",
+    who: "tablecast-quartermaster (gpt-oss-120b) + Otari’s code sandbox",
+    what: "A model writes one Python program that groups the order by supplier, totals it and works out how many portions of each new dish pay for its ingredients; Otari runs it in its sandbox. The app shows the program’s own output and checks in code that every sum matches the plan’s lines.",
   },
 ];
 
@@ -78,7 +83,7 @@ export default function About() {
       </Block>
 
       <Block title="The pipeline">
-        <p>Every step runs on the model that suits it, on Nebius Token Factory. All model calls are measured and shown in the app’s engine room.</p>
+        <p>Every step asks Otari for a routing policy, and Otari picks the open-weight model and provider that serve it. Every call, with the model that answered and what it cost, is shown in the app’s engine room.</p>
         <ol className="mt-4 space-y-3">
           {PIPELINE.map((p, i) => (
             <Reveal as="li" key={p.step} delay={i * 0.06} y={12} className="rounded-2xl border border-line bg-card p-4">
@@ -91,9 +96,9 @@ export default function About() {
         </ol>
       </Block>
 
-      <Block title="Which Nemotron writes, measured">
+      <Block title="Which Nemotron writes, measured on the Nebius version">
         <p>
-          On 25 Oct I had seven strategies plan the same 8 restaurants from the same evidence, with the design committed before the run: each of
+          These numbers come from the Nebius version of Tablecast, before it moved to Otari: Nemotron on Nebius Token Factory, the same verifier. On 25 Oct I had seven strategies plan the same 8 restaurants from the same evidence, with the design committed before the run: each of
           Ultra, Super, Lightning and Nano writing and repairing alone, and the three smaller ones writing with Ultra repairing. 56 plans cost
           $2.14 of inference.
         </p>
@@ -138,7 +143,8 @@ export default function About() {
             fetched in that run, and failures are shown, not hidden.
           </li>
           <li>
-            <strong>Web pages are data, never instructions.</strong> Fetched text is passed to the models as quoted sources with an explicit rule to
+            <strong>Web pages are data, never instructions.</strong> Every page and search result passes Otari’s prompt-injection guardrail before the
+            writer sees it, and flagged ones are withheld and listed. Fetched text is passed to the models as quoted sources with an explicit rule to
             ignore instructions inside them, and the agent can only search and read — it cannot post, buy or send anything.
           </li>
           <li>
@@ -146,11 +152,15 @@ export default function About() {
             individual guests.
           </li>
           <li>
+            <strong>Spend has a ceiling.</strong> Each restaurant is an Otari end user with its own weekly budget, the app’s key has a monthly one, and
+            a run that a restaurant can’t afford is refused before anything is spent.
+          </li>
+          <li>
             <strong>The owner decides.</strong> Dishes are bets to test for a week; nothing is ordered or posted without the owner.
           </li>
           <li>
             <strong>Credit where it’s due.</strong> Map data © OpenStreetMap contributors (ODbL), weather by Open-Meteo (CC BY 4.0), holidays by
-            Nager.Date, events by Ticketmaster, web research by Tavily.
+            Nager.Date, events by Ticketmaster, models, web search, guardrails and the code sandbox through Otari by Mozilla.ai.
           </li>
         </ul>
       </Block>

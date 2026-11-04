@@ -107,7 +107,7 @@ export default function ReplayWeek({ demos, onPlay, className = "" }: { demos: D
           <strong className="font-semibold text-ink">{run.restaurant}</strong>, {run.city} · recorded {recorded(run.recordedAt)}
           {week.writer ? (
             <span className="ml-1.5 inline-flex rounded-full border border-line bg-paper/70 px-2 py-px align-[1px] text-[11px] font-medium text-ink-2">
-              {week.writer === "economy" ? "Economy · Nemotron Super" : "Quick · Nemotron Ultra"}
+              {week.writer === "economy" ? "Economy · Nemotron Super" : "Quick · Nemotron Ultra"}{week.otari ? " · on Otari" : " · Nebius version"}
             </span>
           ) : null}
           {run.goal ? <span className="block text-muted">Goal: “{run.goal}”</span> : null}
