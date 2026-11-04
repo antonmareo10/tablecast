@@ -669,6 +669,13 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       // Otari's search, with what is left of the run's search budget (max_uses is per request).
       extraTools: () => (!directSearch && searches < MAX_SEARCHES ? [{ type: "otari_web_search", max_uses: MAX_SEARCHES - searches }] : []),
       onGatewayCalls,
+      // Small models sometimes reply READY after reading only the menu; a plan needs what guests say and what is on.
+      beforeReady: () => {
+        const kinds = new Set(ledger.list().map((s) => s.kind));
+        const missing = [!kinds.has("review") && "what guests and critics say (reviews)", !kinds.has("news") && "what is on near the restaurant in the coming days (local news)"].filter(Boolean);
+        if (!missing.length || (searches >= MAX_SEARCHES && reads >= MAX_READS)) return undefined;
+        return `Not ready yet: no page read so far covers ${missing.join(" or ")}. Search for it and read the best page with ${readTool}, then reply READY.`;
+      },
       ...(mcp || !directSearch ? { turnMs: 90_000 } : {}),
     });
   } catch (err) {

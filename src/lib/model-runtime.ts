@@ -388,7 +388,10 @@ export async function gather(opts: {
   turnMs?: number;
   /** Gateway-run tools to declare on each turn, e.g. otari_web_search with what is left of the search budget. */
   extraTools?: () => Record<string, unknown>[];
+  /** Asked once when the model says READY: a reply sends it back to work (e.g. it read too little to plan from). */
+  beforeReady?: () => string | undefined;
 }): Promise<void> {
+  let nudged = false;
   const { routing, tools, emit, signal } = opts;
   const byName = new Map(tools.map((t) => [t.name, t] as const));
   const messages: ChatMessage[] = [
@@ -443,7 +446,7 @@ export async function gather(opts: {
     if (!msg) break;
     const note = cleanText(msg.content);
     if (note && note.toUpperCase() !== "READY") emit({ type: "note", text: note.slice(0, 240) });
-    messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
+    messages.push({ role: "assistant", content: msg.content ?? null, ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) });
 
     const calls = msg.tool_calls ?? [];
     const gateway = (res.data.otari_tool_calls ?? []).filter((c) => c.status !== "in_progress");
@@ -479,7 +482,15 @@ export async function gather(opts: {
         ...(calls.length ? { tools_ms: Date.now() - toolsStart } : {}),
       }),
     });
-    if (!calls.length) break; // READY
+    if (!calls.length) {
+      // READY. Once, if the research is too thin to plan from, the model is sent back with what is missing.
+      const nudge = !nudged && turn < opts.maxTurns - 1 && Date.now() - started < opts.budgetMs ? opts.beforeReady?.() : undefined;
+      if (!nudge) break;
+      nudged = true;
+      if (gatewayNote) messages.push({ role: "user", content: gatewayNote });
+      messages.push({ role: "user", content: nudge });
+      continue;
+    }
     // Every tool refused for budget reasons: the research is over whatever the model thinks.
     if (results.every((r) => /budget used up/.test(r))) break;
   }

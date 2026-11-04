@@ -58,6 +58,27 @@ describe("Otari web search", () => {
   });
 });
 
+describe("research that stops too early", () => {
+  it("sends the model back once with what is missing, then accepts READY", async () => {
+    script.turns = [{ choices: [{ message: { content: "READY", tool_calls: [] } }] }, { choices: [{ message: { content: "READY" } }] }];
+    let asked = 0;
+    await gather({
+      routing,
+      system: "s",
+      user: "u",
+      tools: [],
+      maxTurns: 4,
+      budgetMs: 10_000,
+      emit: () => undefined,
+      beforeReady: () => (++asked === 1 ? "Not ready yet: read a review." : undefined),
+    });
+    expect(calls).toHaveLength(2);
+    const history = calls[1].body?.messages as { role: string; content: string; tool_calls?: unknown }[];
+    expect(history.at(-1)).toEqual({ role: "user", content: "Not ready yet: read a review." });
+    expect(history.at(-2)?.tool_calls).toBeUndefined(); // an empty tool_calls list is not sent back
+  });
+});
+
 describe("research turns with the Tablecast MCP server inside Otari", () => {
   it("names the MCP server on every turn, hands Otari's MCP outputs to the app and tells the model what became a source", async () => {
     const output = formatReadPage({ url: "https://www.gjelina.com/los-angeles-menus", title: "Menus", text: "Pomodoro 22", chars: 11, truncated: false, kind: "menu" });
