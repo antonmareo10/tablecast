@@ -5,6 +5,7 @@
 // the prompt-injection guardrail did with the web sources, the pages read through the Tablecast MCP server, and the
 // supplier order computed in Otari's code sandbox. Nothing here is estimated: every figure is one Otari reported.
 
+import { useState } from "react";
 import type { EngineCall, Playbook } from "@/lib/types";
 import type { QuartermasterReport } from "@/lib/quartermaster";
 import { IconAlert, IconCheck, IconSpark } from "./icons";
@@ -162,6 +163,7 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
               )}
             </>
           )}
+          <GuardrailCheck />
         </div>
         <div className="rounded-xl border border-line bg-paper/40 p-3 text-[12px] leading-relaxed text-ink-2">
           <p className="mb-1 font-semibold text-ink">Web search and MCP</p>
@@ -185,6 +187,47 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
         </div>
       </div>
     </Section>
+  );
+}
+
+type CheckResult = { profile: string; available: boolean; samples: { id: string; label: string; text: string; verdict: string; score: number | null; reason: string | null; ms: number }[] };
+
+/** Sends a clean review and a poisoned copy of it through the same Otari guardrail check, live (/api/guardrail-check). */
+function GuardrailCheck() {
+  const [state, setState] = useState<{ busy: boolean; result?: CheckResult; error?: string }>({ busy: false });
+  const run = async () => {
+    setState({ busy: true });
+    try {
+      const res = await fetch("/api/guardrail-check", { method: "POST" });
+      const body = (await res.json()) as CheckResult & { error?: string };
+      setState(res.ok ? { busy: false, result: body } : { busy: false, error: body.error ?? `HTTP ${res.status}` });
+    } catch {
+      setState({ busy: false, error: "The check could not reach the server." });
+    }
+  };
+  return (
+    <div className="mt-2 border-t border-line pt-2">
+      <button
+        type="button"
+        onClick={run}
+        disabled={state.busy}
+        className="min-h-8 rounded-full border border-line bg-paper px-3 text-[11px] font-medium text-ink-2 transition-[color,border-color] hover:border-ink-2/40 hover:text-ink disabled:opacity-60"
+      >
+        {state.busy ? "Asking Otari…" : "Try it: send a poisoned review through the same check"}
+      </button>
+      {state.error && <p className="mt-1 text-terracotta">{state.error}</p>}
+      {state.result && !state.result.available && <p className="mt-1">This deployment offers no {state.result.profile} profile.</p>}
+      {state.result?.samples.map((x) => (
+        <p key={x.id} className="mt-1">
+          <span className={x.verdict === "flagged" ? "font-semibold text-terracotta" : x.verdict === "passed" ? "font-semibold text-olive" : "font-semibold"}>
+            {x.verdict === "flagged" ? "Blocked by Otari" : x.verdict === "passed" ? "Passed" : "Not screened"}
+          </span>{" "}
+          · {x.label}
+          {x.score != null ? ` · score ${x.score.toFixed(2)}` : ""}
+          {x.reason ? ` · ${x.reason}` : ""} · {x.ms} ms
+        </p>
+      ))}
+    </div>
   );
 }
 
