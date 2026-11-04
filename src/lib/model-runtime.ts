@@ -52,6 +52,14 @@ export interface Routing {
   effort: "low" | "medium" | "high";
   writerMaxMs?: number; // how long one writing attempt may take
   fallback?: string; // model for the one retry, if not the writer itself
+  // false: the writer's requests carry no reasoning_effort. Bedrock refuses the parameter for non-Claude models (400),
+  // which made every Economy request fail over to its second candidate until I stopped sending it.
+  writerEffort?: boolean;
+}
+
+/** The reasoning_effort field for a request to `model`, or nothing where the routing says the writer takes none. */
+export function effortFor(routing: Routing, model: string, effort: string): { reasoning_effort?: string } {
+  return model === routing.reasoning && routing.writerEffort === false ? {} : { reasoning_effort: effort };
 }
 
 // The policies the app asks Otari for, and the catalog id each falls back to when the workspace has no such policy.
@@ -83,6 +91,7 @@ export function economyRouting(): Routing {
     ...base,
     reasoning: process.env.OTARI_ECONOMY_MODEL || POLICIES.economy.name,
     effort: "medium",
+    writerEffort: false,
     writerMaxMs: 170_000,
     fallback: base.reasoning,
   };
@@ -516,7 +525,7 @@ export async function synthesize(opts: {
         ],
         tools: [toOpenAITool(opts.tool)],
         tool_choice: { type: "function", function: { name: opts.tool.name } },
-        reasoning_effort: effort,
+        ...effortFor(routing, model, effort),
         temperature: 0.4,
         max_tokens: opts.maxTokens ?? 28000,
       },
@@ -615,7 +624,7 @@ export async function synthesize(opts: {
       ...(ttft != null ? { ttft_ms: ttft } : {}),
       ...(estimated ? { usage_estimated: true } : {}),
       served,
-      note: `reasoning_effort ${effort}${finish === "loop" ? " · cut: reasoning loop detected" : finish === "error" ? ` · server error: ${serverError}` : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
+      note: `${effortFor(routing, model, effort).reasoning_effort ? `reasoning_effort ${effort}` : "model's default reasoning"}${finish === "loop" ? " · cut: reasoning loop detected" : finish === "error" ? ` · server error: ${serverError}` : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
     }),
   });
   if (!args.trim()) return { value: null, finish, served };
@@ -997,7 +1006,7 @@ export async function baseline(prompt: string, routing: Routing, emit: Emit, sig
     "baseline",
     {
       model: routing.reasoning,
-      reasoning_effort: "low",
+      ...effortFor(routing, routing.reasoning, "low"),
       max_tokens: 3000,
       temperature: 0.6,
       messages: [{ role: "user", content: prompt }],
