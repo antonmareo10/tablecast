@@ -20,7 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { writeAndVerify, type EvidencePack, type WriteReport } from "../src/lib/agent";
-import { defaultRouting } from "../src/lib/nebius-agent";
+import { defaultRouting } from "../src/lib/model-runtime";
 import type { AgentEvent, EngineCall, Playbook, Source } from "../src/lib/types";
 import { argList, argOne, loadRestaurants, median, pct, readPack, RESULTS, ROOT, secs, slugOf } from "./eval-common";
 import { planMetrics, tavilyOnlyFacts, withoutTavily, type PlanMetrics } from "./tavily-ablation";

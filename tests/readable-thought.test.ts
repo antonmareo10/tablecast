@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readableThought } from "../src/lib/nebius-agent";
+import { readableThought } from "../src/lib/model-runtime";
 
 describe("readableThought", () => {
   it("returns the last whole sentence", () => {

@@ -488,14 +488,14 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
     switch (ev.type) {
       case "note": {
         items.push({ kind: "note", text: ev.text, key: `note-${i}` });
-        // The writer is Ultra (Quick) or Super (Economy), and Ultra may take over a retry: the agent says which.
-        const writer = /^🧠 (Nemotron [\w. ]+?) is writing your week/.exec(ev.text) ?? / — (Nemotron [\w. ]+?) takes over/.exec(ev.text);
+        // The writer is tablecast-write (Quick) or tablecast-economy, and the Quick writer may take over a retry: the agent says which.
+        const writer = /^🧠 (.+?) is writing your week/.exec(ev.text) ?? / — ([\w. -]+?) takes over \(/.exec(ev.text);
         if (writer) live.writer = writer[1];
         if (/researching the live web/.test(ev.text)) stage = Math.max(stage, 1);
         if (writer) stage = Math.max(stage, 2);
         if (/^🔎 Verifier/.test(ev.text)) {
           stage = Math.max(stage, 3);
-          if (/sending them to|asking Nemotron/.test(ev.text)) repairing = repaired = true;
+          if (/sending (them|it) to|asking /.test(ev.text)) repairing = repaired = true;
           else repairing = false;
         }
         break;
@@ -542,9 +542,14 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
       case "playbook_draft":
         live.draft = ev.draft;
         break;
+      case "otari":
+        live.otari = { run_id: ev.run_id, api: ev.api, routing: ev.routing, missing: ev.missing, end_user: ev.end_user };
+        break;
       case "engine":
         live.engine = [...live.engine, ev.call];
         if (ev.call.phase === "synthesize") live.writer = ev.call.label;
+        if (ev.call.phase === "gather") live.researcher ??= ev.call.label;
+        if (ev.call.phase === "verify") live.checker = ev.call.label;
         if (ev.call.phase === "gather") stage = Math.max(stage, 1);
         if (ev.call.phase === "synthesize") stage = Math.max(stage, 2);
         break;
@@ -559,10 +564,12 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
   });
 
   const state = (s: number): ModelChip["state"] => (stage === s ? "active" : stage > s ? "done" : "waiting");
-  const chips: ModelChip[] = [{ key: "research", model: "Lightning", role: "researches", state: state(1) }];
-  if (vision) chips.push({ key: "vision", model: "Super VL", role: "reads the menu", state: vision.done ? "done" : "active" });
-  chips.push({ key: "write", model: live.writer?.replace(/^Nemotron /, "") ?? "Nemotron", role: "writes", state: state(2) });
-  if (repaired) chips.push({ key: "repair", model: "Ultra", role: "repairs", state: repairing && stage < 4 ? "active" : "done" });
+  // Older recordings (the Nebius version) name Nemotrons; Otari runs name whatever model Otari says answered.
+  const short = (l?: string) => l?.replace(/^Nemotron (3\.?5? )?/, "");
+  const chips: ModelChip[] = [{ key: "research", model: short(live.researcher) ?? "Researcher", role: "researches", state: state(1) }];
+  if (vision) chips.push({ key: "vision", model: "Vision", role: "reads the menu", state: vision.done ? "done" : "active" });
+  chips.push({ key: "write", model: short(live.writer) ?? "Writer", role: "writes", state: state(2) });
+  if (repaired) chips.push({ key: "repair", model: short(live.checker) ?? "Checker", role: "repairs", state: repairing && stage < 4 ? "active" : "done" });
 
   const agent: AgentStatus = {
     stage,
@@ -570,7 +577,7 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
     sources: Math.max(seenSources.size, live.sources.length),
     tavily: live.tavilyCredits,
     tokens: live.engine.reduce((n, c) => n + (c.prompt_tokens ?? 0) + (c.completion_tokens ?? 0), 0),
-    cost: live.engine.reduce((n, c) => n + (c.est_cost_usd ?? 0), 0),
+    cost: live.engine.reduce((n, c) => n + (c.cost_usd ?? c.est_cost_usd ?? 0), 0),
   };
   return { items, live, agent };
 }

@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { gatherEvidence, writeAndVerify, type EvidencePack, type WriteReport } from "../src/lib/agent";
-import { defaultRouting, type Routing } from "../src/lib/nebius-agent";
+import { defaultRouting, type Routing } from "../src/lib/model-runtime";
 import type { AgentEvent, AgentRequest, EngineCall, Playbook } from "../src/lib/types";
 import { argList as arg, argOne, dishMetrics, loadRestaurants, median, pct, readPack, RESULTS as OUT, ROOT, secs, slugOf } from "./eval-common";
 

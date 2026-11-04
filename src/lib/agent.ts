@@ -1,16 +1,17 @@
 // Tablecast agent: one weekly playbook for one restaurant, built from what is happening
-// around it this week and checked claim by claim.
+// around it this week and checked claim by claim. Every model call goes through the Otari gateway
+// (src/lib/model-runtime.ts), each step on the routing policy that suits it.
 //
 //   1. CONTEXT  (code, in parallel)  — locate the restaurant (OpenStreetMap), then the 7-day
 //      forecast (Open-Meteo), public holidays (Nager.Date), events nearby (Ticketmaster), the
 //      venues on its block (OpenStreetMap) and, if the owner sent one, the menu photo
-//      (Nemotron Super VL). Every item becomes a numbered source.
-//   2. RESEARCH (Nemotron Lightning) — decides what to look up on the live web with Tavily:
-//      the restaurant's own site and menu, what guests and critics say, what's on locally this
-//      week, a nearby rival's prices. Search → pick pages → read them.
-//   3. WRITE    (Nemotron Ultra)     — the playbook, every claim citing a source id + verbatim quote.
-//   4. VERIFY   (code + Lightning)   — quotes must appear word for word in their source and every
-//      number must be in a cited source; failures get one repair pass, re-checked by code.
+//      (a vision model via Otari). Every item becomes a numbered source.
+//   2. RESEARCH (tablecast-research) — decides what to look up on the live web: the restaurant's
+//      own site and menu, what guests and critics say, what's on locally this week, a nearby
+//      rival's prices. Search → pick pages → read them.
+//   3. WRITE    (tablecast-write)    — the playbook, every claim citing numbered sentences.
+//   4. VERIFY   (code + tablecast-check) — cited sentences must exist and contain every number
+//      and nearly every word of the claim; failures get one repair pass, re-checked by code.
 
 import { z } from "zod";
 import { allowedAmounts, attributionContext, blockVenueNames, fieldLabel, proseFields, unbackedAmounts } from "./amounts";
@@ -24,6 +25,7 @@ import {
   defaultRouting,
   ensureSchema,
   gather,
+  isStopError,
   modelLabel,
   readMenuPhoto,
   repairAmounts,
@@ -34,7 +36,7 @@ import {
   type EvidenceGroup,
   type Routing,
   type ToolSpec,
-} from "./nebius-agent";
+} from "./model-runtime";
 import { eventsNear, eventLine, type NearbyEvent } from "./sources/events";
 import { geocodeCity, geocodePlace } from "./sources/geo";
 import { holidayLine, upcomingHolidays, type Holiday } from "./sources/holidays";
@@ -216,7 +218,7 @@ export async function runTablecast(req: AgentRequest, emit: Emit, opts: RunOptio
   const routing = opts.routing ?? defaultRouting();
   const goal = req.goal?.trim() || "a stronger week";
   const language = req.language ?? "English";
-  // The generic, no-data answer from the same fast Nemotron — shown side by side at the end.
+  // The generic, no-data answer from the writer's model — shown side by side at the end.
   const baselinePromise = baseline(
     baselinePrompt(req.restaurant, req.city, goal, language),
     routing,
@@ -230,7 +232,7 @@ export async function runTablecast(req: AgentRequest, emit: Emit, opts: RunOptio
   await baselinePromise;
 }
 
-/** What the owner would get asking the same Nemotron without Tablecast: no tools, no data (shown side by side). */
+/** What the owner would get asking the same model without Tablecast: no tools, no data (shown side by side). */
 export function baselinePrompt(restaurant: string, city: string, goal: string, language: string): string {
   return `I own the restaurant "${restaurant}" in ${city}. My goal this week: ${goal}. Suggest three dishes to add this week and one event idea. Plain text, max 90 words, no markdown. Answer in ${language}.`;
 }
@@ -391,7 +393,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
           if (!m || !m.items.length) throw new Error("Could not read the menu photo");
           const src = ledger.add({
             kind: "menu",
-            provider: "Nemotron VL",
+            provider: "Vision model",
             title: "Your menu (from the photo you uploaded)",
             text: m.items.map((i) => `${i.section ? `${i.section}: ` : ""}${i.name}${i.price != null ? ` — ${i.price}` : ""}`).join("\n"),
           });
@@ -414,7 +416,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
   const blockLate = block === undefined;
   if (!blockLate) emitBlock(block ?? null);
 
-  // ---- 2. RESEARCH (Nemotron Lightning + Tavily) ---------------------------------------------
+  // ---- 2. RESEARCH (tablecast-research + web tools) ---------------------------------------------
   const country = countryName(place.country_code);
   const titles = new Map<string, string>();
   const siteHost = place.website ? host(place.website) : null;
@@ -540,7 +542,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
       signal,
     });
   } catch (err) {
-    if (signal?.aborted) throw err;
+    if (signal?.aborted || isStopError(err)) throw err;
     console.error("[research] failed:", err instanceof Error ? err.message : err);
     emit({ type: "note", text: "Web research hit a problem — writing the plan from the data already gathered." });
   }
@@ -613,7 +615,7 @@ export async function writeAndVerify(pack: EvidencePack, emit: Emit, opts: RunOp
     playbook: null,
   };
 
-  // ---- 3. WRITE (Nemotron Ultra) ------------------------------------------------------------------
+  // ---- 3. WRITE (tablecast-write) ------------------------------------------------------------------
   emit({ type: "sources", sources: ledger.list().map(publicSource) });
   emit({ type: "note", text: `🧠 ${modelLabel(routing.reasoning)} is writing your week from ${ledger.size} sources…` });
   let draftId: string | null = null;
@@ -704,7 +706,7 @@ ${sourcesForPrompt(ledger)}`,
       text: `🔎 Verifier: ${moved} quote${moved > 1 ? "s were" : " was"} found word for word in a different source than cited — re-attributed.`,
     });
   report.repaired = await repairCitations({ groups, ledger, routing, emit, signal, maxMs: left() - 5_000 }).catch((err) => {
-    if (signal?.aborted) throw err;
+    if (signal?.aborted || isStopError(err)) throw err;
     emit({ type: "note", text: "🔎 Verifier: the repair pass did not finish in time — claims that failed the check stay marked unverified." });
     return { failing: 0, fixed: 0, dropped: 0 };
   });

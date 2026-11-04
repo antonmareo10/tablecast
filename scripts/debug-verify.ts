@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { writeAndVerify, type EvidencePack } from "../src/lib/agent";
-import { defaultRouting, type Routing } from "../src/lib/nebius-agent";
+import { defaultRouting, type Routing } from "../src/lib/model-runtime";
 import type { AgentEvent, Evidence } from "../src/lib/types";
 
 const [slug, model, effort] = process.argv.slice(2);

@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { DayForecast, EngineCall, Evidence, Holiday, MenuItem, NearbyEvent, Place, Playbook, Source, Venue } from "@/lib/types";
-import { PRICES_RETRIEVED, PRICES_SOURCE } from "@/lib/nebius-pricing";
 import { formatMm } from "@/lib/sources/format";
 import { cleanMenu, dropContradictedPrices } from "@/lib/menu";
 import { competitorPriceFlags, unbackedLabel } from "@/lib/amounts";
@@ -31,7 +30,10 @@ export type LiveState = {
   draft?: Record<string, unknown>;
   engine: EngineCall[];
   tavilyCredits?: number;
-  writer?: string; // the Nemotron writing the plan, as the agent announced it
+  writer?: string; // the model writing the plan, as the agent announced it or Otari reported it
+  researcher?: string; // the model that answered the research turns
+  checker?: string; // the model that answered the repair calls
+  otari?: { run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string };
 };
 
 function money(v: number, currency: string): string {
@@ -1089,9 +1091,9 @@ function Compare({ baseline, playbook: p, engine }: { baseline: string; playbook
   const same = without === writer;
   // The receipt for each side, from the run's own telemetry: the generic answer is one call; the plan is everything else.
   const rest = engine.filter((c) => c !== base);
-  const planUsd = rest.reduce((s, c) => s + (c.est_cost_usd ?? 0), 0);
+  const planUsd = rest.reduce((s, c) => s + costOf(c), 0);
   const planCalls = rest.reduce((n, c) => n + callCount(c), 0);
-  const baseUsd = base?.est_cost_usd;
+  const baseUsd = base ? (base.cost_usd ?? base.est_cost_usd) : undefined;
   return (
     <Section
       icon={<IconSpark size={16} />}
@@ -1299,7 +1301,16 @@ const PHASE_LABEL: Record<EngineCall["phase"], string> = {
   synthesize: "Write the plan",
   verify: "Repair failed checks",
   repair: "Repair schema",
+  search: "Otari web search",
+  mcp: "MCP page read",
+  screen: "Guardrail check",
+  code: "Code execution",
 };
+
+/** What a call cost: Otari's own figure (usage.cost_usd); runs recorded on the Nebius version kept an estimate. */
+function costOf(c: EngineCall): number {
+  return c.cost_usd ?? c.est_cost_usd ?? 0;
+}
 
 function usd(v: number): string {
   if (v === 0) return "$0";
@@ -1324,25 +1335,29 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
     m.outTok += c.completion_tokens ?? 0;
     m.reason += c.reasoning_tokens ?? 0;
     m.ms += c.ms;
-    m.usd += c.est_cost_usd ?? 0;
+    m.usd += costOf(c);
     byModel.set(c.model, m);
   }
   const totalUsd = [...byModel.values()].reduce((s, m) => s + m.usd, 0);
   const totalTok = [...byModel.values()].reduce((s, m) => s + m.inTok + m.outTok, 0);
   const synth = calls.findLast((c) => c.phase === "synthesize");
+  const onOtari = calls.some((c) => c.cost_usd != null || c.served);
   return (
     <Section
       icon={<IconSpark size={16} />}
-      kicker="Engine room · NVIDIA Nemotron on Nebius Token Factory"
-      title={running ? "Model calls so far" : `This plan cost ≈ $${totalUsd.toFixed(3)} in inference`}
+      kicker={onOtari ? "Engine room · open-weight models through Otari" : "Engine room · recorded on the Nebius version"}
+      title={running ? "Model calls so far" : onOtari ? `This plan cost $${totalUsd.toFixed(3)} on Otari` : `This plan cost ≈ $${totalUsd.toFixed(3)} in inference`}
     >
       <p className="mb-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-        Each step runs on the Nemotron that suits it: Lightning (fast, no reasoning) drives the research loop, Super VL reads menu photos, Ultra (Quick) or
-        Super (Economy) writes the plan, and Ultra repairs failed citations. Token counts come from Token Factory’s <code>usage</code> field; cost multiplies them by the published per-token prices (
-        <a href={PRICES_SOURCE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-          catalog
-        </a>
-        , {PRICES_RETRIEVED}).
+        {onOtari ? (
+          <>
+            Every step asks Otari for a routing policy, not a model: tablecast-research drives the research loop, tablecast-write (Quick) or
+            tablecast-economy writes the plan, tablecast-check repairs what failed a code check. Otari picks the open-weight model and provider, falls
+            back to the next one when a call fails, and says in its response headers who answered. Costs are Otari’s own figures (<code>usage.cost_usd</code>).
+          </>
+        ) : (
+          <>Recorded before the move to Otari: token counts from Nebius Token Factory’s <code>usage</code> field, cost estimated from its published prices.</>
+        )}
       </p>
       <EngineTimeline calls={calls} />
       {/* Phone: one card per model, cost first; the full table from sm up. */}
@@ -1389,7 +1404,7 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
               <th className="py-2 pr-3 text-right font-semibold">Tokens in</th>
               <th className="py-2 pr-3 text-right font-semibold">Tokens out</th>
               <th className="py-2 pr-3 text-right font-semibold">Time</th>
-              <th className="py-2 text-right font-semibold">Est. cost</th>
+              <th className="py-2 text-right font-semibold">{onOtari ? "Cost" : "Est. cost"}</th>
             </tr>
           </thead>
           <tbody>
@@ -1431,7 +1446,15 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
               <span className="w-5 tabular-nums">{i + 1}.</span>
               <span className="text-ink-2">{PHASE_LABEL[c.phase]}</span>
               <span>· {c.label}</span>
+              {c.served?.provider && (
+                <span>
+                  · {c.model} → {c.served.provider}
+                  {c.served.attempts && c.served.attempts > 1 ? `, ${c.served.attempts} attempts` : ""}
+                  {c.served.fallback ? ", fallback served it" : ""}
+                </span>
+              )}
               <span>· {fmtMs(c.ms)}</span>
+              {c.cost_usd != null && <span>· {usd(c.cost_usd)}</span>}
               {c.ttft_ms != null && <span>· first token {fmtMs(c.ttft_ms)}</span>}
               {c.tool_calls != null && (
                 <span>
@@ -1452,7 +1475,7 @@ function EngineRoom({ calls, tavilyCredits, running }: { calls: EngineCall[]; ta
       </details>
       <p className="mt-3 text-[12px] text-muted">
         {synth?.completion_tokens && synth.ms
-          ? `${synth.label.replace(/^Nemotron /, "")} streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. `
+          ? `${synth.label} streamed ${Math.round(synth.completion_tokens / (synth.ms / 1000))} tokens/s for the plan. `
           : ""}
         {tavilyCredits ? `Web research used ${tavilyCredits} Tavily credit${tavilyCredits === 1 ? "" : "s"}. ` : ""}
         {calls.some((c) => c.usage_estimated)

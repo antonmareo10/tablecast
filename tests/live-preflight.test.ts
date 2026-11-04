@@ -1,29 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { otariJSONResponse, recordCall, type Recorded } from "./helpers/otari-mock";
 
-// Before a live run, one tiny Nebius call checks that inference works. A rejected key or an empty
-// account stops the run at once with a plain "paused" message, and nothing else is called.
-const { create, behaviour } = vi.hoisted(() => {
-  process.env.NEBIUS_API_KEY = "test-key";
+// Before a live run, one free Otari call (GET /v1/models) checks the key and which routing policies exist. A rejected
+// key stops the run at once with a plain "paused" message, and nothing else is called.
+const { calls, behaviour } = vi.hoisted(() => {
+  process.env.OTARI_API_KEY = "otk_test";
   process.env.TAVILY_API_KEY = "test-key";
-  return { create: [] as string[], behaviour: { fail: null as null | (() => Error) } };
+  return { calls: [] as Recorded[], behaviour: { models: "ok" as "ok" | "401" } };
 });
 
-vi.mock("openai", async (importOriginal) => {
-  const actual = (await importOriginal()) as { default: new (opts: Record<string, unknown>) => object };
-  class FakeOpenAI extends actual.default {
-    chat = {
-      completions: {
-        create: (body: { model: string }) => {
-          create.push(body.model);
-          return behaviour.fail ? Promise.reject(behaviour.fail()) : Promise.resolve({ choices: [{ message: { content: "OK" } }] });
-        },
-      },
-    };
-  }
-  return { ...actual, default: FakeOpenAI };
-});
-
-import OpenAI from "openai";
+vi.stubGlobal(
+  "fetch",
+  vi.fn(async (input: unknown, init?: RequestInit) => {
+    const call = recordCall(input, init);
+    calls.push(call);
+    if (behaviour.models === "401") return otariJSONResponse({ detail: "Invalid API key" }, { status: 401 });
+    return otariJSONResponse({ data: [{ id: "tablecast-research" }, { id: "tablecast-write" }, { id: "nvidia/nemotron-3-ultra-550b-a55b" }] });
+  }),
+);
+afterAll(() => vi.unstubAllGlobals());
 
 const post = async () => {
   vi.resetModules();
@@ -40,32 +35,30 @@ const post = async () => {
 };
 
 beforeEach(() => {
-  create.length = 0;
-  behaviour.fail = null;
+  calls.length = 0;
+  behaviour.models = "ok";
 });
 
 describe("live-run preflight", () => {
-  it("stops before any research when Nebius is out of credit, and pauses live runs", async () => {
-    behaviour.fail = () => OpenAI.APIError.generate(402, { message: "Insufficient balance" }, "402 Insufficient balance", new Headers());
+  it("stops before any research when Otari rejects the key, and pauses live runs", async () => {
+    behaviour.models = "401";
     const { res, limits } = await post();
     expect(res.status).toBe(503);
-    expect(((await res.json()) as { error: string }).error).toMatch(/^Live runs are paused: this demo's inference budget is used up/);
-    expect(create).toHaveLength(1); // only the one-token check, no research or writing
+    expect(((await res.json()) as { error: string }).error).toMatch(/^Live runs are paused: Otari rejected this demo's API key/);
+    expect(calls).toHaveLength(1); // only the free model listing
+    expect(calls[0].url).toBe("https://eu.api.otari.ai/api/v1/models");
     expect(limits.liveRunsDisabled()).toMatch(/paused/);
   });
 
-  it("stops the same way when the key is rejected", async () => {
-    behaviour.fail = () => OpenAI.APIError.generate(401, { message: "Incorrect API key provided" }, "401 Incorrect API key provided", new Headers());
-    const { res } = await post();
-    expect(res.status).toBe(503);
-    expect(((await res.json()) as { error: string }).error).toMatch(/rejected this demo's API key/);
-  });
-
-  it("treats a slow model or a server error as temporary (the run's own fallbacks handle it)", async () => {
-    const { isAccountError } = await import("@/lib/limits");
-    expect(isAccountError(OpenAI.APIError.generate(503, { message: "Service unavailable" }, "503", new Headers()))).toBe(false);
-    expect(isAccountError(OpenAI.APIError.generate(429, { message: "Too many requests" }, "429", new Headers()))).toBe(false);
-    expect(isAccountError(new OpenAI.APIConnectionTimeoutError())).toBe(false);
-    expect(isAccountError(OpenAI.APIError.generate(429, { message: "You exceeded your current quota" }, "429 quota", new Headers()))).toBe(true);
+  it("keeps the workspace's routing policies and swaps a missing one for its catalog id", async () => {
+    vi.resetModules();
+    const { resolveRouting, defaultRouting, resetModelCache } = await import("@/lib/model-runtime");
+    resetModelCache();
+    const { routing, missing } = await resolveRouting(defaultRouting());
+    expect(routing.fast).toBe("tablecast-research");
+    expect(routing.reasoning).toBe("tablecast-write");
+    expect(routing.repair).toBe("nvidia/nemotron-3-ultra-550b-a55b"); // tablecast-check is not in the listing
+    expect(routing.quartermaster).toBe("openai/gpt-oss-120b");
+    expect(missing).toEqual(["tablecast-check", "tablecast-quartermaster"]);
   });
 });

@@ -1,7 +1,8 @@
 import { runTablecast } from "@/lib/agent";
 import { acquireLiveRun, clientIp, describeLiveFailure, isAccountError, liveRunsDisabled } from "@/lib/limits";
-import { checkInference, defaultRouting, economyRouting, nebiusConfigured, type Routing } from "@/lib/nebius-agent";
+import { defaultRouting, economyRouting, inferenceConfigured, resolveRouting, type Routing } from "@/lib/model-runtime";
 import { encodeLine } from "@/lib/ndjson";
+import { newRunId, OTARI_API, withRun, type RunTag } from "@/lib/otari";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
   if (body.menu_photo && !req.menu_photo) {
     return Response.json({ error: "The menu photo must be a JPEG, PNG or WebP under 2 MB." }, { status: 400 });
   }
-  if (!nebiusConfigured() || !process.env.TAVILY_API_KEY) {
+  if (!inferenceConfigured() || !process.env.TAVILY_API_KEY) {
     return Response.json({ error: "Live mode is not configured on this server. Open one of the recorded real runs instead." }, { status: 503 });
   }
   const disabled = liveRunsDisabled();
@@ -78,17 +79,21 @@ export async function POST(request: Request) {
   if (!gate.ok) return Response.json({ error: gate.reason }, { status: 429 });
 
   const started = Date.now();
-  const routing = routingOverride(request) ?? (req.mode === "economy" ? economyRouting() : undefined);
-  // A rejected key or an empty account fails here in about a second, before any research is paid for.
-  // Anything else (a slow model, a 5xx) is left to the run, which has its own fallbacks.
+  let routing: Routing = routingOverride(request) ?? (req.mode === "economy" ? economyRouting() : defaultRouting());
+  let missing: string[] = [];
+  // A rejected key fails here in about a second (GET /v1/models costs nothing), before any research is paid for.
+  // The same call tells which of the app's routing policies the workspace has; a missing one runs on its catalog id.
   try {
-    await checkInference((routing ?? defaultRouting()).fast, request.signal);
+    ({ routing, missing } = await resolveRouting(routing, request.signal));
   } catch (err) {
     if (isAccountError(err)) {
       gate.release();
       return Response.json({ error: describeLiveFailure(err) }, { status: 503 });
     }
+    // Anything else (a slow listing, a 5xx) is left to the run, which has its own fallbacks.
   }
+  // Every Otari request of this run carries the same Otari-Conversation-Id, so the run is one session in Otari's traces.
+  const tag: RunTag = { id: newRunId() };
   // Publish before the platform's limit (maxDuration), leaving room to stream the end of the run.
   const deadline = Date.now() + (maxDuration - 15) * 1000;
   const stream = new ReadableStream<Uint8Array>({
@@ -103,7 +108,10 @@ export async function POST(request: Request) {
         }
       };
       try {
-        await runTablecast(req, emit, { routing, deadline, signal: request.signal });
+        emit({ type: "otari", run_id: tag.id, api: OTARI_API, routing: { research: routing.fast, write: routing.reasoning, check: routing.repair ?? routing.reasoning, vision: routing.vision }, missing });
+        if (missing.length)
+          emit({ type: "note", text: `Otari has no ${missing.join(", ")} routing polic${missing.length > 1 ? "ies" : "y"} in this workspace yet: ${missing.length > 1 ? "those steps run" : "that step runs"} on the model's catalog id instead.` });
+        await withRun(tag, () => runTablecast(req, emit, { routing, deadline, signal: request.signal }));
       } catch (err) {
         emit({ type: "error", message: describeLiveFailure(err) });
       }

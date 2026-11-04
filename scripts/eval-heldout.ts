@@ -17,7 +17,7 @@ import path from "node:path";
 import { baselinePrompt, packToday, type EvidencePack } from "../src/lib/agent";
 import { moneyIn } from "../src/lib/amounts";
 import { pastDates, scheduleFields } from "../src/lib/dates";
-import { baseline, defaultRouting, type Routing } from "../src/lib/nebius-agent";
+import { baseline, defaultRouting, type Routing } from "../src/lib/model-runtime";
 import type { AgentEvent, EngineCall, Playbook } from "../src/lib/types";
 import { argOne, loadRestaurants, median, menuTextOf, onMenu, pct, readPack, RESULTS, ROOT, secs, slugOf } from "./eval-common";
 

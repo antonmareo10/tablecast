@@ -1,9 +1,11 @@
 // Best-effort abuse protection for the public demo (per server instance).
-// Live runs call paid APIs, so we cap concurrency, per-IP rate and a daily budget, and pause live runs
-// when Nebius rejects the key or the account is out of credit, so visitors are sent straight to the
-// recorded runs (offered next to every error) instead of waiting for a run that can't finish.
+// Live runs spend real money through Otari, so we cap concurrency, per-IP rate and a daily number of runs, and pause
+// live runs when Otari rejects the key or the account is out of funds, so visitors are sent straight to the recorded
+// runs (offered next to every error) instead of waiting for a run that can't finish. Spend itself is capped by Otari:
+// a budget on the key, and one budget per restaurant (see docs/OTARI_SETUP.md).
 
-import OpenAI from "openai";
+import { isOtariError, type OtariError } from "./otari";
+import { isLocalCapError } from "./otari-ledger";
 
 const PER_IP_PER_HOUR = Number(process.env.LIVE_RUNS_PER_IP_PER_HOUR || 4);
 const DAILY_CAP = Number(process.env.LIVE_RUNS_DAILY_CAP || 80);
@@ -67,32 +69,57 @@ export function acquireLiveRun(ip: string): Gate {
   };
 }
 
-/**
- * Turns a Nebius Token Factory failure (OpenAI-compatible SDK errors) into a plain message for the visitor.
- * Key and credit problems also pause live runs on this instance, because every following run would fail the same way.
- */
-/** True when Nebius rejected the key or the account is out of credit: retrying won't help. */
+/** True when Otari rejected the key, the account is out of funds, or the app's own spend cap is reached: retrying won't help. */
 export function isAccountError(err: unknown): boolean {
-  if (err instanceof OpenAI.AuthenticationError || err instanceof OpenAI.PermissionDeniedError) return true;
-  return err instanceof OpenAI.APIError && (err.status === 402 || /insufficient|balance|credit|quota|billing|payment/i.test(err.message));
+  if (isLocalCapError(err)) return true;
+  if (!isOtariError(err)) return false;
+  if (err.status === 401 || err.status === 402 || err.code === "insufficient_funds" || err.code === "not_configured") return true;
+  // A budget on the key, its workspace or the organization refuses every run; a restaurant's own budget only its own.
+  return err.code === "budget_exceeded" && err.budgetScope !== "user";
 }
 
+function resetsIn(err: OtariError): string {
+  const s = err.retryAfterS;
+  if (!s) return "";
+  const h = Math.round(s / 3600);
+  return h >= 24 ? ` It resets in about ${Math.round(h / 24)} day${Math.round(h / 24) === 1 ? "" : "s"}.` : h >= 1 ? ` It resets in about ${h} hour${h === 1 ? "" : "s"}.` : " It resets within the hour.";
+}
+
+/**
+ * Turns an Otari failure into a plain message for the visitor. Key, funds and app-wide budget problems also pause
+ * live runs on this instance, because every following run would fail the same way.
+ */
 export function describeLiveFailure(err: unknown): string {
-  if (err instanceof OpenAI.AuthenticationError || err instanceof OpenAI.PermissionDeniedError) {
+  if (isLocalCapError(err)) {
     console.warn(`[tablecast] live runs paused: ${err.message}`);
-    const msg = "Live runs are paused: Nebius rejected this demo's API key. Every recorded run is a real run and plays instantly.";
+    const msg = "Live runs are paused: this machine reached its local spending cap for Otari. Every recorded run is a real run and plays instantly.";
     pauseLiveRuns(msg);
     return msg;
   }
-  if (err instanceof OpenAI.APIError && (err.status === 402 || /insufficient|balance|credit|quota|billing|payment/i.test(err.message))) {
-    console.warn(`[tablecast] live runs paused: ${err.message}`);
-    const msg = "Live runs are paused: this demo's inference budget is used up. Every recorded run is a real run and plays instantly.";
-    pauseLiveRuns(msg);
-    return msg;
-  }
-  if (err instanceof OpenAI.RateLimitError) return "Nebius Token Factory is rate-limiting this demo. Try again in a minute, or open a recorded run.";
-  if (err instanceof OpenAI.APIConnectionError || err instanceof OpenAI.InternalServerError) {
-    return "Nebius Token Factory isn't answering right now. Try again shortly, or open a recorded run.";
+  if (isOtariError(err)) {
+    if (err.code === "budget_exceeded" && err.budgetScope === "user")
+      return `This restaurant has used its weekly AI budget on Otari, so the run was stopped before it could spend more.${resetsIn(err)} Recorded runs are always available.`;
+    if (err.code === "budget_exceeded") {
+      console.warn(`[tablecast] live runs paused: ${err.message}`);
+      const msg = `Live runs are paused: this demo's Otari budget is used up.${resetsIn(err)} Every recorded run is a real run and plays instantly.`;
+      pauseLiveRuns(msg);
+      return msg;
+    }
+    if (err.status === 401 || err.code === "not_configured") {
+      console.warn(`[tablecast] live runs paused: ${err.message}`);
+      const msg = "Live runs are paused: Otari rejected this demo's API key. Every recorded run is a real run and plays instantly.";
+      pauseLiveRuns(msg);
+      return msg;
+    }
+    if (err.status === 402 || err.code === "insufficient_funds") {
+      console.warn(`[tablecast] live runs paused: ${err.message}`);
+      const msg = "Live runs are paused: this demo's Otari balance is used up. Every recorded run is a real run and plays instantly.";
+      pauseLiveRuns(msg);
+      return msg;
+    }
+    if (err.status === 429) return "Otari is rate-limiting this demo. Try again in a minute, or open a recorded run.";
+    if (err.status === 0 || err.status >= 500) return "Otari or its model providers aren't answering right now. Try again shortly, or open a recorded run.";
+    return `Otari refused the request (${err.code ?? err.status}). Try again, or open a recorded run.`;
   }
   return err instanceof Error ? err.message : "Unexpected error";
 }

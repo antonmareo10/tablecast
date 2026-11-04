@@ -21,7 +21,7 @@ export type SourceKind =
   | "event"
   | "block"; // the venues around the restaurant (OpenStreetMap)
 
-export type Provider = "Tavily" | "Open-Meteo" | "OpenStreetMap" | "Ticketmaster" | "Nager.Date" | "Nemotron VL";
+export type Provider = "Tavily" | "Otari web search" | "Tablecast reader" | "Open-Meteo" | "OpenStreetMap" | "Ticketmaster" | "Nager.Date" | "Nemotron VL" | "Vision model";
 
 export type Source = {
   id: string; // "S1", "S2"… — what the model cites
@@ -136,13 +136,12 @@ export type MenuItem = { name: string; price?: number | null; section?: string |
 
 // ---- Engine telemetry ------------------------------------------------------------------
 
-// One model call made by the agent, as measured on the server (Nebius Token Factory usage
-// fields + wall-clock timing). Nothing here is estimated except `est_cost_usd`, which
-// multiplies the measured tokens by the published per-token price.
+// One model call (or one gateway tool call) made by the agent through Otari, as measured on the server: the usage
+// fields and inline cost Otari returns, the headers that say who served it, and wall-clock timing.
 export type EngineCall = {
-  phase: "baseline" | "vision" | "gather" | "synthesize" | "verify" | "repair";
-  model: string; // exact Token Factory model id
-  label: string; // "Nemotron Lightning", "Nemotron Ultra"…
+  phase: "baseline" | "vision" | "gather" | "synthesize" | "verify" | "repair" | "search" | "mcp" | "screen" | "code";
+  model: string; // the name the app asked Otari for: a routing policy ("tablecast-write") or a catalog id
+  label: string; // the model that answered, readable: "Nemotron 3 Ultra", "GLM 5.2"…
   ms: number;
   started_at?: number; // epoch ms when the call started (server clock)
   ttft_ms?: number;
@@ -151,10 +150,15 @@ export type EngineCall = {
   reasoning_tokens?: number;
   tool_calls?: number;
   tools_ms?: number;
-  est_cost_usd?: number;
-  usage_estimated?: boolean; // the call was cut before Token Factory reported usage
+  cost_usd?: number; // Otari's own figure (usage.cost_usd), summed over the requests this entry stands for
+  est_cost_usd?: number; // recorded runs from the Nebius version: tokens × the published price
+  usage_estimated?: boolean; // the call was cut before the provider reported usage
   note?: string;
   count?: number; // HTTP requests this entry stands for (parallel repairs are measured together)
+  // How Otari served it (Otari-Provider, Otari-Model, Otari-Attempt-Count, Otari-Fallback, Otari-Request-ID).
+  served?: { provider?: string; model?: string; attempts?: number; fallback?: boolean; fallbacks?: number; request_id?: string };
+  // Verdicts of the guardrails Otari ran on the request's input (Otari-Guardrails).
+  guardrails?: { profile: string; mode?: string; valid: boolean | null; score?: number | null; status?: string; reason?: string }[];
 };
 
 // ---- Stream events ---------------------------------------------------------------------
@@ -174,6 +178,8 @@ export type AgentEvent =
   | { type: "playbook_draft"; draft: Record<string, unknown> }
   | { type: "engine"; call: EngineCall }
   | { type: "tavily"; credits: number }
+  // Where the run goes on Otari: its session id (Otari-Conversation-Id), the API and the model name of each step.
+  | { type: "otari"; run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string }
   | { type: "error"; message: string }
   | { type: "done"; elapsed_ms: number };
 
@@ -183,6 +189,6 @@ export type AgentRequest = {
   website?: string; // optional: the owner's site, skips the search for it
   goal?: string;
   language?: "English" | "Español";
-  menu_photo?: string; // optional data: URL (jpeg/png/webp), read by Nemotron VL
-  mode?: "quick" | "economy"; // quick: Nemotron Ultra writes (~1–2 min end to end, the writer ~30 s); economy: Nemotron Super (~2–3 min, about half to two thirds the cost)
+  menu_photo?: string; // optional data: URL (jpeg/png/webp), read by the vision model
+  mode?: "quick" | "economy"; // quick: tablecast-write (Nemotron 3 Ultra) writes; economy: tablecast-economy (Nemotron 3 Super)
 };

@@ -1,100 +1,162 @@
-// The Nemotron runtime on Nebius Token Factory (OpenAI-compatible API).
+// The model runtime: every model call Tablecast makes, sent through the Otari gateway (src/lib/otari.ts).
 //
-// Model routing, each step on the Nemotron that suits it:
-//   • GATHER     — a FAST Nemotron (reasoning_effort "none") drives the web-research tool loop:
-//                  cheap, low-latency "what to look up next" decisions. Tools asked for in one
-//                  turn run in parallel.
-//   • VISION     — Nemotron Super VL reads the owner's menu photo into structured items.
-//   • SYNTHESIZE — a REASONING Nemotron writes the playbook through a forced function call,
-//                  streamed so the UI drafts it live.
-//   • REPAIR     — if the output breaks its schema, the FAST Nemotron fixes it; if a cited quote is
-//                  not in its source, the reasoning Nemotron (low effort) gets one chance to fix or
-//                  drop the claim. Every fix is re-checked by code; nothing is accepted on the model's word.
+// Roles, each an Otari routing policy (docs/OTARI_SETUP.md) whose candidates are open-weight models on otari.ai's
+// hosted providers, with fallbacks to another provider and another model family:
+//   • RESEARCH  (tablecast-research)  — drives the web-research tool loop: short "what to look up next" decisions.
+//                                        Tools asked for in one turn run in parallel.
+//   • VISION    (catalog id)           — reads the owner's menu photo into structured items.
+//   • WRITE     (tablecast-write, or tablecast-economy) — writes the playbook through a forced function call, streamed
+//                                        so the UI drafts it live. tablecast-write tiers down to Nemotron Super once the
+//                                        restaurant has used most of its weekly Otari budget.
+//   • CHECK     (tablecast-check)      — repairs what failed a code check (citations, prices, dates). Every fix is
+//                                        re-checked by code; nothing is accepted on the model's word.
 //
-// Every call is measured (Token Factory `usage` + wall clock) and emitted as an `engine` event.
+// The app asks Otari for a policy name; Otari says in its response headers which model and provider served the call,
+// how many candidates it tried and whether a fallback answered, and puts the call's cost in usage.cost_usd. All of it
+// is emitted as an `engine` event and shown in the app's engine room.
 
-import OpenAI from "openai";
 import { z } from "zod";
 import type { SourceLedger } from "./evidence";
 import { LoopGuard } from "./loop-guard";
-import { estimateCostUsd } from "./nebius-pricing";
+import { isLocalCapError } from "./otari-ledger";
+import {
+  chatCompletion,
+  chatStream,
+  isOtariError,
+  otariConfigured,
+  otariJSON,
+  type ChatResponse,
+  type ChatUsage,
+  type Served,
+  type StreamChunk,
+  type ToolCall,
+} from "./otari";
 import type { AgentEvent, EngineCall, Evidence, MenuItem } from "./types";
 
 export type Emit = (e: AgentEvent) => void;
 
 const MAX_ARGS_CHARS = 70_000;
-const STALL_MS = Number(process.env.NEBIUS_STALL_MS || 60_000);
+const STALL_MS = Number(process.env.WRITER_STALL_MS || 60_000);
 // A whole writing attempt may not take longer than this (a slow trickle never trips the stall watchdog).
 // Read per call, so scripts can raise it; a run's deadline can only lower it.
 const writerMaxMs = (routing: Routing, deadlineMs?: number) =>
-  Math.min(Number(process.env.NEBIUS_WRITER_MAX_MS) || routing.writerMaxMs || 150_000, deadlineMs ?? Infinity);
-
-const BASE_URL = process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1/";
+  Math.min(Number(process.env.WRITER_MAX_MS) || routing.writerMaxMs || 150_000, deadlineMs ?? Infinity);
 
 export interface Routing {
-  fast: string; // tool loop, baseline
-  repair?: string; // citation repair (defaults to the reasoning model at low effort)
-  reasoning: string; // the playbook
+  fast: string; // research tool loop
+  repair?: string; // the checker: citation, price and date repairs
+  reasoning: string; // the playbook writer
   vision: string; // menu photos
+  quartermaster?: string; // the supplier order, computed in Otari's code sandbox
   effort: "low" | "medium" | "high";
   writerMaxMs?: number; // how long one writing attempt may take
   fallback?: string; // model for the one retry, if not the writer itself
 }
 
+// The policies the app asks Otari for, and the catalog id each falls back to when the workspace has no such policy.
+// Catalog ids still route through Otari: it picks among the model's hosted offerings and fails over between them.
+export const POLICIES = {
+  research: { name: "tablecast-research", catalog: "alibaba/qwen3-235b-a22b-instruct-2507", label: "Qwen3 235B" },
+  write: { name: "tablecast-write", catalog: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra" },
+  economy: { name: "tablecast-economy", catalog: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super" },
+  check: { name: "tablecast-check", catalog: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra" },
+  quartermaster: { name: "tablecast-quartermaster", catalog: "openai/gpt-oss-120b", label: "gpt-oss-120b" },
+  vision: { name: "alibaba/qwen3-vl-235b-a22b-instruct", catalog: "alibaba/qwen3-vl-235b-a22b-instruct", label: "Qwen3 VL 235B" },
+} as const;
+
 export function defaultRouting(): Routing {
   return {
-    fast: process.env.NEBIUS_FAST_MODEL || "nvidia/Nemotron-3_5-Lightning",
-    // Measured: Ultra at low effort fixes far more failed citations than Lightning (see eval/SUMMARY.md).
-    repair: process.env.NEBIUS_REPAIR_MODEL || process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
-    reasoning: process.env.NEBIUS_MODEL || "nvidia/Nemotron-3-Ultra-550b-a55b",
-    vision: process.env.NEBIUS_VISION_MODEL || "nvidia/Nemotron-3.5-Super-VL",
-    // Measured with the strict verifier (eval/SUMMARY.md, v5 and v6): medium effort has the best average (89% and 84%
-    // verified after repair, vs 81% and 84% at low) and writes about as fast (median 27–31 s).
-    effort: (process.env.NEBIUS_REASONING_EFFORT as Routing["effort"]) || "medium",
+    fast: process.env.OTARI_RESEARCH_MODEL || POLICIES.research.name,
+    repair: process.env.OTARI_CHECK_MODEL || POLICIES.check.name,
+    reasoning: process.env.OTARI_WRITE_MODEL || POLICIES.write.name,
+    vision: process.env.OTARI_VISION_MODEL || POLICIES.vision.name,
+    quartermaster: process.env.OTARI_QUARTERMASTER_MODEL || POLICIES.quartermaster.name,
+    effort: (process.env.WRITER_REASONING_EFFORT as Routing["effort"]) || "medium",
   };
 }
 
-/**
- * "Economy": Nemotron Super writes. Measured: 82% and 88% verified on the tuning set (v5, v6) at a third to half of Quick's cost per plan;
- * on held-out restaurants 74%, 80% and 69% (Quick: 73%, 74%, 79%) at 43%, 63% and 61% of Quick's cost. ~2 min to write (2–3 min end to end).
- */
+/** "Economy": Nemotron 3 Super writes; if it is cut short, the Quick writer takes over for the one retry. */
 export function economyRouting(): Routing {
   const base = defaultRouting();
   return {
     ...base,
-    reasoning: process.env.NEBIUS_ECONOMY_MODEL || process.env.NEBIUS_THOROUGH_MODEL || "nvidia/nemotron-3-super-120b-a12b",
+    reasoning: process.env.OTARI_ECONOMY_MODEL || POLICIES.economy.name,
     effort: "medium",
     writerMaxMs: 170_000,
-    fallback: base.reasoning, // if Super is cut short, Ultra (fast) takes over
+    fallback: base.reasoning,
   };
 }
 
-export function modelLabel(id: string): string {
-  if (/vl/i.test(id) && /super/i.test(id)) return "Nemotron Super VL";
-  if (/ultra/i.test(id)) return "Nemotron Ultra";
+/** A readable name for a policy, a catalog id or the model id a provider reported in Otari-Model. */
+export function modelLabel(id: string | undefined): string {
+  if (!id) return "model";
+  const policy = Object.values(POLICIES).find((p) => p.name === id || p.catalog === id);
+  if (policy) return policy.label;
+  if (/qwen3-vl/i.test(id)) return "Qwen3 VL 235B";
+  if (/nemotron/i.test(id) && /vl/i.test(id)) return "Nemotron Super VL";
+  if (/ultra/i.test(id)) return "Nemotron 3 Ultra";
   if (/lightning/i.test(id)) return "Nemotron Lightning";
-  if (/super/i.test(id)) return "Nemotron Super";
+  if (/nemotron/i.test(id) && /super/i.test(id)) return "Nemotron 3 Super";
   if (/nano/i.test(id)) return "Nemotron Nano";
-  return id.split("/").pop() || id;
+  if (/qwen3-235b/i.test(id)) return "Qwen3 235B";
+  if (/gpt-oss-120b/i.test(id)) return "gpt-oss-120b";
+  const glm = id.match(/glm-?(\d+(?:\.\d+)?)/i);
+  if (glm) return `GLM ${glm[1]}`;
+  if (/deepseek/i.test(id)) return (id.split("/").pop() ?? id).replace(/-/g, " ");
+  if (/mistral-small/i.test(id)) return "Mistral Small 4";
+  if (/mistral-large/i.test(id)) return "Mistral Large 3";
+  return id.split(/[/:]/).pop() || id;
 }
 
-export function nebiusConfigured(): boolean {
-  return !!process.env.NEBIUS_API_KEY;
+export function inferenceConfigured(): boolean {
+  return otariConfigured();
+}
+
+// ---- Policy resolution ----------------------------------------------------------------------
+
+let modelIds: { at: number; ids: Set<string> } | null = null;
+
+/** The model names this key can call (catalog ids, aliases and the workspace's routing policies), cached 5 minutes. */
+async function listModelIds(signal?: AbortSignal): Promise<Set<string>> {
+  if (modelIds && Date.now() - modelIds.at < 300_000) return modelIds.ids;
+  const { data } = await otariJSON<{ data?: { id: string }[] }>("/v1/models", { method: "GET", signal, timeoutMs: 15_000 });
+  const ids = new Set((data.data ?? []).map((m) => m.id));
+  modelIds = { at: Date.now(), ids };
+  return ids;
+}
+
+/**
+ * Before a live run: checks the key (GET /v1/models costs nothing) and swaps any routing policy the workspace does not
+ * have for its catalog id, returning which were missing. Throws an OtariError when the key is refused.
+ */
+export async function resolveRouting(routing: Routing, signal?: AbortSignal): Promise<{ routing: Routing; missing: string[] }> {
+  const ids = await listModelIds(signal);
+  const missing: string[] = [];
+  const pick = (name: string | undefined): string | undefined => {
+    if (!name) return name;
+    const p = Object.values(POLICIES).find((x) => x.name === name);
+    if (!p || p.name === p.catalog || ids.has(name)) return name;
+    missing.push(name);
+    return p.catalog;
+  };
+  const out: Routing = {
+    ...routing,
+    fast: pick(routing.fast) as string,
+    reasoning: pick(routing.reasoning) as string,
+    vision: pick(routing.vision) as string,
+    repair: pick(routing.repair),
+    quartermaster: pick(routing.quartermaster),
+    fallback: pick(routing.fallback),
+  };
+  return { routing: out, missing: [...new Set(missing)] };
+}
+
+/** For tests: forget the cached model list. */
+export function resetModelCache(): void {
+  modelIds = null;
 }
 
 // ---- low-level ------------------------------------------------------------------------
-
-type Usage = {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  completion_tokens_details?: { reasoning_tokens?: number } | null;
-};
-
-interface ToolCall {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-}
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -103,76 +165,94 @@ export interface ChatMessage {
   tool_call_id?: string;
 }
 
-type ChatResponse = {
-  choices: Array<{ message: { content: string | null; tool_calls?: ToolCall[] } }>;
-  usage?: Usage;
-};
-
-type StreamChunk = {
-  choices?: Array<{
-    finish_reason?: string | null;
-    delta?: {
-      content?: string | null;
-      reasoning_content?: string | null;
-      reasoning?: string | null;
-      tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>;
-    };
-  }>;
-  usage?: Usage | null;
-};
-
-let sharedClient: OpenAI | null = null;
-function client(): OpenAI {
-  sharedClient ??= new OpenAI({ baseURL: BASE_URL, apiKey: process.env.NEBIUS_API_KEY, maxRetries: 2, timeout: 240_000 }); // no request may hang a run;
-  return sharedClient;
-}
-
-// The SDK's types don't know Nemotron's extra params (reasoning_effort), so we call it loosely.
 // Non-streamed calls (research turns, repairs, vision, baseline) never wait more than 90 s each.
-function chat(body: Record<string, unknown>, signal?: AbortSignal, capMs = 90_000): Promise<ChatResponse> {
-  const capped = signal ? AbortSignal.any([signal, AbortSignal.timeout(capMs)]) : AbortSignal.timeout(capMs);
-  return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<ChatResponse>)(body, { signal: capped, maxRetries: 1 });
-}
-
-// A research turn takes ~0.6 s (median) and at most ~10 s in our recorded runs and evals. If the fast
-// model hangs past this (it happens on Token Factory now and then), the research moves to the backup.
-const GATHER_TURN_MS = Number(process.env.NEBIUS_GATHER_TURN_MS || 20_000);
-function chatStream(body: Record<string, unknown>, signal?: AbortSignal): Promise<AsyncIterable<StreamChunk>> {
-  return (client().chat.completions.create as unknown as (a: unknown, o?: unknown) => Promise<AsyncIterable<StreamChunk>>)(
-    { ...body, stream: true, stream_options: { include_usage: true } },
-    { signal },
-  );
+function chat(role: string, body: Record<string, unknown>, signal?: AbortSignal, capMs = 90_000): Promise<{ data: ChatResponse; served: Served }> {
+  return chatCompletion(role, body, { signal, timeoutMs: capMs });
 }
 
 /**
- * One tiny call before a live run starts. If Nebius rejects the key or the account is out of credit, the caller
- * stops right here (and pauses live runs) instead of after a minute of research that can't be written up.
- * Throws the SDK error; any answer, even an empty one, means inference is available.
+ * Errors that stop the whole run rather than one attempt: the key or the restaurant's budget is spent, the account
+ * has no funds, the key was refused, or the local development cap is reached. Retrying any of them can't help.
  */
-export async function checkInference(model: string, signal?: AbortSignal): Promise<void> {
-  await chat({ model, messages: [{ role: "user", content: "Reply with OK." }], reasoning_effort: "none", temperature: 0, max_tokens: 1 }, signal, 10_000);
+export function isStopError(err: unknown): boolean {
+  if (isLocalCapError(err)) return true;
+  if (!isOtariError(err)) return false;
+  return (
+    err.status === 401 ||
+    err.status === 402 ||
+    ["budget_exceeded", "insufficient_funds", "user_blocked", "end_user_limit_reached", "not_configured"].includes(err.code ?? "")
+  );
 }
+
+// A research turn takes a second or two. If the research model hangs past this, the research moves to the checker's
+// model. (Otari's own fallbacks handle a provider that fails; this handles one that is merely slow.)
+const GATHER_TURN_MS = Number(process.env.GATHER_TURN_MS || 25_000);
 
 /** A short, one-line description of a failed request, for the engine log. */
 function errorText(err: unknown): string {
   return (err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 140);
 }
 
-export function measured(phase: EngineCall["phase"], model: string, ms: number, usage: Usage | null | undefined, extra: Partial<EngineCall> = {}): EngineCall {
+export function measured(
+  phase: EngineCall["phase"],
+  model: string,
+  ms: number,
+  usage: ChatUsage | null | undefined,
+  extra: Partial<EngineCall> & { served?: Served } = {},
+): EngineCall {
+  const { served, ...rest } = extra;
   // started_at lets the UI draw a real timeline of where the run's time went.
-  const call: EngineCall = { phase, model, label: modelLabel(model), ms: Math.round(ms), started_at: Date.now() - Math.round(ms), ...extra };
+  const call: EngineCall = {
+    phase,
+    model,
+    label: modelLabel(served?.model ?? model),
+    ms: Math.round(ms),
+    started_at: Date.now() - Math.round(ms),
+    ...rest,
+  };
   if (usage) {
     if (typeof usage.prompt_tokens === "number") call.prompt_tokens = usage.prompt_tokens;
     if (typeof usage.completion_tokens === "number") call.completion_tokens = usage.completion_tokens;
     const r = usage.completion_tokens_details?.reasoning_tokens;
     if (typeof r === "number") call.reasoning_tokens = r;
   }
-  const cost = estimateCostUsd(model, call.prompt_tokens, call.completion_tokens);
-  if (cost != null) call.est_cost_usd = cost;
+  if (served) {
+    const s: NonNullable<EngineCall["served"]> = {};
+    if (served.provider) s.provider = served.provider;
+    if (served.model) s.model = served.model;
+    if (served.attempts) s.attempts = served.attempts;
+    if (served.fallback != null) s.fallback = served.fallback;
+    if (served.request_id) s.request_id = served.request_id;
+    if (Object.keys(s).length) call.served = s;
+    if (served.cost_usd != null) call.cost_usd = (call.cost_usd ?? 0) + served.cost_usd;
+    if (served.guardrails?.length) call.guardrails = served.guardrails;
+  }
   return call;
 }
 
-// Nemotron may wrap chain-of-thought in <think>…</think> inside content; never show it as output.
+/** Adds one more Otari answer to an engine entry that stands for several parallel calls. */
+function addServed(total: { cost: number; served: Served[] }, served: Served) {
+  if (served.cost_usd != null) total.cost += served.cost_usd;
+  total.served.push(served);
+}
+
+function summarizeServed(list: Served[]): Partial<EngineCall> {
+  if (!list.length) return {};
+  const fallbacks = list.filter((s) => s.fallback).length;
+  const models = [...new Set(list.map((s) => s.model).filter(Boolean))] as string[];
+  const providers = [...new Set(list.map((s) => s.provider).filter(Boolean))] as string[];
+  return {
+    label: modelLabel(models[0]),
+    served: {
+      ...(models.length ? { model: models.join(", ") } : {}),
+      ...(providers.length ? { provider: providers.join(", ") } : {}),
+      fallback: fallbacks > 0,
+      ...(fallbacks ? { fallbacks } : {}),
+    },
+  };
+}
+
+// Reasoning models may wrap chain-of-thought in <think>…</think> inside content; never show it as output.
 export const cleanText = (t: string | null | undefined): string =>
   (t ?? "")
     .replace(/<think>[\s\S]*?<\/think>/g, "")
@@ -269,7 +349,7 @@ export interface ToolSpec {
   run: (input: unknown, ctx: { id: string }) => Promise<string>;
 }
 
-// ---- GATHER: fast model drives the tools ---------------------------------------------
+// ---- RESEARCH: the research model drives the tools ---------------------------------------------
 
 export async function gather(opts: {
   routing: Routing;
@@ -289,20 +369,22 @@ export async function gather(opts: {
     { role: "user", content: opts.user },
   ];
   const started = Date.now();
-  // If the fast model doesn't answer a turn in time, the backup (the repair model, Ultra by default)
-  // drives the rest of the research, so a stuck model never costs the run its web research.
+  // If the research model doesn't answer a turn in time, the checker's model drives the rest of the research, so a
+  // stuck model never costs the run its web research.
   let model = routing.fast;
   const backup = routing.repair ?? routing.reasoning;
   const turnCall = (m: string) =>
     chat(
+      "research",
       {
         model: m,
         messages,
         tools: tools.map(toOpenAITool),
         tool_choice: "auto",
-        reasoning_effort: "none",
         temperature: 0.3,
         max_tokens: 2048,
+        // The backup is a reasoning model; research turns are short decisions.
+        ...(m === routing.fast ? {} : { reasoning_effort: "low" }),
       },
       signal,
       GATHER_TURN_MS,
@@ -313,18 +395,18 @@ export async function gather(opts: {
       break;
     }
     let t0 = Date.now();
-    let res: ChatResponse;
+    let res: { data: ChatResponse; served: Served };
     try {
       res = await turnCall(model);
     } catch (err) {
-      if (signal?.aborted || model === backup) throw err;
+      if (signal?.aborted || model === backup || isStopError(err)) throw err;
       emit({ type: "note", text: `${modelLabel(model)} didn't answer in time — ${modelLabel(backup)} takes over the research.` });
       model = backup;
       t0 = Date.now();
       res = await turnCall(model);
     }
     const callMs = Date.now() - t0;
-    const msg = res.choices[0]?.message;
+    const msg = res.data.choices?.[0]?.message;
     if (!msg) break;
     const note = cleanText(msg.content);
     if (note && note.toUpperCase() !== "READY") emit({ type: "note", text: note.slice(0, 240) });
@@ -346,15 +428,17 @@ export async function gather(opts: {
       try {
         return await spec.run(parsed.data, { id: call.id });
       } catch (err) {
+        if (isStopError(err)) throw err;
         return `Error: ${err instanceof Error ? err.message : String(err)}`;
       }
     });
     calls.forEach((call, i) => messages.push({ role: "tool", tool_call_id: call.id, content: results[i] }));
     emit({
       type: "engine",
-      call: measured("gather", model, callMs, res.usage, {
+      call: measured("gather", model, callMs, res.data.usage, {
         started_at: t0,
         tool_calls: calls.length,
+        served: res.served,
         ...(calls.length ? { tools_ms: Date.now() - toolsStart } : {}),
       }),
     });
@@ -364,7 +448,7 @@ export async function gather(opts: {
   }
 }
 
-// ---- SYNTHESIZE: reasoning model, forced tool, streamed --------------------------------
+// ---- WRITE: the writer, forced tool, streamed --------------------------------
 
 export async function synthesize(opts: {
   routing: Routing;
@@ -378,7 +462,7 @@ export async function synthesize(opts: {
   model?: string; // overrides routing.reasoning (the retry fallback)
   maxMs?: number; // what is left of the run's time budget for this attempt
   maxTokens?: number;
-}): Promise<{ value: unknown | null; finish: string | null }> {
+}): Promise<{ value: unknown | null; finish: string | null; served?: Served }> {
   const { routing, emit, signal } = opts;
   const effort = opts.effort ?? routing.effort;
   const model = opts.model ?? routing.reasoning;
@@ -405,8 +489,10 @@ export async function synthesize(opts: {
     writerMaxMs(routing, opts.maxMs),
   );
   let stream: AsyncIterable<StreamChunk>;
+  let served: Served | undefined;
   try {
-    stream = await chatStream(
+    ({ stream, served } = await chatStream(
+      "write",
       {
         model,
         messages: [
@@ -419,13 +505,13 @@ export async function synthesize(opts: {
         temperature: 0.4,
         max_tokens: opts.maxTokens ?? 28000,
       },
-      combined,
-    );
+      { signal: combined },
+    ));
   } catch (err) {
     clearTimeout(stallTimer);
     clearTimeout(capTimer);
-    // The connection never answered, or the server refused the request: let the caller retry once.
-    if (signal?.aborted) throw err;
+    // The connection never answered, or every candidate refused the request: let the caller retry once.
+    if (signal?.aborted || isStopError(err)) throw err;
     if (finish !== "stall" && finish !== "slow") {
       finish = "error";
       emit({ type: "engine", call: measured("synthesize", model, Date.now() - started, undefined, { note: `reasoning_effort ${effort} · server error: ${errorText(err)}` }) });
@@ -434,7 +520,7 @@ export async function synthesize(opts: {
   }
   let args = "";
   let ttft: number | null = null;
-  let usage: Usage | undefined;
+  let usage: ChatUsage | undefined;
   let lastDraft = 0;
   let lastThought = Date.now();
   let thinking = ""; // reasoning streamed since the last note
@@ -494,9 +580,9 @@ export async function synthesize(opts: {
     }
   } catch (err) {
     // The caller's abort propagates. Our own cuts (loop, stall, slow) and a server error mid-stream end this attempt,
-    // and the caller retries once. (Held-out eval, 21 Oct: Token Factory failed a stream whose JSON held a 4,305-digit
+    // and the caller retries once. (Held-out eval, 21 Oct: a provider failed a stream whose JSON held a 4,305-digit
     // number — "Exceeds the limit (4300 digits) for integer string conversion" — and the whole run was lost.)
-    if (signal?.aborted) throw err;
+    if (signal?.aborted || isStopError(err)) throw err;
     if (!((finish === "loop" || finish === "stall" || finish === "slow") && stopper.signal.aborted)) {
       finish = "error";
       serverError = errorText(err);
@@ -513,15 +599,16 @@ export async function synthesize(opts: {
     call: measured("synthesize", model, Date.now() - started, usage, {
       ...(ttft != null ? { ttft_ms: ttft } : {}),
       ...(estimated ? { usage_estimated: true } : {}),
+      served,
       note: `reasoning_effort ${effort}${finish === "loop" ? " · cut: reasoning loop detected" : finish === "error" ? ` · server error: ${serverError}` : finish && finish !== "stop" && finish !== "tool_calls" ? ` · stopped: ${finish}` : ""}`,
     }),
   });
-  if (!args.trim()) return { value: null, finish };
+  if (!args.trim()) return { value: null, finish, served };
   try {
-    return { value: JSON.parse(args), finish };
+    return { value: JSON.parse(args), finish, served };
   } catch {
     // A cut-off payload is not a plan: only accept a tolerant parse if the model finished on its own.
-    return { value: finish === "length" ? null : tolerantParse(args), finish };
+    return { value: finish === "length" ? null : tolerantParse(args), finish, served };
   }
 }
 
@@ -538,11 +625,13 @@ export async function ensureSchema<T>(opts: {
   if (first.success) return { ok: true, value: first.data };
   const issues = first.error.issues.slice(0, 15).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
   const t0 = Date.now();
+  const model = opts.routing.repair ?? opts.routing.fast;
   try {
     const res = await chat(
+      "check",
       {
-        model: opts.routing.fast,
-        reasoning_effort: "none",
+        model,
+        reasoning_effort: "low",
         temperature: 0,
         max_tokens: 16000,
         tools: [toOpenAITool(opts.tool)],
@@ -554,17 +643,18 @@ export async function ensureSchema<T>(opts: {
           },
         ],
       },
-      opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
+      opts.signal,
+      60_000,
     );
-    const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const raw = res.data.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const second = raw ? opts.tool.schema.safeParse(tolerantParse(raw)) : null;
     opts.emit({
       type: "engine",
-      call: measured("repair", opts.routing.fast, Date.now() - t0, res.usage, { note: second?.success ? "schema repaired" : "schema repair failed" }),
+      call: measured("repair", model, Date.now() - t0, res.data.usage, { served: res.served, note: second?.success ? "schema repaired" : "schema repair failed" }),
     });
     if (second?.success) return { ok: true, value: second.data };
   } catch (err) {
-    if (opts.signal?.aborted) throw err;
+    if (opts.signal?.aborted || isStopError(err)) throw err;
   }
   return { ok: false, issues };
 }
@@ -584,7 +674,7 @@ const FixSchema = z.object({
 
 /**
  * Claims that fail the code check (unknown sentence id, a number no cited sentence contains, or a
- * citation that doesn't talk about the claim) go back to the repair model once — one small call per
+ * citation that doesn't talk about the claim) go back to the checker once — one small call per
  * claim, all in parallel — with candidate sentences, to be corrected or dropped. A correction is kept
  * only if it passes the same check.
  */
@@ -598,7 +688,7 @@ export async function repairCitations(opts: {
 }): Promise<{ failing: number; fixed: number; dropped: number }> {
   const { groups, ledger, routing, emit } = opts;
   const repairModel = routing.repair || routing.fast;
-  const repairEffort = process.env.NEBIUS_REPAIR_EFFORT || (repairModel === routing.fast ? "none" : "low");
+  const repairEffort = process.env.REPAIR_EFFORT || "low";
   const failing: { g: EvidenceGroup; e: Evidence; issue: string }[] = [];
   for (const g of groups)
     for (const e of g.list) {
@@ -617,6 +707,7 @@ export async function repairCitations(opts: {
   const signal = opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(capMs)]) : AbortSignal.timeout(capMs);
   const t0 = Date.now();
   const usage = { prompt_tokens: 0, completion_tokens: 0, completion_tokens_details: { reasoning_tokens: 0 } };
+  const total = { cost: 0, served: [] as Served[] };
 
   const decisions = await mapLimit(failing, 6, async ({ e, issue }) => {
     const cited = (e.cites ?? []).map((c) => c.span).filter((x): x is string => !!x);
@@ -627,11 +718,12 @@ export async function repairCitations(opts: {
       .filter((c) => c.text);
     try {
       const res = await chat(
+        "check",
         {
           model: repairModel,
           reasoning_effort: repairEffort,
           temperature: 0,
-          max_tokens: repairEffort === "none" ? 2000 : 6000,
+          max_tokens: 6000,
           tools: [toOpenAITool({ name: "fix_claim", description: "Fix or drop this claim.", schema: FixSchema })],
           tool_choice: { type: "function", function: { name: "fix_claim" } },
           messages: [
@@ -648,14 +740,15 @@ ${JSON.stringify({ claim: e.text, cited, candidate_sentences: candidates })}`,
         },
         signal,
       );
-      usage.prompt_tokens += res.usage?.prompt_tokens ?? 0;
-      usage.completion_tokens += res.usage?.completion_tokens ?? 0;
-      usage.completion_tokens_details.reasoning_tokens += res.usage?.completion_tokens_details?.reasoning_tokens ?? 0;
-      const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+      usage.prompt_tokens += res.data.usage?.prompt_tokens ?? 0;
+      usage.completion_tokens += res.data.usage?.completion_tokens ?? 0;
+      usage.completion_tokens_details.reasoning_tokens += res.data.usage?.completion_tokens_details?.reasoning_tokens ?? 0;
+      addServed(total, res.served);
+      const raw = res.data.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
       const parsed = FixSchema.safeParse(raw ? tolerantParse(raw) : null);
       return parsed.success ? parsed.data : null;
     } catch (err) {
-      if (opts.signal?.aborted) throw err;
+      if (opts.signal?.aborted || isStopError(err)) throw err;
       return null; // timed out or failed: the claim stays marked unverified
     }
   });
@@ -685,7 +778,15 @@ ${JSON.stringify({ claim: e.text, cited, candidate_sentences: candidates })}`,
     }
   }
   const note = `fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified (${failing.length} parallel calls)`;
-  emit({ type: "engine", call: measured("verify", repairModel, Date.now() - t0, usage, { note, count: failing.length }) });
+  emit({
+    type: "engine",
+    call: measured("verify", repairModel, Date.now() - t0, usage, {
+      note,
+      count: failing.length,
+      ...(total.served.length ? { cost_usd: total.cost } : {}),
+      ...summarizeServed(total.served),
+    }),
+  });
   emit({ type: "note", text: `🔎 Verifier: fixed ${fixed}, dropped ${dropped}, of ${failing.length} unverified.` });
   return { failing: failing.length, fixed, dropped };
 }
@@ -699,7 +800,7 @@ const AmountFixSchema = z.object({
 });
 
 /**
- * One small call: the writer's model rewrites only the money amounts of the listed fields so each equals an
+ * One small call: the checker rewrites only the money amounts of the listed fields so each equals an
  * allowed price for the same item, or drops it. Returns the proposed texts; the caller re-checks them in code.
  */
 export async function repairAmounts(opts: {
@@ -718,6 +819,7 @@ export async function repairAmounts(opts: {
   const t0 = Date.now();
   try {
     const res = await chat(
+      "check",
       {
         model,
         reasoning_effort: "low",
@@ -737,14 +839,17 @@ ${JSON.stringify({ allowed_prices: opts.allowed, texts: items })}`,
       },
       signal,
     );
-    const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const raw = res.data.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const parsed = AmountFixSchema.safeParse(raw ? tolerantParse(raw) : null);
     const out = new Map<string, string>();
     if (parsed.success) for (const f of parsed.data.fixes) if (items.some((i) => i.where === f.where) && f.text.trim()) out.set(f.where, f.text.trim());
-    emit({ type: "engine", call: measured("verify", model, Date.now() - t0, res.usage, { note: `prices in the plan text: ${out.size} of ${items.length} texts rewritten` }) });
+    emit({
+      type: "engine",
+      call: measured("verify", model, Date.now() - t0, res.data.usage, { served: res.served, note: `prices in the plan text: ${out.size} of ${items.length} texts rewritten` }),
+    });
     return out;
   } catch (err) {
-    if (opts.signal?.aborted) throw err;
+    if (opts.signal?.aborted || isStopError(err)) throw err;
     return new Map(); // timed out or failed: the amounts stay listed as unbacked
   }
 }
@@ -752,7 +857,7 @@ ${JSON.stringify({ allowed_prices: opts.allowed, texts: items })}`,
 // ---- REPAIR: dates before today ---------------------------------------------------------------
 
 /**
- * One small call: the writer's model re-dates the listed scheduling fields so nothing falls before today, using
+ * One small call: the checker re-dates the listed scheduling fields so nothing falls before today, using
  * the week's calendar. Returns the proposed texts; the caller re-checks them in code.
  */
 export async function repairDates(opts: {
@@ -772,6 +877,7 @@ export async function repairDates(opts: {
   const t0 = Date.now();
   try {
     const res = await chat(
+      "check",
       {
         model,
         reasoning_effort: "low",
@@ -791,14 +897,17 @@ ${JSON.stringify({ calendar: opts.calendar, texts: items })}`,
       },
       signal,
     );
-    const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const raw = res.data.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const parsed = AmountFixSchema.safeParse(raw ? tolerantParse(raw) : null);
     const out = new Map<string, string>();
     if (parsed.success) for (const f of parsed.data.fixes) if (items.some((i) => i.where === f.where) && f.text.trim()) out.set(f.where, f.text.trim());
-    emit({ type: "engine", call: measured("verify", model, Date.now() - t0, res.usage, { note: `dates before today: ${out.size} of ${items.length} texts re-dated` }) });
+    emit({
+      type: "engine",
+      call: measured("verify", model, Date.now() - t0, res.data.usage, { served: res.served, note: `dates before today: ${out.size} of ${items.length} texts re-dated` }),
+    });
     return out;
   } catch (err) {
-    if (opts.signal?.aborted) throw err;
+    if (opts.signal?.aborted || isStopError(err)) throw err;
     return new Map(); // timed out or failed: code drops or lists what is still in the past
   }
 }
@@ -826,6 +935,7 @@ export async function readMenuPhoto(opts: {
 }): Promise<{ items: MenuItem[]; currency: string | null } | null> {
   const t0 = Date.now();
   const res = await chat(
+    "vision",
     {
       model: opts.routing.vision,
       temperature: 0,
@@ -847,11 +957,12 @@ export async function readMenuPhoto(opts: {
     },
     opts.signal,
   );
-  const raw = res.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
+  const raw = res.data.choices[0]?.message?.tool_calls?.[0]?.function?.arguments;
   const parsed = MenuSchema.safeParse(raw ? tolerantParse(raw) : null);
   opts.emit({
     type: "engine",
-    call: measured("vision", opts.routing.vision, Date.now() - t0, res.usage, {
+    call: measured("vision", opts.routing.vision, Date.now() - t0, res.data.usage, {
+      served: res.served,
       note: parsed.success ? `${parsed.data.items.length} menu items read` : "could not read the menu",
     }),
   });
@@ -862,12 +973,13 @@ export async function readMenuPhoto(opts: {
   };
 }
 
-// ---- BASELINE: the same fast Nemotron, no tools, no data -------------------------------------
+// ---- BASELINE: the writer, no tools, no data -------------------------------------
 
 /** The same model that writes the plan, asked without any data: the honest "without the week" comparison. */
 export async function baseline(prompt: string, routing: Routing, emit: Emit, signal?: AbortSignal): Promise<string> {
   const t0 = Date.now();
   const res = await chat(
+    "baseline",
     {
       model: routing.reasoning,
       reasoning_effort: "low",
@@ -877,6 +989,6 @@ export async function baseline(prompt: string, routing: Routing, emit: Emit, sig
     },
     signal,
   );
-  emit({ type: "engine", call: measured("baseline", routing.reasoning, Date.now() - t0, res.usage) });
-  return cleanText(res.choices?.[0]?.message?.content);
+  emit({ type: "engine", call: measured("baseline", routing.reasoning, Date.now() - t0, res.data.usage, { served: res.served }) });
+  return cleanText(res.data.choices?.[0]?.message?.content);
 }
