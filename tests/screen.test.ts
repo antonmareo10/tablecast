@@ -23,7 +23,8 @@ vi.stubGlobal(
       return otariJSONResponse({ available: true, profiles: [{ profile: "prompt-injection", guardrail: "injec_guard", parameters: [] }] });
     switch (mode.value) {
       case "flag":
-        return otariJSONResponse({ detail: "Request blocked by guardrail", code: "guardrail_violation" }, { status: 403, headers: { "otari-error-code": "guardrail_violation" } });
+        // The shape Otari answered on 4 Nov 2026: code nested in detail, no Otari-Error-Code header.
+        return otariJSONResponse({ detail: { message: "Request blocked by guardrail policy.", code: "guardrail_violation", guardrails: [{ profile: "prompt-injection" }] } }, { status: 403 });
       case "unavailable":
         return ok({ valid: null, score: null, status: "unavailable", reason: "not_configured" });
       case "error":

@@ -37,7 +37,10 @@ import type { AgentEvent, EngineCall, Evidence, MenuItem } from "./types";
 export type Emit = (e: AgentEvent) => void;
 
 const MAX_ARGS_CHARS = 70_000;
-const STALL_MS = Number(process.env.WRITER_STALL_MS || 60_000);
+// A writer stream that sends nothing for this long is cut and the plan is written again. In my first Otari runs, two of
+// three first attempts on Fireworks stopped sending after about 14,000 characters of the plan and stayed silent; the
+// retry then wrote the whole plan in 36 s. Tokens normally arrive many times a second, so 30 s of silence is a stall.
+const STALL_MS = Number(process.env.WRITER_STALL_MS || 30_000);
 // A whole writing attempt may not take longer than this (a slow trickle never trips the stall watchdog).
 // Read per call, so scripts can raise it; a run's deadline can only lower it.
 const writerMaxMs = (routing: Routing, deadlineMs?: number) =>

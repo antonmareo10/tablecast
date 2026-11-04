@@ -154,10 +154,12 @@ async function errorFrom(res: Response): Promise<OtariError> {
   let code = res.headers.get("otari-error-code") ?? undefined;
   try {
     const body = (await res.json()) as { detail?: unknown; code?: unknown; error?: { message?: unknown; code?: unknown } };
-    const d = body?.detail ?? body?.error?.message;
+    // A guardrail refusal nests its message and code inside `detail`: {"detail": {"message", "code": "guardrail_violation"}}.
+    const nested = body?.detail && typeof body.detail === "object" ? (body.detail as { message?: unknown; code?: unknown }) : null;
+    const d = nested?.message ?? body?.detail ?? body?.error?.message;
     if (typeof d === "string") detail = d;
     else if (d != null) detail = JSON.stringify(d).slice(0, 300);
-    const c = body?.code ?? body?.error?.code;
+    const c = body?.code ?? nested?.code ?? body?.error?.code;
     if (!code && typeof c === "string") code = c;
   } catch {
     /* not JSON */

@@ -80,7 +80,7 @@ describe("quartermaster", () => {
     expect((await runQuartermaster({ model: "m", playbook: playbook as never })).why).toBe("the program failed in the sandbox");
     reply.exit = 0;
     reply.stdout = "no json here";
-    expect((await runQuartermaster({ model: "m", playbook: playbook as never })).why).toBe("the program's output was not the expected JSON");
+    expect((await runQuartermaster({ model: "m", playbook: playbook as never })).why).toMatch(/^the program's output was not the expected JSON/);
   });
 
   it("catches a sum that does not match the plan's lines, and a break-even that is not ceil(cost / price)", () => {
@@ -92,6 +92,12 @@ describe("quartermaster", () => {
     expect(c.break_even).toBe(false);
     expect(c.notes.join(" ")).toMatch(/grand total 90 differs.*87\.50/);
     expect(c.notes.join(" ")).toMatch(/Burrata toast: break-even 2 is not ceil\(54 \/ 18\)/);
+  });
+
+  it("reads unmatched items written as records, as one gpt-oss program printed them", async () => {
+    reply.stdout = JSON.stringify({ ...good, unmatched: { not_used: [], missing: [{ dish: "Squash soup", ingredient: "Sage" }] } });
+    const q = await runQuartermaster({ model: "m", playbook: playbook as never });
+    expect(q.report?.result.unmatched?.missing).toEqual(["Sage (Squash soup)"]);
   });
 
   it("finds the last JSON line a program printed", () => {

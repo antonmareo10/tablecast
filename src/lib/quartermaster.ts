@@ -26,6 +26,17 @@ export type QuartermasterReport = {
   currency: string;
 };
 
+// The programs list unmatched items as names or as {dish, ingredient} records; both become one readable line.
+const Unmatched = z.union([
+  z.string(),
+  z
+    .record(z.string(), z.unknown())
+    .transform((o) => {
+      const name = String(o.ingredient ?? o.item ?? o.name ?? Object.values(o).find((v) => typeof v === "string") ?? "");
+      return o.dish ? `${name} (${String(o.dish)})` : name;
+    }),
+]);
+
 const ResultSchema = z.object({
   order: z
     .array(
@@ -38,7 +49,7 @@ const ResultSchema = z.object({
     .max(30),
   grand_total: z.number(),
   dishes: z.array(z.object({ dish: z.string(), price: z.number(), ingredient_cost: z.number(), break_even_portions: z.number() })).max(10),
-  unmatched: z.object({ not_used: z.array(z.string()).optional(), missing: z.array(z.string()).optional() }).optional(),
+  unmatched: z.object({ not_used: z.array(Unmatched).optional(), missing: z.array(Unmatched).optional() }).optional(),
 });
 
 let codeTool: { at: number; available: boolean; reason?: string } | null = null;
@@ -79,7 +90,7 @@ function task(pb: Pick<Playbook, "menu_moves" | "shopping_list" | "currency">): 
 1. Builds the supplier order: the shopping_list lines grouped by supplier_category, each group's total est_cost, and the grand total.
 2. For each dish, matches its ingredients to shopping_list lines by item name (case-insensitive; a line counts for a dish when either name contains the other or they share their main noun), sums the est_cost of the matched lines as ingredient_cost (a line used by several dishes is split evenly between them), and computes break_even_portions = ceil(ingredient_cost / price).
 3. Lists shopping_list items no dish uses (not_used) and dish ingredients with no shopping_list line (missing).
-Copy the data below into the program exactly, as a Python literal. Round money to 2 decimals. The LAST line the program prints must be one JSON object, printed with json.dumps(result) on a single line, with the keys order (a list of {category, lines: [{item, qty, unit, est_cost}], total}), grand_total, dishes (a list of {dish, price, ingredient_cost, break_even_portions}) and unmatched ({not_used, missing}).
+Copy the data below into the program exactly, as a Python literal. Round money to 2 decimals. The LAST line the program prints must be one JSON object, printed with json.dumps(result) on a single line, with the keys order (a list of {category, lines: [{item, qty, unit, est_cost}], total}), grand_total, dishes (a list of {dish, price, ingredient_cost, break_even_portions}) and unmatched ({not_used: a list of item names, missing: a list of ingredient names}).
 
 ${JSON.stringify(data)}`;
 }
@@ -165,7 +176,10 @@ export async function runQuartermaster(opts: {
   const last = [...ran].reverse().find((c) => lastJsonLine(c.stdout) != null) ?? ran.at(-1);
   if (!last) return { report: null, served, calls, usage: data.usage, ms, why: calls.length ? "the program failed in the sandbox" : "the model did not run any code" };
   const parsed = ResultSchema.safeParse(lastJsonLine(last.stdout));
-  if (!parsed.success) return { report: null, served, calls, usage: data.usage, ms, why: "the program's output was not the expected JSON" };
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { report: null, served, calls, usage: data.usage, ms, why: `the program's output was not the expected JSON (${issue ? `${issue.path.join(".")}: ${issue.message}` : "unreadable"})` };
+  }
   const result = parsed.data as QuartermasterResult;
   return {
     report: { result, code: last.code ?? "", ...(last.exit_code != null ? { exit_code: last.exit_code } : {}), checks: checkResult(result, opts.playbook), currency: opts.playbook.currency },
