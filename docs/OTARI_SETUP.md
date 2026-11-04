@@ -91,6 +91,25 @@ deployed. On the deployment set:
 A local run can point `TABLECAST_MCP_URL` at the deployed route. Without these two
 variables the researcher reads pages in-process instead, and the app's log says so.
 
+Everything a deployment needs:
+
+| Variable | Value |
+|---|---|
+| `OTARI_API_KEY` | the service key |
+| `OTARI_BASE_URL` | `https://eu.api.otari.ai/api/v1` |
+| `TABLECAST_MCP_URL` | `https://<deployment>/api/mcp` |
+| `TABLECAST_MCP_TOKEN` | a long random string |
+| `TICKETMASTER_API_KEY` | optional, events within 5 km |
+| `LIVE_RUNS_PER_IP_PER_HOUR`, `LIVE_RUNS_DAILY_CAP`, `LIVE_RUNS_MAX_CONCURRENT` | optional public-demo limits (defaults 4, 80, 3) |
+
+Recorded runs live in `src/data/demos.json`, which is kept out of git (it holds
+third-party page excerpts) and has to be shipped with the deployment.
+
+If the dashboard's Routing page can't be used, `scripts/otari-policies.mjs`
+creates the same policies through `POST /api/v1/organizations/me/routing-policies`
+(dry run by default; it needs an API key of an organization owner as
+`OTARI_ADMIN_KEY`).
+
 ## 6. What to check in the dashboard after a run
 
 - Overview > Requests: one row per call, with the policy name, the model that
