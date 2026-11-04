@@ -10,11 +10,18 @@
 //   • unscreened → the guardrail could not run (on_unavailable: monitor lets the request through, and the header says
 //                 unavailable). The source is kept and marked as unscreened, never silently passed.
 // What is screened is exactly what the writer will see of the source (its first characters, by kind).
+//
+// Which service judges: otari.ai's EU deployment runs no guardrails service, so with TABLECAST_GUARDRAIL_URL set each
+// guardrail entry names Tablecast's own (src/lib/injection-detector.ts, on Otari's documented guardrails contract) in
+// its `url`. Otari still runs the check and enforces it. Without the variable, the deployment's own service is asked
+// for, if it has one.
 
 import { chatCompletion, isOtariError, otariJSON, type GuardrailVerdict } from "./otari";
 
 export const SCREEN_MODEL = process.env.OTARI_SCREEN_MODEL || "mistralai/ministral-3-3b";
 export const GUARDRAIL_PROFILE = process.env.OTARI_GUARDRAIL_PROFILE || "prompt-injection";
+/** Tablecast's guardrails service, when deployed: https://<deployment>/api/guardrails/<token>. */
+export const guardrailUrl = (): string | undefined => (/^https:\/\//i.test(process.env.TABLECAST_GUARDRAIL_URL ?? "") ? process.env.TABLECAST_GUARDRAIL_URL : undefined);
 const CHUNK = 2_000;
 
 export type Screen = {
@@ -29,8 +36,9 @@ export type Screen = {
 let profiles: { at: number; available: boolean; names: string[] } | null = null;
 
 /** Whether the deployment's guardrails service offers the profile (GET /v1/tool-settings/guardrails/profiles), cached 10 min. */
-export async function guardrailAvailable(signal?: AbortSignal): Promise<{ available: boolean; profile: string; names: string[] }> {
+export async function guardrailAvailable(signal?: AbortSignal): Promise<{ available: boolean; profile: string; names: string[]; service?: string }> {
   if (process.env.OTARI_GUARDRAILS === "off") return { available: false, profile: GUARDRAIL_PROFILE, names: [] };
+  if (guardrailUrl()) return { available: true, profile: GUARDRAIL_PROFILE, names: [GUARDRAIL_PROFILE], service: "tablecast" };
   if (!profiles || Date.now() - profiles.at > 600_000) {
     try {
       const { data } = await otariJSON<{ available?: boolean; profiles?: { profile?: string; name?: string }[] }>("/v1/tool-settings/guardrails/profiles", {
@@ -56,6 +64,7 @@ function verdictOf(entries: GuardrailVerdict[] | undefined): Pick<Screen, "verdi
   const e = entries?.find((g) => g.profile === GUARDRAIL_PROFILE) ?? entries?.[0];
   if (!e) return { verdict: "unscreened", reason: "no verdict in Otari-Guardrails" };
   if (e.status === "unavailable") return { verdict: "unscreened", reason: e.reason ?? "unavailable" };
+  if (e.status === "inconclusive" || e.valid === null) return { verdict: "unscreened", reason: "inconclusive" };
   if (e.valid === false) return { verdict: "flagged", score: e.score }; // only in monitor mode; block mode refuses instead
   return { verdict: "passed", score: e.score ?? null };
 }
@@ -69,7 +78,7 @@ async function screenChunk(text: string, signal?: AbortSignal): Promise<Pick<Scr
         messages: [{ role: "user", content: text }],
         max_tokens: 1,
         temperature: 0,
-        guardrails: [{ profile: GUARDRAIL_PROFILE, mode: "block", on_unavailable: "monitor" }],
+        guardrails: [{ profile: GUARDRAIL_PROFILE, mode: "block", on_unavailable: "monitor", ...(guardrailUrl() ? { url: guardrailUrl() } : {}) }],
       },
       { signal, timeoutMs: 20_000 },
     );

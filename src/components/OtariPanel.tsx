@@ -138,6 +138,9 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
               )}
             </li>
           ))}
+          <li className="rounded-xl border border-dashed border-line px-3 py-2">
+            <FailoverDrill />
+          </li>
         </ul>
       </div>
 
@@ -152,7 +155,8 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
             `This Otari deployment offers no ${s.profile} profile, so web sources were not screened.`
           ) : (
             <>
-              Otari’s <code>{s.profile}</code> guardrail screened {s.screened} web source{s.screened === 1 ? "" : "s"} before the writer saw them: {s.passed} passed,{" "}
+              Otari’s <code>{s.profile}</code> guardrail screened {s.screened} web source{s.screened === 1 ? "" : "s"} before the writer saw them
+              {s.service === "tablecast" ? " (Otari ran the check on Tablecast’s own guardrails service, an open-weight safety model behind Otari’s guardrails contract)" : ""}: {s.passed} passed,{" "}
               {s.flagged.length} withheld{s.unscreened ? `, ${s.unscreened} could not be screened (kept, and counted here)` : ""}.
               {s.flagged.length > 0 && (
                 <ul className="mt-1 list-disc pl-4 text-terracotta">
@@ -187,6 +191,49 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
         </div>
       </div>
     </Section>
+  );
+}
+
+type DrillResult = { asked: string; provider: string | null; model: string | null; label: string; attempts: number | null; fallback: boolean | null; ms: number };
+
+/** One request to the tablecast-drill policy, whose first candidate always refuses it (/api/failover-drill). */
+function FailoverDrill() {
+  const [state, setState] = useState<{ busy: boolean; result?: DrillResult; error?: string }>({ busy: false });
+  const run = async () => {
+    setState({ busy: true });
+    try {
+      const res = await fetch("/api/failover-drill", { method: "POST" });
+      const body = (await res.json()) as DrillResult & { error?: string };
+      setState(res.ok ? { busy: false, result: body } : { busy: false, error: body.error ?? `HTTP ${res.status}` });
+    } catch {
+      setState({ busy: false, error: "The drill could not reach the server." });
+    }
+  };
+  const r = state.result;
+  return (
+    <div className="text-[12px] text-ink-2">
+      <p className="font-medium text-ink">Failover drill</p>
+      <p>
+        <code className="text-[11px]">tablecast-drill</code> puts Mistral Large 3 first, which refuses <code className="text-[11px]">reasoning_effort</code>, so
+        Otari has to fail over.
+      </p>
+      <button
+        type="button"
+        onClick={run}
+        disabled={state.busy}
+        className="mt-1.5 min-h-8 rounded-full border border-line bg-paper px-3 text-[11px] font-medium text-ink-2 transition-[color,border-color] hover:border-ink-2/40 hover:text-ink disabled:opacity-60"
+      >
+        {state.busy ? "Asking Otari…" : "Send one request to tablecast-drill"}
+      </button>
+      {state.error && <p className="mt-1 text-terracotta">{state.error}</p>}
+      {r && (
+        <p className="mt-1">
+          Served by <span className="font-semibold">{r.label}</span>
+          {r.provider ? ` on ${r.provider}` : ""} after {r.attempts ?? "?"} attempt{r.attempts === 1 ? "" : "s"}
+          {r.fallback ? " · Otari-Fallback: true" : " · no fallback"} · {r.ms} ms
+        </p>
+      )}
+    </div>
   );
 }
 

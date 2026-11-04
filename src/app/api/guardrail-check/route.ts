@@ -25,6 +25,8 @@ const SAMPLES = [
 
 const recent = new Map<string, number[]>();
 const PER_HOUR = Number(process.env.GUARDRAIL_CHECKS_PER_IP_PER_HOUR || 6);
+const PER_DAY = Number(process.env.GUARDRAIL_CHECKS_PER_DAY || 300);
+let today = { day: new Date().toISOString().slice(0, 10), count: 0 };
 
 export async function POST(request: Request) {
   if (!inferenceConfigured()) return Response.json({ error: "Otari is not configured on this server." }, { status: 503 });
@@ -32,6 +34,10 @@ export async function POST(request: Request) {
   const now = Date.now();
   const mine = (recent.get(ip) ?? []).filter((t) => now - t < 3_600_000);
   if (mine.length >= PER_HOUR) return Response.json({ error: "That's enough checks for this hour. The recorded results stay on the page." }, { status: 429 });
+  const day = new Date().toISOString().slice(0, 10);
+  if (today.day !== day) today = { day, count: 0 };
+  if (today.count >= PER_DAY) return Response.json({ error: "Today's checks for this demo are used up." }, { status: 429 });
+  today.count += 1;
   recent.set(ip, [...mine, now]);
   try {
     const result = await withRun({ id: newRunId() }, async () => {

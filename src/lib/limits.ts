@@ -4,6 +4,7 @@
 // runs (offered next to every error) instead of waiting for a run that can't finish. Spend itself is capped by Otari:
 // a budget on the key, and one budget per restaurant (see docs/OTARI_SETUP.md).
 
+import { timingSafeEqual } from "node:crypto";
 import { isOtariError, type OtariError } from "./otari";
 import { isLocalCapError } from "./otari-ledger";
 
@@ -20,6 +21,20 @@ let pausedUntil = 0;
 let pauseReason = "";
 
 export type Gate = { ok: true; release: () => void } | { ok: false; reason: string };
+
+/**
+ * With LIVE_RUNS_TOKEN set, a live run needs that token in the x-tablecast-live header (the owner's link carries it);
+ * everyone else gets the recorded runs. Without it, live runs are open, within the caps below.
+ */
+export function liveTokenRefusal(request: Request): string | null {
+  const want = process.env.LIVE_RUNS_TOKEN;
+  if (!want) return null;
+  const got = request.headers.get("x-tablecast-live") ?? "";
+  const a = Buffer.from(got);
+  const b = Buffer.from(want);
+  if (a.length === b.length && timingSafeEqual(a, b)) return null;
+  return "Live runs on this demo are kept for its owner, so it can't be used to spend its Otari credit. Every recorded run is a real run and plays instantly.";
+}
 
 /** Why live runs are off right now (switched off with LIVE_RUNS_DISABLED=1, or paused after an account error), or null. */
 export function liveRunsDisabled(): string | null {

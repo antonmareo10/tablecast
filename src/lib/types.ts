@@ -120,6 +120,7 @@ export type Playbook = {
     screening?: {
       profile: string;
       available: boolean;
+      service?: string; // "tablecast": Otari ran Tablecast's own guardrails service (Otari's guardrails contract)
       screened: number;
       passed: number;
       unscreened: number;

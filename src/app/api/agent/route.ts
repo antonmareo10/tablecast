@@ -1,5 +1,5 @@
 import { runTablecast } from "@/lib/agent";
-import { acquireLiveRun, clientIp, describeLiveFailure, isAccountError, liveRunsDisabled } from "@/lib/limits";
+import { acquireLiveRun, clientIp, describeLiveFailure, isAccountError, liveRunsDisabled, liveTokenRefusal } from "@/lib/limits";
 import { defaultRouting, economyRouting, inferenceConfigured, resolveRouting, type Routing } from "@/lib/model-runtime";
 import { encodeLine } from "@/lib/ndjson";
 import { newRunId, OTARI_API, restaurantEndUser, withRun, type RunTag } from "@/lib/otari";
@@ -76,6 +76,8 @@ export async function POST(request: Request) {
   }
   const disabled = liveRunsDisabled();
   if (disabled) return Response.json({ error: disabled }, { status: 503 });
+  const locked = liveTokenRefusal(request);
+  if (locked) return Response.json({ error: locked }, { status: 403 });
   const gate = acquireLiveRun(clientIp(request));
   if (!gate.ok) return Response.json({ error: gate.reason }, { status: 429 });
 

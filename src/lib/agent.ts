@@ -624,6 +624,7 @@ export async function gatherEvidence(req: AgentRequest, emit: Emit, opts: RunOpt
   const screening: Screening = {
     profile: guard.profile,
     available: guard.available,
+    ...("service" in guard && guard.service ? { service: guard.service } : {}),
     screened: screens.screened,
     passed: screens.passed,
     unscreened: screens.unscreened,

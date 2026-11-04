@@ -124,7 +124,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
         ? await fetch(`/api/demo/${demo.slug}`, { signal: controller.signal })
         : await fetch("/api/agent", {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...liveTokenHeader() },
             body: JSON.stringify(req),
             signal: controller.signal,
           });
@@ -473,6 +473,19 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
       </footer>
     </div>
   );
+}
+
+// On a public demo, live runs can be kept to the owner: a link with ?live=<token> remembers the token for the tab and
+// sends it with each live run. Recorded runs never need it.
+function liveTokenHeader(): Record<string, string> {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("live");
+    if (fromUrl) sessionStorage.setItem("tablecast-live", fromUrl);
+    const token = fromUrl ?? sessionStorage.getItem("tablecast-live");
+    return token ? { "x-tablecast-live": token } : {};
+  } catch {
+    return {};
+  }
 }
 
 function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState; agent: AgentStatus } {
