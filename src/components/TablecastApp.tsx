@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { m } from "motion/react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 import type { DemoPreview } from "@/data/demos";
 import { captureLinkTokens, linkTokenHeaders } from "@/lib/link-tokens";
@@ -14,6 +14,7 @@ import ReplayWeek from "./ReplayWeek";
 import { IconAlert, IconArrow, IconSearch } from "./icons";
 import { SplitWords, Underline } from "./kinetic";
 import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } from "./motion";
+import { OtariChips, OtariMap } from "./OtariMap";
 
 // Routing measured in eval/SUMMARY.md: Ultra at medium effort has the best average and is fast; Super costs a third to a half of Quick on the
 // tuning set and 43–63% on held-out restaurants, verifies close to Quick within run-to-run noise (69% vs 79% in the latest round), but is slower.
@@ -43,6 +44,10 @@ type Phase = "idle" | "running" | "done" | "error";
 
 const timestamp = () => Date.now();
 
+// The link tokens live in the address bar or the tab's sessionStorage and never change while the page is open.
+const noSubscription = () => () => {};
+const hasLinkToken = () => Object.keys(linkTokenHeaders()).length > 0;
+
 export type DemoSummary = { slug: string; restaurant: string; city: string; goal?: string; recordedAt: string; preview?: DemoPreview };
 
 // Downscale the owner's menu photo in the browser so it uploads fast and stays under the API limit.
@@ -57,7 +62,11 @@ async function photoToDataUrl(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
-export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) {
+/**
+ * `liveLocked`: the server keeps live runs for the owner's and the judges' links (LIVE_RUNS_TOKEN is set), so a visitor
+ * without one is told up front instead of after pressing the button.
+ */
+export default function TablecastApp({ demos = [], liveLocked = false }: { demos?: DemoSummary[]; liveLocked?: boolean }) {
   const [form, setForm] = useState<AgentRequest>({ restaurant: "", city: "", goal: GOALS[0], language: "English" });
   const [photoName, setPhotoName] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -74,6 +83,9 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
 
   // An owner's or judges' link: keep its token for this tab and take it out of the address bar (src/lib/link-tokens.ts).
   useEffect(() => captureLinkTokens(), []);
+  // Whether this tab has one: null on the server and during hydration, so the note for visitors without a link never
+  // flashes for someone who has one.
+  const hasLink = useSyncExternalStore(noSubscription, hasLinkToken, () => null);
 
   useEffect(() => {
     if (phase !== "running") return;
@@ -214,7 +226,9 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
         >
           <div className="contents lg:flex lg:flex-col lg:gap-5">
             <div className="order-1 lg:order-none">
-              <p className="rise text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">For independent restaurants</p>
+              <p className="rise text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">
+                For independent restaurants <span className="text-muted">·</span> <span className="whitespace-nowrap text-olive">Built on Otari</span>
+              </p>
               <h1 className="kinetic font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-6xl">
                 <SplitWords text="Plan this week with what’s happening" />{" "}
                 <span className="relative inline-block text-olive">
@@ -223,10 +237,10 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                 </span>
               </h1>
               <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-ink-2">
-                Rain on Wednesday, a match two streets away, a holiday on Sunday, the rival next door’s prices. Tablecast reads your week —
-                forecast, events, your block, your menu and what guests say online — and turns it into three dishes to test, an event, a post and a
-                supplier order. Every cited claim links to the exact sentence it stands on, checked in code.
+                Rain on Wednesday, a match two streets away, a holiday on Sunday. Tablecast reads a restaurant’s week and turns it into three
+                dishes to test, an event, a post and a supplier order. Every cited claim links to the sentence it stands on, checked in code.
               </p>
+              {!started && <OtariChips className="rise mt-5 max-w-xl [--d:160ms]" />}
             </div>
 
             {!started && hasPreview && (
@@ -360,6 +374,12 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
                   </>
                 )}
               </button>
+              {liveLocked && hasLink === false && (
+                <p className="mt-2.5 text-[12.5px] leading-snug text-muted">
+                  A live run takes 2 to 4 minutes and spends real Otari credit, so on this public page it needs the owner’s link or the judges’ link.
+                  The recorded runs are real runs on Otari and play at once.
+                </p>
+              )}
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted">
                 <span>{demos.length ? "Instant replays of real runs:" : "Try:"}</span>
                 {(demos.length ? demos : SAMPLES).map((s) => (
@@ -382,57 +402,11 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
               </div>
             </form>
 
-            <div className="order-4 flex flex-wrap items-center gap-2 text-[12px] text-muted lg:order-none">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-olive" />
-                Every model call through <strong className="font-medium text-ink-2">Otari</strong> · open-weight models
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">⚡ Qwen3 researches · 🧠 Nemotron Ultra or Super writes · 🧮 gpt-oss computes the order</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1">🛡️ Every web page screened by Otari guardrails</span>
-            </div>
-
-            {!started && (
-              <div className="rise order-3 flex flex-col gap-3 rounded-2xl border border-line bg-card p-4 [--d:320ms] sm:flex-row sm:items-center sm:gap-5 sm:p-5 lg:order-none">
-                <div className="flex shrink-0 items-baseline gap-3 sm:block sm:text-center">
-                  <div className="font-display text-5xl leading-none text-olive tabular-nums">
-                    <span aria-hidden>
-                      <span className="css-count" style={{ "--to": 88, "--d": "500ms" } as CSSProperties} />
-                      <span className="text-2xl text-muted">%</span>
-                    </span>
-                    <span className="sr-only">88 percent</span>
-                  </div>
-                  <div className="mt-1 text-[11px] text-muted">verified claims right · Nebius version, read in full</div>
-                </div>
-                <p className="text-[13px] leading-snug text-ink-2">
-                  <span className="font-semibold text-ink">Measured, not promised.</span> On 8 restaurants it was never tuned on, I read every claim
-                  the plans show as verified: 186 of 212 were right, 19 had a minor slip, 7 were wrong (a sampled audit gave 94 of 100). On new
-                  restaurants, 69–80% of claims pass the strict code check after one repair pass (82–88% on the 8 I tuned on): every number and
-                  nearly every word must be in the sentences they cite, and every price and date in the plan is checked. What fails is marked, not
-                  hidden. These figures were measured on the Nebius version of Tablecast (Nemotron on Nebius, the same verifier); this Otari
-                  version uses other open-weight models for research and the reader, and has not been re-measured ·{" "}
-                  <a
-                    href="https://github.com/antonmareo10/tablecast/blob/main/eval/AUDIT.md"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-line underline-offset-2 hover:text-ink"
-                  >
-                    audit
-                  </a>{" "}
-                  ·{" "}
-                  <a
-                    href="https://github.com/antonmareo10/tablecast/blob/main/eval/SUMMARY.md#v71-held-out-round-2-every-verified-claim-read-by-hand"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-line underline-offset-2 hover:text-ink"
-                  >
-                    eval
-                  </a>
-                </p>
-              </div>
-            )}
+            {!started && <MeasuredOnOtari demos={demos} className="rise order-3 [--d:320ms] lg:order-none" />}
           </div>
         </section>
 
+        {!started && <OtariMap />}
         {!started && <HowItWorks />}
 
         <div ref={resultsRef}>
@@ -659,7 +633,7 @@ function RecordedBanner({ replay, running }: { replay: DemoSummary; running: boo
         {running ? "Replaying" : "Replay"}
       </span>
       <span className="min-w-0 flex-1">
-        <strong className="font-semibold text-ink">Recorded run</strong> — an instant replay of a real live run from{" "}
+        <strong className="font-semibold text-ink">Recorded run:</strong> an instant replay of a real live run{replay.preview?.otari ? " on Otari" : ""} from{" "}
         {new Date(replay.recordedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} (same events, same sources, sped
         up). The week it describes is that week. Use the form to run it live for any restaurant.
       </span>
@@ -681,8 +655,9 @@ function ErrorState({
   onReplay: (d: DemoSummary) => void;
 }) {
   const others = demos.filter((d) => d.slug !== replay?.slug).slice(0, 3);
-  // Paused, switched off or out of budget: retrying won't help, so offer only the recorded runs.
-  const resting = /paused|used up|switched off/i.test(message);
+  // Paused, switched off, out of budget or kept for the owner's and judges' links: retrying won't help, so offer only the recorded runs.
+  const locked = /kept for its owner/i.test(message);
+  const resting = locked || /paused|used up|switched off/i.test(message);
   return (
     <m.div
       role="alert"
@@ -694,7 +669,9 @@ function ErrorState({
         <IconAlert size={16} />
       </span>
       <div className="min-w-0">
-        <p className="font-semibold text-terracotta">{resting ? "Live runs are resting right now" : "The agent hit a problem"}</p>
+        <p className="font-semibold text-terracotta">
+          {locked ? "Live runs need the owner’s or the judges’ link" : resting ? "Live runs are resting right now" : "The agent hit a problem"}
+        </p>
         <p className="mt-1 text-ink-2">{message}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {!resting && (
@@ -751,12 +728,55 @@ function Logo() {
   );
 }
 
+/** Figures measured on Otari, next to the form: what Otari billed each recorded run (read from the recordings) and the drill. */
+function MeasuredOnOtari({ demos, className = "" }: { demos: DemoSummary[]; className?: string }) {
+  const billed = demos.filter((d) => d.preview?.onOtari?.billed != null);
+  return (
+    <div className={`rounded-2xl border border-line bg-card p-4 sm:p-5 ${className}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Measured on Otari</p>
+      <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+        {billed.length > 0 && (
+          <div>
+            <dt className="sr-only">What Otari billed each recorded plan</dt>
+            <dd className="font-display text-3xl leading-none text-olive tabular-nums">
+              {billed.map((d) => `$${d.preview!.onOtari!.billed!.toFixed(3)}`).join(" · ")}
+            </dd>
+            <dd className="mt-1.5 text-[12.5px] leading-snug text-ink-2">
+              billed by Otari to each restaurant’s own end user for {billed.length === 1 ? "the recorded plan" : `the ${billed.length} recorded plans`} (
+              {billed.map((d) => d.restaurant).join(", ")}), against a $1 weekly budget
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt className="sr-only">The failover drill</dt>
+          <dd className="font-display text-3xl leading-none text-olive tabular-nums">2 attempts</dd>
+          <dd className="mt-1.5 text-[12.5px] leading-snug text-ink-2">
+            in the failover drill: Mistral Large 3 refuses a parameter the drill sends, Otari moves on by itself and Nemotron 3 Ultra answers (
+            <code className="text-[11.5px]">Otari-Fallback: true</code>)
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-3 border-t border-line pt-2.5 text-[12px] text-muted">
+        Single runs from 4 Nov 2026, not an eval ·{" "}
+        <a
+          href="https://github.com/antonmareo10/tablecast/tree/otari-wilding#what-i-measured-on-otari"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-line underline-offset-2 hover:text-ink"
+        >
+          what I measured
+        </a>
+      </p>
+    </div>
+  );
+}
+
 function HowItWorks() {
   const steps = [
     ["Your week", "The 7-day forecast at your door, public holidays, and the concerts and matches within 5 km."],
-    ["Your block", "Every restaurant, bar and café within 600 m from OpenStreetMap — who serves your cuisine next door."],
+    ["Your block", "Every restaurant, bar and café within 600 m, from OpenStreetMap: who serves your cuisine next door."],
     ["The live web", "An agent searches the web through Otari and reads your menu, what guests and critics say, local news and a rival’s prices."],
-    ["A plan you can check", "Three dishes, an event, a post and a supplier order — every cited claim linked to the sentence it stands on and checked in code."],
+    ["A plan you can check", "Three dishes, an event, a post and a supplier order. Every cited claim is linked to the sentence it stands on and checked in code."],
   ];
   return (
     <section aria-label="How it works" className="grid gap-6 border-t border-line py-10 sm:grid-cols-2 lg:grid-cols-4">

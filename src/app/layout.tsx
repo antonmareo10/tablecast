@@ -13,11 +13,11 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   // Absolute URLs for the link preview image (opengraph-image.png next to this file).
-  metadataBase: new URL("https://tablecast-app.vercel.app"),
+  metadataBase: new URL("https://tablecast-otari.vercel.app"),
   twitter: { card: "summary_large_image" },
-  title: "Tablecast · plan your restaurant's week with what's happening around you",
+  title: "Tablecast on Otari · plan a restaurant's week with what's happening around it",
   description:
-    "An AI agent on open-weight models, every call through the Otari gateway, that reads your restaurant's week — forecast, events, your block, your menu, what guests say online — and turns it into dishes to test, an event, a post and a supplier order, every cited claim checked against its source.",
+    "Tablecast plans an independent restaurant's week from the forecast, events nearby, its block, its menu and what guests say online. Open-weight models through Otari by Mozilla.ai: routing policies with fallbacks, web search, an MCP page reader, guardrails, a code sandbox and a budget per restaurant.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

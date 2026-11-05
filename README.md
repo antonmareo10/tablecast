@@ -1,29 +1,35 @@
 # Tablecast on Otari
 
-Tablecast plans an independent restaurant's coming week. It reads the forecast at its door, the public holidays, events nearby, the venues on its block, its own menu and what guests say online, and turns that into three dishes to test, an event, a post, a supplier order and a day-by-day plan. Every claim in the plan points to the exact sentences it stands on, and code checks that those sentences contain its numbers and its words.
+Tablecast plans an independent restaurant's coming week from what is happening around it. Every model call, web search, MCP call, guardrail check and code run goes through [Otari](https://otari.ai), the gateway by Mozilla.ai, and every model is open-weight.
 
-This branch (`otari-wilding`) is the version I built for MozFest Developers Wilding. Every model call, web search, MCP call, guardrail check and code run goes through [Otari](https://otari.ai), the gateway by Mozilla.ai, and every model is open-weight. The version before it ran on Nebius Token Factory and Tavily; its README and measured figures are in [docs/NEBIUS_VERSION.md](docs/NEBIUS_VERSION.md).
+![The "What Otari did in this run" panel of a recorded run: the routing policy each role asked for, the open-weight model and provider that answered, what Otari billed the restaurant's own budget, and the guardrail, web search, MCP and sandbox results](docs/otari-panel.png)
 
-- Live app: https://tablecast-otari.vercel.app (two recorded Otari runs play for everyone; live runs are kept for me and for the judges' link, so the public page can't spend the credit)
-- Setup on the Otari side (budgets, service key, routing policies): [docs/OTARI_SETUP.md](docs/OTARI_SETUP.md)
-- What I submit, the video scripts and my feedback on Otari: [docs/OTARI_SUBMISSION.md](docs/OTARI_SUBMISSION.md)
+*The "What Otari did in this run" panel of a recorded run (Taberna La Bola, Madrid, 4 Nov 2026). Every figure in it comes from Otari's response headers, `usage.cost_usd` and end-user records.*
 
-## Built on Otari
+- Live app: https://tablecast-otari.vercel.app. Two recorded Otari runs play at once. A live run takes 2 to 4 minutes and spends real credit, so on the public page it needs my owner link or the judges' link.
+- This branch, `otari-wilding`, is my entry for MozFest Developers Wilding. Otari comes in at commit [d4160e2](https://github.com/antonmareo10/tablecast/commit/d4160e2981f93921f47e9270e47205575c9191ca).
+- Otari setup (budgets, service key, routing policies): [docs/OTARI_SETUP.md](docs/OTARI_SETUP.md)
 
-Every row is something a normal run does. The last column says where to look.
+## Who it's for
 
-| Otari feature | What Tablecast does with it | Code | How to see it |
+The owner of a small restaurant on a Monday morning. Rain on Wednesday, a match two streets away, a holiday on Sunday and the rival next door's new prices all change the week, and nobody tells them in time. Tablecast reads the forecast, the holidays, events nearby, the venues on the block, the menu and what guests say online, and turns it into three dishes to test, an event, a post, a supplier order and a day-by-day plan. Every claim points to the exact sentences it stands on, and code checks that those sentences contain its numbers and its words.
+
+## How this app uses Otari
+
+Each row is code that a normal run goes through. The two recorded runs show all of them except the menu photo and the web-fetch fallback, which only run when they are needed.
+
+| Otari feature | What Tablecast does with it | In the code | Where you see it |
 |---|---|---|---|
-| Open-weight models, several roles | Each role runs on the open-weight model that suits it: Qwen3 235B researches, Nemotron 3 Ultra writes (Nemotron 3 Super in Economy) and repairs, gpt-oss-120b computes the supplier order, gpt-oss-safeguard-20b judges prompt injection, Qwen3 VL reads a menu photo. | [src/lib/model-runtime.ts](src/lib/model-runtime.ts) | App: Proof & engine, "What Otari did in this run", one row per role with the model and provider that answered. Dashboard: Overview, Requests. |
-| Routing policies and fallbacks | The app never names a model. It asks for `tablecast-research`, `tablecast-write`, `tablecast-economy`, `tablecast-check` and `tablecast-quartermaster`, each falling back to another provider and another model family. `tablecast-write` also tiers down to Nemotron 3 Super once a restaurant has used 60% of its weekly budget. The app reads `Otari-Model`, `Otari-Provider`, `Otari-Attempt-Count` and `Otari-Fallback` on every answer. A drill policy, `tablecast-drill`, fails over on purpose: its first model refuses a parameter I send. | [src/lib/model-runtime.ts](src/lib/model-runtime.ts), [src/lib/otari.ts](src/lib/otari.ts), [src/app/api/failover-drill/route.ts](src/app/api/failover-drill/route.ts) | App: the engine room shows "policy → provider" per call; the Failover drill button. Dashboard: Routing, and Requests (the drill shows two attempts). |
-| Web search and web fetch | The researcher searches with `otari_web_search` inside Otari's tool loop (on my organization's Exa key, at most 5 searches a run). When my own reader can't open a page, the app reads it with Otari's web fetch through the Messages API, where the fetched text comes back. | [src/lib/agent.ts](src/lib/agent.ts), [src/lib/sources/otari-fetch.ts](src/lib/sources/otari-fetch.ts) | App: "Searching the web … (Otari web search)" steps. Dashboard: Agent traces, the search spans. |
-| MCP | Tablecast's page reader is an MCP server (`/api/mcp`, tools `read_page` and `find_menu_pages`). Every research turn names it in `mcp_servers`; Otari connects to it, runs the model's calls on it inside its tool loop, and the exact page text comes back in `otari_tool_calls`, where the app turns it into a source. | [src/lib/mcp-server.ts](src/lib/mcp-server.ts), [src/app/api/mcp/route.ts](src/app/api/mcp/route.ts) | App: "Reading … (Tablecast MCP, via Otari)" steps. Dashboard: Agent traces, the MCP spans. |
-| Guardrails | Every page and search result the researcher read goes alone through an Otari guardrail in block mode before the writer can see it, and flagged ones are withheld. otari.ai's EU deployment runs no guardrails service and Otari's built-in guardrails all need a vendor key, so I used Otari's documented extension point: the guardrail entry's `url` names Tablecast's own service, which speaks Otari's guardrails contract (a few rules, then gpt-oss-safeguard-20b through Otari). Otari runs the check and enforces it (`403 guardrail_violation`). A button in the app sends a poisoned review through the same check, live. | [src/lib/screen.ts](src/lib/screen.ts), [src/lib/injection-detector.ts](src/lib/injection-detector.ts), [src/lib/guardrail-service.ts](src/lib/guardrail-service.ts) | App: the 🛡️ line in the log and the Guardrails card. Dashboard: Requests (refused with `guardrail_violation`), Agent traces. |
-| Code execution | gpt-oss-120b writes one Python program and Otari runs it with `otari_code_execution`: the supplier order by supplier, its total, and how many portions of each new dish pay for its ingredients. The app shows the program and its own stdout and checks every sum against the plan in code. | [src/lib/quartermaster.ts](src/lib/quartermaster.ts) | App: "Computed in Otari's code sandbox" under the shopping list, with the program. Dashboard: Agent traces, the code execution span. |
-| Budgets and spending limits | The app's key has a $12 monthly budget. Before each live run the app checks the key with a free call; a spent budget or an empty balance pauses live runs. On my machine a local ledger also refuses requests past a cap. | [src/lib/limits.ts](src/lib/limits.ts), [src/lib/otari-ledger.ts](src/lib/otari-ledger.ts) | App: the message a visitor gets. Dashboard: Spend & budgets. |
-| Per-user budgets | The key is a service key, and every request names the restaurant as an Otari end user (`user: "restaurant:<name>-<city>"`), each with its own $1 weekly budget. The app reads it before a run (and refuses a run the restaurant can't afford, before spending anything) and after it (to show what Otari billed). | [src/lib/otari-budget.ts](src/lib/otari-budget.ts), [src/app/api/agent/route.ts](src/app/api/agent/route.ts) | App: "This restaurant's budget on Otari", with the bar. Dashboard: Spend & budgets, end users. |
-| Per-user budgets, for the judges | The judges' link (`/?judge=<token>`) opens live runs without any key. Every request of such a run is billed to one Otari end user, `judges:mozfest-wilding-2026`, whatever restaurant is typed, so the judges together can spend only that end user's own budget. The app refuses a run it can't cover before spending anything, allows one at a time and a few an hour, and the link can be switched off at once by blocking that end user. | [src/lib/judge.ts](src/lib/judge.ts), [src/app/api/judge/route.ts](src/app/api/judge/route.ts), [scripts/judge-link.mjs](scripts/judge-link.mjs) | App: "Judge link · live runs are on" above the form, and "The judges' budget on Otari" after a run. Dashboard: Spend & budgets, end users. |
-| Sessions | Every request of a run carries the same `Otari-Conversation-Id`, so a run is one session in Otari's agent traces. | [src/lib/otari.ts](src/lib/otari.ts) | App: the session id in the Otari panel. Dashboard: Agent traces, search the id. |
+| Open-weight models, each in its own role | Qwen3 235B researches. Nemotron 3 Ultra writes and repairs (Nemotron 3 Super in Economy). gpt-oss-120b writes the program the sandbox runs. gpt-oss-safeguard-20b judges prompt injection. Qwen3 VL reads a menu photo. | [model-runtime.ts](src/lib/model-runtime.ts): `POLICIES`, `gather()`, `synthesize()`, `repairCitations()`, `readMenuPhoto()` · [injection-detector.ts](src/lib/injection-detector.ts): `detectInjection()` | App: "What Otari did in this run", one row per role with the model and provider that answered. Dashboard: Requests. |
+| Model routing and fallbacks | The app asks for a routing policy, never a model. Each policy falls back to another provider and model family; `tablecast-write` moves a restaurant to Nemotron 3 Super at 60% of its budget. `Otari-Model`, `Otari-Provider`, `Otari-Attempt-Count` and `Otari-Fallback` are read on every answer. | [model-runtime.ts](src/lib/model-runtime.ts): `POLICIES`, `resolveRouting()` · [otari.ts](src/lib/otari.ts): `servedFrom()` · [failover-drill/route.ts](src/app/api/failover-drill/route.ts) | App: "asked tablecast-write → Nemotron 3 Ultra on fireworks" for each role; the Failover drill button. Dashboard: Routing; Requests (the drill shows two attempts). |
+| Web search and web fetch | The researcher searches with `otari_web_search` inside Otari's tool loop, at most 5 times a run. When my own reader can't open a page, Otari's web fetch reads it through the Messages API. | [agent.ts](src/lib/agent.ts): `gatherEvidence()` · [otari-fetch.ts](src/lib/sources/otari-fetch.ts): `otariFetchPage()` | App: "Searching the web: … (Otari web search)" in the agent log. Dashboard: Agent traces, search spans. |
+| MCP | Tablecast's page reader is an MCP server (`read_page`, `find_menu_pages`). Each research turn names it in `mcp_servers`; Otari calls it inside its loop, and the text it returns becomes a numbered source. | [mcp-server.ts](src/lib/mcp-server.ts): `TOOLS`, `callTool()`, `inlineMcpServer()` · [api/mcp/route.ts](src/app/api/mcp/route.ts) · [agent.ts](src/lib/agent.ts): `onGatewayCalls` | App: "Reading timeout.com (Tablecast MCP, via Otari)" in the agent log. Dashboard: Agent traces, MCP spans. |
+| Code execution | gpt-oss-120b writes one Python program and Otari runs it with `otari_code_execution`: the order by supplier, its total, and the portions that pay for each new dish. My code then checks every sum. | [quartermaster.ts](src/lib/quartermaster.ts): `runQuartermaster()`, `checkResult()` | App: "Computed in Otari's code sandbox" under the shopping list, with the program it ran. Dashboard: Agent traces, code execution span. |
+| Guardrails | Each page and search result goes alone through a `prompt-injection` guardrail in block mode before the writer sees it, and Otari refuses flagged text with `403 guardrail_violation`. The EU deployment has no guardrails service, so the guardrail's `url` names my own, on Otari's guardrails contract. | [screen.ts](src/lib/screen.ts): `screenText()` · [guardrail-service.ts](src/lib/guardrail-service.ts): `validateResponse()` · [injection-detector.ts](src/lib/injection-detector.ts): `detectInjection()` | App: the 🛡️ line in the log; "Try it: send a poisoned review through the same check". Dashboard: Requests refused with `guardrail_violation`. |
+| Budgets and spending limits | The app's service key has a $12 monthly budget on Otari. When Otari answers `budget_exceeded` for the key or the workspace, or the balance is empty, the server pauses live runs and tells the visitor why. | [limits.ts](src/lib/limits.ts): `isAccountError()`, `describeLiveFailure()` · [otari.ts](src/lib/otari.ts): `OtariError.budgetScope` | App: the message a visitor gets when live runs pause. Dashboard: Spend & budgets, the key's budget. |
+| Per-user budgets | Every request names the restaurant as an Otari end user, `restaurant:<name>-<city>`, with its own $1 weekly budget. The app reads it before a run (and refuses one it can't cover, before spending anything) and after it, to show what Otari billed. The judges' link bills one end user of its own. | [otari.ts](src/lib/otari.ts): `restaurantEndUser()`, `completionExtras()` · [otari-budget.ts](src/lib/otari-budget.ts): `endUserStatus()` · [api/agent/route.ts](src/app/api/agent/route.ts) · [judge.ts](src/lib/judge.ts): `judgeBudget()` | App: "This restaurant's budget on Otari", with the bar and what Otari billed this run. Dashboard: Spend & budgets, end users. |
+
+Also used: sessions. Every request of a run carries one `Otari-Conversation-Id` ([otari.ts](src/lib/otari.ts): `otariFetch()`), so a whole run is one session in Otari's agent traces, and the app shows its id.
 
 ## The models
 
@@ -51,7 +57,7 @@ If a policy does not exist in the workspace, the app uses the role's catalog id 
 4. Verify: code checks every claim against the sentences it cites (numbers, words, subject, dates, prices). What fails goes to the checker once; a fix is kept only if it passes the same check. What still fails is marked in the plan.
 5. Supplier order: the quartermaster's program runs in Otari's sandbox, and code checks its sums.
 
-The verifier is the same as in the Nebius version; how it works, and how I measured it there, is in [docs/NEBIUS_VERSION.md](docs/NEBIUS_VERSION.md#how-every-cited-claim-is-verified-code-decides-not-a-model).
+The verifier is the same as in the Nebius version, the one I built before this; how it works, and how I measured it there, is in [docs/NEBIUS_VERSION.md](docs/NEBIUS_VERSION.md#how-every-cited-claim-is-verified-code-decides-not-a-model).
 
 ## What I measured on Otari
 
@@ -64,11 +70,19 @@ These are single runs from 4 Nov 2026, not an eval.
 | Taberna La Bola, Madrid | my laptop, MCP and guardrail service on the deployment | 5 | 14 of 14 (12) | 137 s | $0.076 |
 | Dishoom Covent Garden, London | my laptop, pages read in-process | 6 | 11 of 14 (6) | 247 s | $0.100 |
 
-In both recorded runs the guardrail passed every web source (6 of 6 and 3 of 3), and the sandbox's supplier order matched the plan's own lines in every sum. Other checks: the failover drill was served by Nemotron 3 Ultra after 2 attempts (`Otari-Fallback: true`) for $0.00005; through Otari, Tablecast's guardrail service passed a clean review and refused a subtle and a plain injection with `403 guardrail_violation` (a handful of texts, not a benchmark). Twice in my first runs, the writer's first streamed attempt stopped after about 14,000 characters and stayed silent until the app cut it and wrote again; the stall cut is now 30 s.
+In both recorded runs the guardrail passed every web source (6 of 6 and 3 of 3), and the sandbox's supplier order matched the plan's own lines in every sum. In the London recording, Qwen3's first research turn didn't answer in time, so the app gave the research to the checker's policy (Nemotron 3 Ultra); the Madrid recording has Qwen3 researching. Other checks: the failover drill was served by Nemotron 3 Ultra after 2 attempts (`Otari-Fallback: true`) for $0.00005; through Otari, Tablecast's guardrail service passed a clean review and refused a subtle and a plain injection with `403 guardrail_violation` (a handful of texts, not a benchmark). Twice in my first runs, the writer's first streamed attempt stopped after about 14,000 characters and stayed silent until the app cut it and wrote again; the stall cut is now 30 s.
 
-Development on Otari cost about $1 of the $20 credit (Otari's end-user records plus my local ledger).
+Development on Otari cost about $1 of the $20 credit (Otari's end-user records plus my local ledger), as of 4 Nov.
 
 The verification figures in the Nebius README (for example 186 of 212 verified claims right when I read a whole held-out round) were measured with Nemotron on Nebius. The Otari version uses the same verifier but other models for research and another page reader, and I have not re-run those evals on it.
+
+## What I built around Otari
+
+Three things Otari didn't give me on its hosted EU deployment, so I built them on its own extension points:
+
+- A page reader that returns the exact text, served as an MCP server, because on Chat Completions Otari's search and fetch give the page text to the model but only report the URL back to the app, and Tablecast has to check claims against the sentences themselves.
+- A prompt-injection guardrail service on Otari's guardrails contract, because the EU deployment has no guardrails service and every built-in guardrail needs a vendor key.
+- A read of each restaurant's end-user record before and after a run, to know what the whole run cost, because searches and tool calls are not in the cost of each model answer.
 
 ## Run it yourself
 
@@ -99,8 +113,14 @@ Checks: `npm test` (unit tests with Otari's answers mocked, including the MCP ro
 - The guardrail judge is mine (rules plus an open-weight safety model), checked on a handful of texts. It screens a source as far as the writer will read it, in pieces of 2,000 characters. If it can't run, the source is kept and counted as unscreened, not as passed.
 - Otari's search results reach the app as URLs and titles, so the researcher has to read a page before the plan can use it; when it reads little, the plan stands on few sources (5 to 7 in the recorded runs).
 - My reader does not run JavaScript; when it fails, Otari's fetch gets a second try.
+- The budget tier-down needs a restaurant past 60% of its weekly budget. Neither recorded run reached it, so it is configured in the policy but not shown happening.
 - The supplier order's matching of ingredients to order lines is the model's (names never match exactly); code checks the sums and the break-even arithmetic, not the matching. The shopping list's own costs come from the writer.
 - Nothing here measures sales. A plan is a set of bets to test for a week, and verification proves that each cited claim matches its sentences, not that the plan is right.
+
+## More
+
+- Submission notes, the feature-by-feature table I sent and my written feedback on Otari: [docs/OTARI_SUBMISSION.md](docs/OTARI_SUBMISSION.md)
+- The version before Otari (Nebius Token Factory and Tavily), with its measured figures: [docs/NEBIUS_VERSION.md](docs/NEBIUS_VERSION.md)
 
 ## Credits
 

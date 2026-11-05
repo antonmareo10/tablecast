@@ -33,7 +33,7 @@ export function liveTokenRefusal(request: Request): string | null {
   const a = Buffer.from(got);
   const b = Buffer.from(want);
   if (a.length === b.length && timingSafeEqual(a, b)) return null;
-  return "Live runs on this demo are kept for its owner, so it can't be used to spend its Otari credit. Every recorded run is a real run and plays instantly.";
+  return "Live runs on this demo are kept for its owner and for the judges' link, so it can't be used to spend its Otari credit. Every recorded run is a real run and plays instantly.";
 }
 
 /** Why live runs are off right now (switched off with LIVE_RUNS_DISABLED=1, or paused after an account error), or null. */

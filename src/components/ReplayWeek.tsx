@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { DemoSummary } from "./TablecastApp";
+import type { OtariStats } from "@/data/demos";
 import { formatMm } from "@/lib/sources/format";
 import { useMagnetic, usePillClip } from "./motion";
 import { WeatherIcon } from "./weather";
@@ -52,7 +53,7 @@ export default function ReplayWeek({ demos, onPlay, className = "" }: { demos: D
             <path d="M0 0.6v7.8L7.2 4.5z" />
           </svg>
         </span>
-        Watch a real recorded run — no wait
+        Watch a real recorded run, no wait
       </h2>
       <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-terracotta/25 bg-terracotta/5 px-2 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-terracotta">
@@ -196,7 +197,33 @@ export default function ReplayWeek({ demos, onPlay, className = "" }: { demos: D
             <span>Open-Meteo · Ticketmaster · Nager.Date</span>
           </p>
         </div>
+        {week.onOtari && <OnOtari stats={week.onOtari} />}
       </div>
     </section>
+  );
+}
+
+const usd = (v: number) => `$${v.toFixed(3)}`;
+
+/** What Otari did in the recorded run: who served each role, and the searches, MCP reads, guardrail checks and bill. */
+function OnOtari({ stats }: { stats: OtariStats }) {
+  const roles = [
+    stats.researcher && `${stats.researcher} researched`,
+    stats.writer && `${stats.writer} wrote`,
+    stats.sandbox && `${stats.sandbox} wrote the sandbox program`,
+  ].filter(Boolean);
+  const counts = [
+    `${stats.searches} web search${stats.searches === 1 ? "" : "es"}`,
+    `${stats.mcpReads} page${stats.mcpReads === 1 ? "" : "s"} read over MCP`,
+    `${stats.screened} source${stats.screened === 1 ? "" : "s"} through the guardrail`,
+    stats.billed != null && `billed ${usd(stats.billed)} to the restaurant`,
+  ].filter(Boolean);
+  return (
+    <div className="rounded-xl border border-olive/20 bg-olive/5 px-3 py-2 text-[12px] leading-snug text-ink-2 sm:col-span-2">
+      <p>
+        <span className="font-semibold text-olive">On Otari:</span> {roles.join(", ")}.
+      </p>
+      <p className="mt-0.5 tabular-nums text-muted">{counts.join(" · ")}</p>
+    </div>
   );
 }

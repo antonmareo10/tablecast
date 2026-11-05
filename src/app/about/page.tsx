@@ -29,12 +29,12 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
   {
     step: "3 · Research",
     who: "tablecast-research (Qwen3 235B) + Otari web search + the Tablecast MCP server",
-    what: "An agent loop decides what to look up: the restaurant’s site and current menu, what guests and critics say, local news for the coming days, a same-cuisine rival’s prices. It searches through Otari’s search API and reads pages with the Tablecast MCP server, which Otari connects to it inside its tool loop. Every page and search result passes Otari’s prompt-injection guardrail before it can become a source.",
+    what: "An agent loop decides what to look up: the restaurant’s site and current menu, what guests and critics say, local news for the coming days, a same-cuisine rival’s prices. It searches with Otari’s web search (otari_web_search) and reads pages with the Tablecast MCP server, both inside Otari’s own tool loop. Every page and search result passes Otari’s prompt-injection guardrail before it can become a source.",
   },
   {
     step: "4 · Write",
     who: "tablecast-write (Nemotron 3 Ultra) or tablecast-economy (Nemotron 3 Super)",
-    what: "The writer plans the week as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on. If Ultra fails, Otari falls back to GLM 5.2 and then Mistral Large 3; once a restaurant has used 60% of its weekly budget, Otari routes its writer to Nemotron 3 Super.",
+    what: "The writer plans the week as one forced, streamed function call against a strict schema: demand moments, three dishes, rivals, an event, a post, a shopping list and a 7-day plan. Every claim must cite the numbered sentences of the sources it stands on. If Ultra fails, Otari falls back to GLM 5.2 and then Mistral Small 4; once a restaurant has used 60% of its weekly budget, Otari routes its writer to Nemotron 3 Super.",
   },
   {
     step: "5 · Verify",
@@ -70,7 +70,7 @@ export default function About() {
 
       <section className="mt-12 grid gap-4 sm:grid-cols-3">
         <Stat i={0} value="412,498" label="independent restaurants left in the US at the end of 2025" href={SOURCES.technomic} />
-        <Stat i={1} value="−2.3%" label="independents lost in 2025 — about 9,500 closures — while chains grew 1.4%" href={SOURCES.nrn} />
+        <Stat i={1} value="−2.3%" label="independents lost in 2025 (about 9,500 closures), while chains grew 1.4%" href={SOURCES.nrn} />
         <Stat i={2} value="7 in 10" label="US restaurants are single-unit operations, with no insight team" href={SOURCES.nra} />
       </section>
 
@@ -83,7 +83,14 @@ export default function About() {
       </Block>
 
       <Block title="The pipeline">
-        <p>Every step asks Otari for a routing policy, and Otari picks the open-weight model and provider that serve it. Every call, with the model that answered and what it cost, is shown in the app’s engine room.</p>
+        <p>
+          Every step asks Otari for a routing policy, and Otari picks the open-weight model and provider that serve it. Every call, with the model that answered
+          and what it cost, is shown in the app’s engine room. For each Otari feature, the file and function that use it are in{" "}
+          <Link href="/#otari-map" className="underline decoration-line underline-offset-2 hover:text-ink">
+            the map on the home page
+          </Link>
+          .
+        </p>
         <ol className="mt-4 space-y-3">
           {PIPELINE.map((p, i) => (
             <Reveal as="li" key={p.step} delay={i * 0.06} y={12} className="rounded-2xl border border-line bg-card p-4">
@@ -145,7 +152,7 @@ export default function About() {
           <li>
             <strong>Web pages are data, never instructions.</strong> Every page and search result passes Otari’s prompt-injection guardrail before the
             writer sees it, and flagged ones are withheld and listed. Fetched text is passed to the models as quoted sources with an explicit rule to
-            ignore instructions inside them, and the agent can only search and read — it cannot post, buy or send anything.
+            ignore instructions inside them, and the agent can only search and read: it cannot post, buy or send anything.
           </li>
           <li>
             <strong>No personal data.</strong> Tablecast reads public pages, open data and aggregate listings. It never collects information about

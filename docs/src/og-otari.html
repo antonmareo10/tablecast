@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tablecast on Otari: link preview</title>
+<!-- Source of src/app/opengraph-image.png (1200 x 630). Render it at that size; the right side is a real capture of the
+     "What Otari did in this run" panel from the recorded Taberna La Bola run (docs/otari-panel.png). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+  :root { --paper: #f6f1e7; --card: #fffdf8; --ink: #1d1b17; --ink-2: #4a4539; --muted: #6f6759; --line: #e2d8c4; --olive: #2f4a35; --terracotta: #ad4823; --saffron: #dd9a2e; }
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1200px; height: 630px; overflow: hidden; position: relative; background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+  .glow { position: absolute; left: -160px; top: -220px; width: 760px; height: 760px; border-radius: 50%; background: radial-gradient(closest-side, rgba(221,154,46,.22), rgba(221,154,46,.06) 55%, transparent); }
+  .left { position: absolute; left: 64px; top: 0; bottom: 0; width: 520px; display: flex; flex-direction: column; justify-content: center; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand span { font-family: Fraunces, Georgia, serif; font-size: 44px; letter-spacing: -.01em; }
+  .brand em { font-style: normal; color: var(--olive); }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 400; font-size: 46px; line-height: 1.08; letter-spacing: -.015em; margin-top: 30px; }
+  h1 b { font-weight: 400; color: var(--olive); }
+  .sub { margin-top: 22px; font-size: 20px; line-height: 1.4; color: var(--ink-2); }
+  .chips { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips span { font-size: 15px; padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(47,74,53,.28); background: rgba(255,253,248,.85); color: var(--ink-2); }
+  .shot { position: absolute; left: 622px; top: 84px; width: 548px; border-radius: 22px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 1px 0 rgba(29,27,23,.04), 0 30px 60px -30px rgba(47,74,53,.5); background: var(--card); }
+  .shot img { display: block; width: 100%; }
+  .tag { position: absolute; left: 622px; top: 50px; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="left">
+    <div class="brand">
+      <svg width="52" height="52" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#2f4a35"/><circle cx="16" cy="16" r="9.5" fill="none" stroke="#f6f1e7" stroke-width="1.6"/><path d="M16 6.5v19M6.5 16h19" stroke="#dd9a2e" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="16" r="3" fill="#c0532c"/></svg>
+      <span>Tablecast <em>on Otari</em></span>
+    </div>
+    <h1>Plan a restaurant’s week from what’s happening <b>around it.</b></h1>
+    <p class="sub">Every model call, search, page read and code run goes through Otari by Mozilla.ai, on open-weight models.</p>
+    <div class="chips"><span>Routing and fallbacks</span><span>Web search</span><span>MCP</span><span>Code sandbox</span><span>Guardrails</span><span>A budget per restaurant</span></div>
+  </div>
+  <p class="tag">A recorded run, Madrid, 4 Nov 2026</p>
+  <div class="shot"><img src="../otari-panel.png" alt=""></div>
+</body>
+</html>
