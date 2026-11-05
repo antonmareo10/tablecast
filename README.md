@@ -4,7 +4,7 @@ Tablecast plans an independent restaurant's coming week. It reads the forecast a
 
 This branch (`otari-wilding`) is the version I built for MozFest Developers Wilding. Every model call, web search, MCP call, guardrail check and code run goes through [Otari](https://otari.ai), the gateway by Mozilla.ai, and every model is open-weight. The version before it ran on Nebius Token Factory and Tavily; its README and measured figures are in [docs/NEBIUS_VERSION.md](docs/NEBIUS_VERSION.md).
 
-- Live app: https://tablecast-otari.vercel.app (two recorded Otari runs play for everyone; live runs are kept for me, so the public page can't spend the credit)
+- Live app: https://tablecast-otari.vercel.app (two recorded Otari runs play for everyone; live runs are kept for me and for the judges' link, so the public page can't spend the credit)
 - Setup on the Otari side (budgets, service key, routing policies): [docs/OTARI_SETUP.md](docs/OTARI_SETUP.md)
 - What I submit, the video scripts and my feedback on Otari: [docs/OTARI_SUBMISSION.md](docs/OTARI_SUBMISSION.md)
 
@@ -22,6 +22,7 @@ Every row is something a normal run does. The last column says where to look.
 | Code execution | gpt-oss-120b writes one Python program and Otari runs it with `otari_code_execution`: the supplier order by supplier, its total, and how many portions of each new dish pay for its ingredients. The app shows the program and its own stdout and checks every sum against the plan in code. | [src/lib/quartermaster.ts](src/lib/quartermaster.ts) | App: "Computed in Otari's code sandbox" under the shopping list, with the program. Dashboard: Agent traces, the code execution span. |
 | Budgets and spending limits | The app's key has a $12 monthly budget. Before each live run the app checks the key with a free call; a spent budget or an empty balance pauses live runs. On my machine a local ledger also refuses requests past a cap. | [src/lib/limits.ts](src/lib/limits.ts), [src/lib/otari-ledger.ts](src/lib/otari-ledger.ts) | App: the message a visitor gets. Dashboard: Spend & budgets. |
 | Per-user budgets | The key is a service key, and every request names the restaurant as an Otari end user (`user: "restaurant:<name>-<city>"`), each with its own $1 weekly budget. The app reads it before a run (and refuses a run the restaurant can't afford, before spending anything) and after it (to show what Otari billed). | [src/lib/otari-budget.ts](src/lib/otari-budget.ts), [src/app/api/agent/route.ts](src/app/api/agent/route.ts) | App: "This restaurant's budget on Otari", with the bar. Dashboard: Spend & budgets, end users. |
+| Per-user budgets, for the judges | The judges' link (`/?judge=<token>`) opens live runs without any key. Every request of such a run is billed to one Otari end user, `judges:mozfest-wilding-2026`, whatever restaurant is typed, so the judges together can spend only that end user's own budget. The app refuses a run it can't cover before spending anything, allows one at a time and a few an hour, and the link can be switched off at once by blocking that end user. | [src/lib/judge.ts](src/lib/judge.ts), [src/app/api/judge/route.ts](src/app/api/judge/route.ts), [scripts/judge-link.mjs](scripts/judge-link.mjs) | App: "Judge link · live runs are on" above the form, and "The judges' budget on Otari" after a run. Dashboard: Spend & budgets, end users. |
 | Sessions | Every request of a run carries the same `Otari-Conversation-Id`, so a run is one session in Otari's agent traces. | [src/lib/otari.ts](src/lib/otari.ts) | App: the session id in the Otari panel. Dashboard: Agent traces, search the id. |
 
 ## The models
@@ -85,7 +86,8 @@ npm run dev                     # http://localhost:3000
 | `OTARI_BASE_URL` | no | `https://eu.api.otari.ai/api/v1` (default) or `https://api.otari.ai/api/v1` for a US account |
 | `TABLECAST_MCP_URL`, `TABLECAST_MCP_TOKEN` | for MCP | The public HTTPS address of `/api/mcp` and a long random token. Without them the reader runs in-process. |
 | `TABLECAST_GUARDRAIL_URL`, `TABLECAST_GUARDRAIL_TOKEN` | for guardrails | `https://<deployment>/api/guardrails/<token>` and the same token. Without them, web sources are marked as not screened. |
-| `LIVE_RUNS_TOKEN` | no | When set, live runs need `?live=<token>` in the page's address; recorded runs stay open to everyone. |
+| `LIVE_RUNS_TOKEN` | no | When set, live runs need `?live=<token>` in the page's address; recorded runs stay open to everyone. The page takes the token out of the address bar as soon as it loads. |
+| `JUDGE_LINK_TOKEN`, `JUDGE_BUDGET_ID` | no | The judges' link, `?judge=<token>` (at least 24 characters), and the Otari budget its end user must be on (docs/OTARI_SETUP.md, section 7). Optional: `JUDGE_END_USER`, `JUDGE_LINK_EXPIRES`, `JUDGE_SPEND_CAP_USD`, `JUDGE_RUNS_PER_HOUR` (3), `JUDGE_RUNS_PER_DAY` (6). |
 | `TICKETMASTER_API_KEY` | no | Events within 5 km |
 | `OTARI_LOCAL_CAP_USD` | no | The local spending cap (default 6), on top of Otari's budgets |
 

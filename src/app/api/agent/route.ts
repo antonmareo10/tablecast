@@ -1,4 +1,5 @@
 import { runTablecast } from "@/lib/agent";
+import { acquireJudgeRun, judgeAccess, judgeBudget, judgeEndUser, judgeLimit } from "@/lib/judge";
 import { acquireLiveRun, clientIp, describeLiveFailure, isAccountError, liveRunsDisabled, liveTokenRefusal } from "@/lib/limits";
 import { defaultRouting, economyRouting, inferenceConfigured, resolveRouting, type Routing } from "@/lib/model-runtime";
 import { encodeLine } from "@/lib/ndjson";
@@ -76,9 +77,13 @@ export async function POST(request: Request) {
   }
   const disabled = liveRunsDisabled();
   if (disabled) return Response.json({ error: disabled }, { status: 503 });
-  const locked = liveTokenRefusal(request);
+  // The judges' link (src/lib/judge.ts) opens live runs without the owner's token, billed to the judges' own end user.
+  const access = judgeAccess(request);
+  if (access.kind === "refused") return Response.json({ error: access.error }, { status: access.status });
+  const isJudge = access.kind === "judge";
+  const locked = isJudge ? null : liveTokenRefusal(request);
   if (locked) return Response.json({ error: locked }, { status: 403 });
-  const gate = acquireLiveRun(clientIp(request));
+  const gate = isJudge ? acquireJudgeRun(clientIp(request)) : acquireLiveRun(clientIp(request));
   if (!gate.ok) return Response.json({ error: gate.reason }, { status: 429 });
 
   const started = Date.now();
@@ -98,11 +103,29 @@ export async function POST(request: Request) {
     // Anything else (a slow listing, a 5xx) is left to the run, which has its own fallbacks.
   }
   const serviceKey = await serviceKeyPromise;
-  const endUser = serviceKey.enabled ? restaurantEndUser(req.restaurant, req.city) : undefined;
+  if (isJudge && !serviceKey.enabled) {
+    // Without end users nothing would cap the judges' runs but the app's whole key: no judge run.
+    gate.release();
+    return Response.json({ error: "The judge link isn't set up on Otari yet, so no live run can be billed to it. Every recorded run is a real run and plays instantly." }, { status: 503 });
+  }
+  const endUser = serviceKey.enabled ? (isJudge ? judgeEndUser() : restaurantEndUser(req.restaurant, req.city)) : undefined;
+  // The budget line the app shows: the end user's spend against its limit (for the judges, lowered by their app cap).
+  const lineOf = (s: EndUserStatus | null) => {
+    const line = budgetLine(s, serviceKey.budgets);
+    return isJudge ? { ...line, limit: judgeLimit(line.limit) } : line;
+  };
   // Where this restaurant stands on its weekly Otari budget. A restaurant that can't cover a plan is told so before
   // anything is spent; otherwise Otari itself refuses the request that would pass the limit (budget_exceeded).
   let before: EndUserStatus | null = null;
-  if (endUser) {
+  if (endUser && isJudge) {
+    // The judges' end user must exist, on its own budget, with room for a plan; a failed read refuses too.
+    before = await endUserStatus(endUser, request.signal).catch(() => null);
+    const check = judgeBudget(before, serviceKey.budgets);
+    if (!check.ok) {
+      gate.release();
+      return Response.json({ error: check.error }, { status: check.status });
+    }
+  } else if (endUser) {
     before = await endUserStatus(endUser, request.signal).catch(() => null);
     const line = budgetLine(before, serviceKey.budgets);
     if (before?.blocked || (line.limit != null && line.limit - line.spend < runEstimateUsd())) {
@@ -141,9 +164,17 @@ export async function POST(request: Request) {
           routing: { research: routing.fast, write: routing.reasoning, check: routing.repair ?? routing.reasoning, vision: routing.vision, ...(routing.quartermaster ? { quartermaster: routing.quartermaster } : {}) },
           missing,
           ...(endUser ? { end_user: endUser } : {}),
+          ...(isJudge ? { judge: true } : {}),
         });
-        if (endUser) emit({ type: "budget", stage: "start", end_user: endUser, ...budgetLine(before, serviceKey.budgets) });
-        else emit({ type: "note", text: "This Otari key is not a service key, so the run is billed to the app as a whole, not to the restaurant." });
+        if (endUser) emit({ type: "budget", stage: "start", end_user: endUser, ...lineOf(before) });
+        if (endUser && isJudge) {
+          const line = lineOf(before);
+          emit({
+            type: "note",
+            text: `Judge link: every Otari request of this run is billed to the judges' own end user ${endUser}, not to the restaurant. Its budget on Otari has $${Math.max(0, (line.limit ?? 0) - line.spend).toFixed(2)} left of $${(line.limit ?? 0).toFixed(2)}; Otari refuses any request past it.`,
+          });
+        }
+        if (!endUser) emit({ type: "note", text: "This Otari key is not a service key, so the run is billed to the app as a whole, not to the restaurant." });
         if (missing.length)
           emit({ type: "note", text: `Otari has no ${missing.join(", ")} routing polic${missing.length > 1 ? "ies" : "y"} in this workspace yet: ${missing.length > 1 ? "those steps run" : "that step runs"} on the model's catalog id instead.` });
         await withRun(tag, () => runTablecast(req, emit, { routing, deadline, signal: request.signal }));
@@ -156,7 +187,7 @@ export async function POST(request: Request) {
           await new Promise((r) => setTimeout(r, wait));
           const after = await endUserStatus(endUser).catch(() => null);
           if (!after) break;
-          const line = budgetLine(after, serviceKey.budgets);
+          const line = lineOf(after);
           if (line.spend !== (before?.spend ?? 0) || wait === 4_000) {
             emit({ type: "budget", stage: "end", end_user: endUser, ...line, before: before?.spend ?? 0 });
             break;

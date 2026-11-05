@@ -12,7 +12,7 @@ import { IconAlert, IconCheck, IconSpark } from "./icons";
 import { Pill, Section } from "./ui";
 
 export type OtariLive = {
-  otari?: { run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string };
+  otari?: { run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string; judge?: boolean };
   budget?: { start?: BudgetLine; end?: BudgetLine & { before?: number } };
   screening?: NonNullable<Playbook["verification"]>["screening"];
   quartermaster?: QuartermasterReport;
@@ -59,6 +59,7 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
     !!writer && writer.asked.includes("tablecast-write") && writer.labels.some((l) => /super/i.test(l)) && !!start?.limit && start.spend / start.limit >= 0.6;
   const s = live.screening;
   const q = live.quartermaster;
+  const judge = !!live.otari?.judge; // started from the judges' link: billed to their own end user, not the restaurant
   return (
     <Section icon={<IconSpark size={16} />} kicker="Built on Otari" title="What Otari did in this run">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -70,7 +71,8 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
               {live.otari.end_user ? (
                 <>
                   {" "}
-                  It was billed to the end user <code className="rounded bg-paper px-1 text-[12px]">{live.otari.end_user}</code>.
+                  It was billed to the end user <code className="rounded bg-paper px-1 text-[12px]">{live.otari.end_user}</code>
+                  {judge ? ", the judges’ own end user with its own budget, whatever restaurant they plan" : ""}.
                 </>
               ) : null}
             </p>
@@ -82,7 +84,7 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
           ) : null}
           {(start || end) && (
             <div className="rounded-xl border border-line bg-paper/50 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">This restaurant’s budget on Otari</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{judge ? "The judges’ budget on Otari" : "This restaurant’s budget on Otari"}</p>
               {(() => {
                 const line = end ?? start;
                 if (!line) return null;
@@ -109,12 +111,12 @@ export function OtariPanel({ calls, live }: { calls: EngineCall[]; live: OtariLi
           )}
           <p className="text-[12px] text-muted">
             Model calls in this run cost {usd(inline)} by Otari’s own <code>usage.cost_usd</code>
-            {billed != null ? "; the restaurant’s end-user record above also counts the searches and tool calls" : ""}.
+            {billed != null ? `; the ${judge ? "judges’" : "restaurant’s"} end-user record above also counts the searches and tool calls` : ""}.
           </p>
           {tieredDown && (
             <p className="rounded-xl border border-saffron/40 bg-saffron/10 px-3 py-2 text-[12px] text-ink">
-              Otari tiered the writer down to {writer?.labels.join(", ")}: this restaurant had used {Math.round(((start?.spend ?? 0) / (start?.limit ?? 1)) * 100)}% of
-              its weekly budget, past the 60% rule of tablecast-write.
+              Otari tiered the writer down to {writer?.labels.join(", ")}: {judge ? "the judges’ end user" : "this restaurant"} had used{" "}
+              {Math.round(((start?.spend ?? 0) / (start?.limit ?? 1)) * 100)}% of its {judge ? "" : "weekly "}budget, past the 60% rule of tablecast-write.
             </p>
           )}
         </div>

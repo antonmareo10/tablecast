@@ -129,3 +129,35 @@ creates the same policies through `POST /api/v1/organizations/me/routing-policie
   model call, search, code execution, MCP call and guardrail check inside it.
 - Spend & budgets: `tablecast-app-month` spend; the end users list shows one
   entry per restaurant with its own spend against `tablecast-restaurant-week`.
+
+## 7. The judges' link (optional)
+
+A link that lets the hackathon's judges start live runs without any key:
+`https://<deployment>/?judge=<JUDGE_LINK_TOKEN>`. The page keeps the token for
+the tab and takes it out of the address bar. Every Otari request of a judge run
+names one end user, `judges:mozfest-wilding-2026` (`JUDGE_END_USER`), whatever
+restaurant is typed, so the judges together can spend only that end user's own
+budget. Before each run the app reads that end user and refuses the run when it
+doesn't exist, is on another budget than `JUDGE_BUDGET_ID`, is blocked, or has
+less left than a plan can cost ($0.20); otherwise Otari refuses the request that
+would pass the limit. One judge run at a time, 3 an hour and 6 a day per server
+instance, and the link stops working after `JUDGE_LINK_EXPIRES`.
+
+1. A budget for the judges (dashboard: Organization > Spend & budgets > Add
+   budget), for example `tablecast-judges`, $1.00. Through the API a budget can
+   also have no period at all, so it never resets:
+   `POST /api/v1/organizations/me/budgets {"name": "tablecast-judges", "max_budget": 1}`.
+2. Add it to the service key's end-user budgets, keeping
+   `tablecast-restaurant-week` as the default (dashboard: API keys >
+   tablecast-otari > Advanced, or
+   `PATCH /api/v1/organizations/me/keys/{key_id} {"end_user_budget_ids": [...]}`).
+3. Put the judges' end user on it with the service key:
+   `node --env-file=.env.local scripts/judge-link.mjs setup --budget <budget_id>`
+   (`PUT /api/v1/end-users?external_id=judges:mozfest-wilding-2026`, free).
+4. `node --env-file=.env.local scripts/judge-link.mjs token` makes the token,
+   saves it in `.env.local` and on Vercel, and copies the link;
+   `... env --budget <budget_id>` sets `JUDGE_BUDGET_ID` and
+   `JUDGE_LINK_EXPIRES` on Vercel. Redeploy.
+
+To switch the link off at once: `... judge-link.mjs revoke` (blocks the end
+user; `restore` unblocks it). To replace it: `token --rotate` and redeploy.

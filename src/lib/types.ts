@@ -192,7 +192,8 @@ export type AgentEvent =
   | { type: "engine"; call: EngineCall }
   | { type: "tavily"; credits: number }
   // Where the run goes on Otari: its session id (Otari-Conversation-Id), the API and the model name of each step.
-  | { type: "otari"; run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string }
+  // judge: started from the judges' link, so billed to the judges' own end user (src/lib/judge.ts).
+  | { type: "otari"; run_id: string; api: string; routing: Record<string, string>; missing?: string[]; end_user?: string; judge?: boolean }
   | { type: "guardrails"; screening: NonNullable<Playbook["verification"]>["screening"] & object }
   // The restaurant as an Otari end user: its spend this budget period against the limit, before and after the run.
   // The supplier order and break-even computed in Otari's code sandbox (src/lib/quartermaster.ts).

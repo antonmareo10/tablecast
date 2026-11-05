@@ -5,9 +5,11 @@ import { m } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { AgentEvent, AgentRequest } from "@/lib/types";
 import type { DemoPreview } from "@/data/demos";
+import { captureLinkTokens, linkTokenHeaders } from "@/lib/link-tokens";
 import { readNdjson } from "@/lib/ndjson";
 import Timeline, { type AgentStatus, type ModelChip, type Step, type TimelineItem } from "./Timeline";
 import PlaybookView, { type LiveState } from "./PlaybookView";
+import JudgeNote from "./JudgeNote";
 import ReplayWeek from "./ReplayWeek";
 import { IconAlert, IconArrow, IconSearch } from "./icons";
 import { SplitWords, Underline } from "./kinetic";
@@ -70,6 +72,9 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
   const movedRef = useRef(false); // the reader scrolled during the run: don't move the page for them
   const submit = useMagnetic<HTMLButtonElement>(6);
 
+  // An owner's or judges' link: keep its token for this tab and take it out of the address bar (src/lib/link-tokens.ts).
+  useEffect(() => captureLinkTokens(), []);
+
   useEffect(() => {
     if (phase !== "running") return;
     const t = setInterval(() => setNow(timestamp()), 500);
@@ -124,7 +129,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
         ? await fetch(`/api/demo/${demo.slug}`, { signal: controller.signal })
         : await fetch("/api/agent", {
             method: "POST",
-            headers: { "content-type": "application/json", ...liveTokenHeader() },
+            headers: { "content-type": "application/json", ...linkTokenHeaders() },
             body: JSON.stringify(req),
             signal: controller.signal,
           });
@@ -255,6 +260,7 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
               }}
               className="rise order-5 rounded-2xl border border-line bg-card p-5 shadow-[0_1px_0_rgba(29,27,23,0.04),0_18px_40px_-28px_rgba(29,27,23,0.35)] [--d:120ms] sm:p-6 lg:order-none"
             >
+              <JudgeNote phase={phase} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Restaurant">
                   <input required value={form.restaurant} onChange={(e) => setForm({ ...form, restaurant: e.target.value })} placeholder="e.g. Casa Lucio" className={inputCls} />
@@ -475,19 +481,6 @@ export default function TablecastApp({ demos = [] }: { demos?: DemoSummary[] }) 
   );
 }
 
-// On a public demo, live runs can be kept to the owner: a link with ?live=<token> remembers the token for the tab and
-// sends it with each live run. Recorded runs never need it.
-function liveTokenHeader(): Record<string, string> {
-  try {
-    const fromUrl = new URLSearchParams(window.location.search).get("live");
-    if (fromUrl) sessionStorage.setItem("tablecast-live", fromUrl);
-    const token = fromUrl ?? sessionStorage.getItem("tablecast-live");
-    return token ? { "x-tablecast-live": token } : {};
-  } catch {
-    return {};
-  }
-}
-
 function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState; agent: AgentStatus } {
   const items: TimelineItem[] = [];
   const steps = new Map<string, Step>();
@@ -557,7 +550,7 @@ function derive(events: AgentEvent[]): { items: TimelineItem[]; live: LiveState;
         live.draft = ev.draft;
         break;
       case "otari":
-        live.otari = { run_id: ev.run_id, api: ev.api, routing: ev.routing, missing: ev.missing, end_user: ev.end_user };
+        live.otari = { run_id: ev.run_id, api: ev.api, routing: ev.routing, missing: ev.missing, end_user: ev.end_user, judge: ev.judge };
         break;
       case "budget": {
         const line = { end_user: ev.end_user, spend: ev.spend, limit: ev.limit, budget: ev.budget, period: ev.period, before: ev.before };
