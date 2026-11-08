@@ -179,7 +179,7 @@ export default function ReplayWeek({ demos, onPlay, className = "" }: { demos: D
                 <div
                   role="row"
                   key={day.date}
-                  className={`board-row relative border-b border-line py-2.5 last:border-b-0 ${storm ? "bg-[color-mix(in_srgb,var(--rain-3)_7%,transparent)]" : ""}`}
+                  className={`board-row relative border-b border-line py-2.5 transition-colors last:border-b-0 hover:bg-paper-2/50 ${storm ? "bg-[color-mix(in_srgb,var(--rain-3)_7%,transparent)]" : ""}`}
                 >
                   {storm && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-rain-3" />}
                   <span role="rowheader" className="flex items-center gap-1.5 self-start pt-0.5">

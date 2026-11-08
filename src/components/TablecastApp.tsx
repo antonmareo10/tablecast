@@ -87,6 +87,20 @@ export default function TablecastApp({ demos = [], liveLocked = false }: { demos
 
   // An owner's or judges' link: keep its token for this tab and take it out of the address bar (src/lib/link-tokens.ts).
   useEffect(() => captureLinkTokens(), []);
+  // Fetch the agent log and the playbook once the first screen is idle, so a replay starts with them ready.
+  useEffect(() => {
+    const load = () => {
+      void import("./Timeline");
+      void import("./PlaybookView");
+    };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(load, { timeout: 4000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(load, 2500);
+    return () => clearTimeout(t);
+  }, []);
   // Whether this tab has one: null on the server and during hydration, so the note for visitors without a link never
   // flashes for someone who has one.
   const hasLink = useSyncExternalStore(noSubscription, hasLinkToken, () => null);
@@ -96,6 +110,14 @@ export default function TablecastApp({ demos = [], liveLocked = false }: { demos
     const t = setInterval(() => setNow(timestamp()), 500);
     return () => clearInterval(t);
   }, [phase]);
+
+  // A run just started: bring its results to the top, once the new layout is on the page (the result views load lazily,
+  // so a measurement taken before the commit would aim at the old, longer page).
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = requestAnimationFrame(() => scrollToEl(resultsRef.current, -16));
+    return () => cancelAnimationFrame(id);
+  }, [startedAt]);
 
   // While a run streams, note whether the reader scrolls on their own.
   useEffect(() => {
@@ -139,7 +161,6 @@ export default function TablecastApp({ demos = [], liveLocked = false }: { demos
     const t0 = timestamp();
     setStartedAt(t0);
     setNow(t0);
-    requestAnimationFrame(() => scrollToEl(resultsRef.current, -16));
     try {
       const res = demo
         ? await fetch(`/api/demo/${demo.slug}`, { signal: controller.signal })
