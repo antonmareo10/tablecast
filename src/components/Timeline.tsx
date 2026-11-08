@@ -68,7 +68,7 @@ export default function Timeline({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Agent log</p>
-            <h2 className="font-display text-lg leading-tight">How Tablecast read your week</h2>
+            <h2 className="font-display text-[24px] uppercase leading-none">How Tablecast read your week</h2>
           </div>
           <span className="flex shrink-0 flex-col items-end gap-1 text-right tabular-nums text-xs text-muted">
             {running ? (
@@ -84,7 +84,7 @@ export default function Timeline({
               <button
                 type="button"
                 onClick={onStop}
-                className="min-h-7 rounded-full border border-line px-2.5 text-[11px] font-medium text-ink-2 transition-[color,border-color,scale] hover:border-terracotta/50 hover:text-terracotta motion-safe:active:scale-[0.97]"
+                className="min-h-7 rounded-[3px] border border-line px-2.5 text-[11px] font-medium text-ink-2 transition-[color,border-color,scale] hover:border-terracotta/50 hover:text-terracotta motion-safe:active:scale-[0.97]"
               >
                 Stop
               </button>
@@ -150,7 +150,7 @@ function ModelPill({ chip }: { chip: ModelChip }) {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={SPRING}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] transition-colors duration-300 ${tone}`}
+      className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10.5px] transition-colors duration-300 ${tone}`}
     >
       <span aria-hidden className="grid h-3 w-3 place-items-center">
         {chip.state === "active" ? (
@@ -282,7 +282,7 @@ function StepRow({ step, running }: { step: Step; running: boolean }) {
           <p className="text-sm font-medium leading-snug">
             {step.label}
             {(step.provider ?? PROVIDER[step.tool]) && (
-              <span className="ml-1.5 rounded-full bg-paper-2 px-1.5 py-px align-middle text-[10px] font-normal text-ink-2">
+              <span className="ml-1.5 rounded-[3px] bg-paper-2 px-1.5 py-px align-middle text-[10px] font-normal text-ink-2">
                 {step.provider ?? PROVIDER[step.tool]}
               </span>
             )}
@@ -302,7 +302,7 @@ function StepRow({ step, running }: { step: Step; running: boolean }) {
                   initial={{ opacity: 0, scale: 0.7 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ ...SPRING, delay: i * 0.035 }}
-                  className="rounded-full border border-line bg-paper px-1.5 py-px text-[10px] tabular-nums text-ink-2"
+                  className="rounded-[3px] border border-line bg-paper px-1.5 py-px text-[10px] tabular-nums text-ink-2"
                 >
                   {id}
                 </m.li>

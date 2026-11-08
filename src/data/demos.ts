@@ -15,6 +15,17 @@ export type DemoPreview = {
   writer?: "quick" | "economy"; // which writer the recorded run used (Nemotron Ultra or Super), from its engine log
   otari?: boolean; // recorded on the Otari version (its engine log carries Otari's served models and costs)
   onOtari?: OtariStats; // what Otari did in the run, read from its own events
+  plan?: PlanPreview; // what the recorded run planned, as written in its playbook
+};
+
+/** The recorded plan as the home page's board shows it: the day-by-day plan and the three dishes, word for word. */
+export type PlanPreview = {
+  headline: string;
+  currency: string;
+  days: { day: string; action: string }[];
+  dishes: { dish: string; price: number; when: string }[];
+  event: string;
+  postWhen: string;
 };
 
 /** What a recorded run did on Otari: who served each role, and the searches, MCP reads, guardrail checks and bill. */
@@ -55,7 +66,8 @@ export const DEMOS: Demo[] = recorded as Demo[];
 function preview(events: RecordedEvent[]): DemoPreview | undefined {
   const week = events.find((e): e is Extract<RecordedEvent, { type: "week" }> => e.type === "week");
   if (!week || week.days.length === 0) return undefined;
-  const v = events.find((e): e is Extract<RecordedEvent, { type: "playbook" }> => e.type === "playbook")?.playbook.verification;
+  const pb = events.find((e): e is Extract<RecordedEvent, { type: "playbook" }> => e.type === "playbook")?.playbook;
+  const v = pb?.verification;
   const byDate: Record<string, number> = {};
   for (const ev of week.events) byDate[ev.date] = (byDate[ev.date] ?? 0) + 1;
   const written = events.find((e): e is Extract<RecordedEvent, { type: "engine" }> => e.type === "engine" && e.call.phase === "synthesize");
@@ -67,6 +79,16 @@ function preview(events: RecordedEvent[]): DemoPreview | undefined {
     events: byDate,
     holidays: Object.fromEntries(week.holidays.map((h) => [h.date, h.local_name || h.name])),
     verification: v && v.checked > 0 ? { verified: v.verified, checked: v.checked, sources: v.sources } : undefined,
+    plan: pb
+      ? {
+          headline: pb.headline,
+          currency: pb.currency,
+          days: pb.week_plan.map(({ day, action }) => ({ day, action })),
+          dishes: pb.menu_moves.map(({ dish, price, when }) => ({ dish, price, when })),
+          event: pb.experience.event_idea,
+          postWhen: pb.marketing.post_when,
+        }
+      : undefined,
   };
 }
 

@@ -1,25 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f6f1e7;
-  --paper-2: #efe7d8;
-  --card: #fffdf8;
-  --ink: #1d1b17;
-  --ink-2: #4a4539;
-  /* Muted and terracotta are a shade deeper than before so small text reads at ≥ 4.5:1 on paper and card. */
-  --muted: #6f6759;
-  --line: #e2d8c4;
-  --olive: #2f4a35;
-  --olive-2: #46684d;
-  --terracotta: #ad4823;
-  --saffron: #dd9a2e;
-  --plum: #6b3b5a;
+  /* v3 "night departures board": near-black ink, an amber LED signal for everything Tablecast proposes, and a
+     radar scale (blue to magenta) for the weather that drives it. Token names are kept from v2 so every
+     component follows: paper = the board, ink = its lettering, olive = the amber signal. */
+  color-scheme: dark;
+  --paper: #0b0c0e;
+  --paper-2: #16181c;
+  --card: #111317;
+  --ink: #f2efe6;
+  --ink-2: #c6c2b8;
+  --muted: #9a968d;
+  --line: #2b2e34;
+  --olive: #ffb000;
+  --olive-2: #5ab4ff;
+  --terracotta: #ff6f52;
+  --saffron: #ffd84d;
+  --plum: #c9a4ff;
+  /* Radar scale for rain: drizzle, rain, storm. */
+  --rain-1: #5ab4ff;
+  --rain-2: #9d8cff;
+  --rain-3: #ff4f8b;
 
   /* One motion language: a long, soft ease-out for entrances; a light overshoot for interactive feedback. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --dur-reveal: 560ms;
   --stagger: 60ms;
+}
+
+@theme {
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 3px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
 }
 
 @theme inline {
@@ -35,8 +52,12 @@
   --color-terracotta: var(--terracotta);
   --color-saffron: var(--saffron);
   --color-plum: var(--plum);
-  --font-sans: var(--font-inter);
-  --font-display: var(--font-fraunces);
+  --color-rain-1: var(--rain-1);
+  --color-rain-2: var(--rain-2);
+  --color-rain-3: var(--rain-3);
+  --font-sans: var(--font-text);
+  --font-display: var(--font-board);
+  --font-mono: var(--font-data);
 }
 
 html,
@@ -46,31 +67,56 @@ body {
 }
 
 body {
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-text), ui-sans-serif, system-ui, sans-serif;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--saffron) 35%, transparent);
+  background: var(--olive);
+  color: var(--paper);
 }
 
-/* A visible focus ring on every interactive element; saffron on the dark olive surfaces. */
-:where(a, button, summary, [role="tab"], [tabindex]):focus-visible {
+/* A visible focus ring on every interactive element: amber on the board, ink on amber surfaces. */
+:where(a, button, summary, input, textarea, select, [role="tab"], [tabindex]):focus-visible {
   outline: 2px solid var(--olive);
   outline-offset: 2px;
 }
 .on-dark :where(a, button, summary, [tabindex]):focus-visible {
-  outline-color: var(--saffron);
+  outline-color: var(--paper);
 }
 
+/* The board's lettering: condensed signage, tight, optical sizes on. */
 .font-display {
-  font-family: var(--font-fraunces), ui-serif, Georgia, serif;
+  font-family: var(--font-board), "Arial Narrow", sans-serif;
   font-optical-sizing: auto;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+/* Every figure and label: a mono a little narrower than its default width. */
+.font-mono,
+code,
+.data {
+  font-family: var(--font-data), ui-monospace, monospace;
+  font-stretch: 87.5%;
+}
+/* The Tablecast wordmark keeps its own face (it is part of the logo). */
+.font-wordmark {
+  font-family: var(--font-wordmark), Georgia, serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
 }
 
-/* Subtle paper grain so the page does not look like a template. */
+/* The playbook's amber slab: marks that are yellow on the board turn to ink here, so they read on amber. */
+.slab {
+  --saffron: #0b0c0e;
+  --ink: #f2efe6;
+}
+.slab .cursor-light {
+  display: none;
+}
+
+/* Fine scan lines, like the glass over a station board (very low contrast, static). */
 .grain {
-  background-image: radial-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 0.6px, transparent 0.6px);
-  background-size: 6px 6px;
+  background-image: repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink) 4%, transparent) 0 1px, transparent 1px 3px);
 }
 
 /* ---- Smooth scroll (Lenis, desktop only) ------------------------------------------------------- */
@@ -124,6 +170,26 @@ html.lenis body {
 @keyframes word-up {
   from {
     transform: translateY(108%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Hero headline: words flip down into place like the board's flaps. They are painted from the first frame
+   (no mask), so the headline reads at once and is never a late paint. */
+.kinetic.flipwords .w {
+  overflow: visible;
+  perspective: 700px;
+}
+.kinetic.flipwords .w > span {
+  transform-origin: 50% 0;
+  animation-name: word-flip;
+  animation-duration: 560ms;
+}
+@keyframes word-flip {
+  from {
+    transform: rotateX(-72deg);
   }
   to {
     transform: none;
@@ -339,7 +405,7 @@ html.lenis body {
 
 /* Sliding pill: a duplicate row in the accent colour, clipped to the active item. */
 .pill-layer {
-  clip-path: inset(0 var(--pr, 100%) 0 var(--pl, 0px) round 999px);
+  clip-path: inset(0 var(--pr, 100%) 0 var(--pl, 0px) round 3px);
 }
 [data-ready="true"] > .pill-layer {
   transition: clip-path 480ms var(--ease-out);
@@ -393,7 +459,99 @@ html.lenis body {
   will-change: transform;
 }
 
+/* ---- The departures board (home page) ------------------------------------------------------------ */
+
+.board-row {
+  display: grid;
+  grid-template-columns: 5.6rem 4.4rem minmax(0, 1fr);
+  grid-template-areas:
+    "day sky rain"
+    "plan plan plan"
+    "tags tags tags";
+  column-gap: 0.75rem;
+  row-gap: 0.4rem;
+  padding-inline: 1rem;
+  align-items: start;
+}
+.board-plan {
+  grid-area: plan;
+}
+.board-tags {
+  grid-area: tags;
+}
+.board-tags:empty {
+  display: none;
+}
+@media (min-width: 640px) {
+  .board-row {
+    grid-template-columns: 5.6rem 4.2rem 8.4rem minmax(0, 1fr) 4.6rem;
+    grid-template-areas: "day sky rain plan tags";
+    column-gap: 1rem;
+    padding-inline: 1.25rem;
+  }
+}
+
+/* Split-flap characters: dark tiles with the hinge line, flipping down into place one after another. */
+.flap {
+  display: inline-flex;
+  gap: 2px;
+  perspective: 420px;
+  font-family: var(--font-data), ui-monospace, monospace;
+  font-stretch: 87.5%;
+  font-weight: 600;
+  line-height: 1;
+}
+.flap > span {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.18em;
+  padding: 0.28em 0.12em;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1d2025 0 50%, #17191d 50% 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transform-origin: 50% 50%;
+  animation: flap 560ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms + var(--d, 0ms));
+}
+.flap > span::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.65);
+}
+@keyframes flap {
+  0% {
+    transform: rotateX(-88deg);
+    opacity: 0;
+  }
+  55% {
+    transform: rotateX(14deg);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* Rain gauges fill from the left after their row lands. */
+.gauge {
+  transform-origin: left center;
+  animation: grow-x 700ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Headline set on the board's ruled lines: one hairline under every line of type. */
+.ruled {
+  background-image: linear-gradient(to bottom, transparent calc(100% - 1px), var(--line) calc(100% - 1px));
+  background-size: 100% var(--lh, 0.92em);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .flap > span,
+  .gauge,
   .rise,
   .pulse-dot,
   .grow-x,
@@ -442,16 +600,30 @@ html.lenis body {
 }
 
 .leaflet-container {
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-text), ui-sans-serif, system-ui, sans-serif;
   background: var(--paper-2);
 }
 
 /* OpenStreetMap tiles toned down to sit on our paper palette. */
 .taste-map .leaflet-tile-pane {
-  filter: grayscale(1) sepia(0.28) brightness(1.04) contrast(0.88);
+  filter: grayscale(1) invert(1) brightness(0.82) contrast(0.9);
 }
 
 @media print {
+  /* Paper for the PDF: the light palette, whatever the screen shows. */
+  :root {
+    --paper: #ffffff;
+    --paper-2: #f1efe9;
+    --card: #ffffff;
+    --ink: #16171a;
+    --ink-2: #3d3f44;
+    --muted: #5d5f63;
+    --line: #d9d6cf;
+    --olive: #8a5a00;
+    --olive-2: #1f5f99;
+    --terracotta: #a63a22;
+    --saffron: #8a6d00;
+  }
   .no-print {
     display: none !important;
   }

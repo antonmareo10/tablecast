@@ -203,7 +203,7 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
   const v = p?.verification;
   const done = Boolean(p && !running);
   return (
-    <section id="playbook-hero" className="on-dark rise relative isolate scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-olive text-paper">
+    <section id="playbook-hero" className="on-dark slab rise relative isolate scroll-mt-4 overflow-hidden border border-olive bg-olive text-paper">
       <CursorLight
         size={560}
         rest={[0.88, 0.1]}
@@ -211,21 +211,21 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
       />
       <div className="grain relative px-6 py-6 sm:px-8 sm:py-8">
         <div className="flex items-start justify-between gap-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-paper/75">This week’s playbook</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-paper/80">This week’s playbook</p>
           {p && !running && (
             <button
               type="button"
               onClick={() => window.print()}
-              className="no-print inline-flex min-h-8 items-center gap-1.5 rounded-full border border-paper/30 px-3 py-1 text-xs text-paper/90 transition-[background-color,scale] hover:bg-paper/10 motion-safe:active:scale-[0.97]"
+              className="no-print inline-flex min-h-8 items-center gap-1.5 rounded-[3px] border border-paper/30 px-3 py-1 text-xs text-paper/90 transition-[background-color,scale] hover:bg-paper/10 motion-safe:active:scale-[0.97]"
             >
               <IconDownload size={13} /> Save as PDF
             </button>
           )}
         </div>
-        <h2 className="font-display mt-1 text-3xl leading-tight sm:text-4xl">{p?.restaurant.name ?? live.place?.name}</h2>
+        <h2 className="font-display mt-2 text-[44px] uppercase leading-[0.88] sm:text-[64px]">{p?.restaurant.name ?? live.place?.name}</h2>
         <p className="mt-1 text-sm text-paper/80">{p ? `${p.restaurant.concept} · ${p.restaurant.city}` : (live.place?.address ?? live.place?.city)}</p>
         {live.place?.match === "city" && (
-          <p className="mt-2 inline-block rounded-full bg-saffron/90 px-2 py-0.5 text-xs text-ink">
+          <p className="mt-2 inline-block rounded-[3px] bg-saffron/90 px-2 py-0.5 text-xs text-ink">
             Not found on OpenStreetMap — the block and forecast are for the city centre
           </p>
         )}
@@ -242,7 +242,7 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...REVEAL, delay: 0.1 }}
-            className="font-display mt-5 max-w-3xl text-xl leading-snug text-paper sm:text-2xl"
+            className="mt-5 max-w-3xl text-xl font-medium leading-snug text-paper sm:text-2xl"
           >
             “{p.headline}”
           </m.p>
@@ -282,7 +282,7 @@ function Hero({ live, running, stage }: { live: LiveState; running: boolean; sta
                   <li
                     key={label}
                     aria-current={state === "active" ? "step" : undefined}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors duration-500 ${
+                    className={`inline-flex items-center gap-1.5 border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.04em] transition-colors duration-500 ${
                       state === "active"
                         ? "border-saffron/70 bg-saffron/15 text-paper"
                         : state === "done"
@@ -470,12 +470,12 @@ function SectionNav() {
       <span className="hidden sm:inline">{more}</span>
     </>
   );
-  const item = "block shrink-0 whitespace-pre rounded-full px-3 py-2 text-[13px] leading-5 sm:px-3.5 sm:py-1.5";
+  const item = "block shrink-0 whitespace-pre rounded-[3px] px-3 py-2 text-[13px] leading-5 sm:px-3.5 sm:py-1.5";
   return (
     <nav
       ref={scroller}
       aria-label="Playbook sections"
-      className="no-print sticky top-2 z-[1100] overflow-x-auto rounded-full border border-line bg-card/90 p-1.5 shadow-[0_10px_30px_-24px_rgba(29,27,23,0.5)] backdrop-blur [scrollbar-width:none]"
+      className="no-print sticky top-2 z-[1100] overflow-x-auto border border-line bg-card/95 p-1 backdrop-blur [scrollbar-width:none]"
     >
       <div ref={inner} className="relative w-max min-w-full">
         <div className="flex gap-0.5 sm:gap-1.5">
@@ -493,7 +493,7 @@ function SectionNav() {
             </a>
           ))}
         </div>
-        <div aria-hidden className="pill-layer pointer-events-none absolute inset-0 flex gap-0.5 rounded-full bg-olive sm:gap-1.5">
+        <div aria-hidden className="pill-layer pointer-events-none absolute inset-0 flex gap-0.5 bg-olive sm:gap-1.5">
           {ACTS.map(([id, n, text, more]) => (
             <span key={id} className={`${item} font-medium text-paper`}>
               {label(n, text, more)}
@@ -516,11 +516,11 @@ function ActHeader({ id, n, title, subtitle }: { id: string; n: number; title: s
     static: { opacity: 1, y: 0, transition: now },
   };
   return (
-    <m.header ref={ref} id={id} tabIndex={-1} data-reveal="" initial={initial} animate={phase} className="scroll-mt-20 pt-6 outline-none">
-      <m.p data-reveal="" variants={fade} className="font-display text-sm text-terracotta">
+    <m.header ref={ref} id={id} tabIndex={-1} data-reveal="" initial={initial} animate={phase} className="scroll-mt-20 border-t-2 border-ink pt-3 outline-none">
+      <m.p data-reveal="" variants={fade} className="font-mono text-[11px] uppercase tracking-[0.1em] text-olive">
         {n <= 3 ? `Act ${n}` : "Appendix"}
       </m.p>
-      <h2 className="font-display text-3xl leading-tight sm:text-4xl">
+      <h2 className="font-display mt-2 text-[44px] uppercase leading-[0.9] sm:text-[64px]">
         {words.map((w, i) => (
           <span key={i}>
             <span className="inline-block overflow-hidden pb-[0.12em] align-top [margin-bottom:-0.12em]">
@@ -632,7 +632,7 @@ function Moments({ playbook: p }: { playbook: Playbook }) {
         {p.moments.map((m, i) => (
           <Reveal as="li" key={i} delay={i * STAGGER * 1.4} className="lift rounded-xl border border-line bg-paper/40 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-terracotta">{m.when}</p>
-            <p className="font-display mt-0.5 text-lg leading-tight">{m.title}</p>
+            <p className="font-display mt-0.5 text-[21px] leading-tight">{m.title}</p>
             <p className="mt-1.5 text-sm leading-snug">
               <span className="font-semibold">Play: </span>
               {m.play}
@@ -762,7 +762,7 @@ function MenuMoves({ playbook: p }: { playbook: Playbook }) {
               className="lift flex scroll-mt-24 flex-col rounded-xl border border-line bg-paper/40 p-4 outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
             >
               <div className="flex items-baseline justify-between gap-3">
-                <h4 className="font-display text-lg leading-tight">{m.dish}</h4>
+                <h4 className="font-display text-[21px] leading-tight">{m.dish}</h4>
                 <span className="shrink-0 text-sm font-semibold tabular-nums text-olive">{money(m.price, p.currency)}</span>
               </div>
               <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-terracotta">{m.when}</p>
@@ -852,7 +852,7 @@ function DraftPreview({ draft, writer }: { draft: Record<string, unknown>; write
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ ...SPRING, delay: 0.2 + i * STAGGER }}
-                className="rounded-full border border-line bg-paper px-3 py-1 text-sm"
+                className="rounded-[3px] border border-line bg-paper px-3 py-1 text-sm"
               >
                 {mv.dish}
               </m.li>
@@ -958,7 +958,7 @@ function WeekPlan({ playbook: p }: { playbook: Playbook }) {
         <button
           type="button"
           onClick={download}
-          className="no-print inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
+          className="no-print inline-flex min-h-8 items-center gap-1.5 rounded-[3px] border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
         >
           <IconDownload size={14} /> Add to calendar
         </button>
@@ -1006,7 +1006,7 @@ function ShoppingList({ playbook: p, report }: { playbook: Playbook; report?: Li
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`}
             download="tablecast-shopping-list.csv"
             onClick={() => toast("Shopping list downloaded (CSV)")}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-[3px] border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
           >
             <IconDownload size={14} /> CSV
           </a>
@@ -1280,7 +1280,7 @@ function SourcesLedger({
         </p>
       )}
       {failed.length > 0 && (
-        <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-terracotta/30 bg-terracotta/5 px-3 py-1 text-[12px] text-terracotta">
+        <p className="mb-3 inline-flex items-center gap-1.5 rounded-[3px] border border-terracotta/30 bg-terracotta/5 px-3 py-1 text-[12px] text-terracotta">
           <IconAlert size={13} /> {failed.length} claim{failed.length > 1 ? "s" : ""} could not be verified and {failed.length > 1 ? "are" : "is"} marked in
           place
         </p>

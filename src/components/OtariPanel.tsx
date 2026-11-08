@@ -239,7 +239,7 @@ function FailoverDrill() {
         type="button"
         onClick={run}
         disabled={state.busy}
-        className="mt-1.5 min-h-8 rounded-full border border-line bg-paper px-3 text-[11px] font-medium text-ink-2 transition-[color,border-color] hover:border-ink-2/40 hover:text-ink disabled:opacity-60"
+        className="mt-1.5 min-h-8 rounded-[3px] border border-line bg-paper px-3 text-[11px] font-medium text-ink-2 transition-[color,border-color] hover:border-ink-2/40 hover:text-ink disabled:opacity-60"
       >
         {state.busy ? "Asking Otari…" : "Send one request to tablecast-drill"}
       </button>
@@ -276,7 +276,7 @@ function GuardrailCheck() {
         type="button"
         onClick={run}
         disabled={state.busy}
-        className="min-h-8 rounded-full border border-line bg-paper px-3 text-[11px] font-medium text-ink-2 transition-[color,border-color] hover:border-ink-2/40 hover:text-ink disabled:opacity-60"
+        className="min-h-8 rounded-[3px] border border-line bg-paper px-3 text-[11px] font-medium text-ink-2 transition-[color,border-color] hover:border-ink-2/40 hover:text-ink disabled:opacity-60"
       >
         {state.busy ? "Asking Otari…" : "Try it: send a poisoned review through the same check"}
       </button>

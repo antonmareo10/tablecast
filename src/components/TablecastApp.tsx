@@ -7,13 +7,13 @@ import type { AgentEvent, AgentRequest } from "@/lib/types";
 import type { DemoPreview } from "@/data/demos";
 import { captureLinkTokens, linkTokenHeaders } from "@/lib/link-tokens";
 import { readNdjson } from "@/lib/ndjson";
-import Timeline, { type AgentStatus, type ModelChip, type Step, type TimelineItem } from "./Timeline";
-import PlaybookView, { type LiveState } from "./PlaybookView";
+import dynamic from "next/dynamic";
+import type { AgentStatus, ModelChip, Step, TimelineItem } from "./Timeline";
+import type { LiveState } from "./PlaybookView";
 import JudgeNote from "./JudgeNote";
 import ReplayWeek from "./ReplayWeek";
 import { IconAlert, IconArrow, IconSearch } from "./icons";
-import { SplitWords, Underline } from "./kinetic";
-import { CursorLight, Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } from "./motion";
+import { Reveal, STAGGER, scrollToEl, useMagnetic, usePillClip } from "./motion";
 import { OtariChips, OtariMap } from "./OtariMap";
 
 // Routing measured in eval/SUMMARY.md: Ultra at medium effort has the best average and is fast; Super costs a third to a half of Quick on the
@@ -35,6 +35,10 @@ const SAMPLES: AgentRequest[] = [
   { restaurant: "Katz's Delicatessen", city: "New York", goal: "Make the most of this week’s weather" },
   { restaurant: "Gjelina", city: "Los Angeles", goal: "Win more lunch covers" },
 ];
+
+// The agent log and the playbook only render once a run starts: they load then, so the first screen stays light.
+const Timeline = dynamic(() => import("./Timeline"));
+const PlaybookView = dynamic(() => import("./PlaybookView"));
 
 const PROVIDERS = ["Otari by Mozilla.ai", "Nemotron 3 Ultra", "Qwen3 235B", "gpt-oss-120b", "OpenStreetMap", "Open-Meteo", "Nager.Date", "Ticketmaster"];
 
@@ -183,72 +187,204 @@ export default function TablecastApp({ demos = [], liveLocked = false }: { demos
   const liveEta = (form.mode ?? "quick") === "economy" ? "usually 2–3 min" : "usually 1–2 min";
   const hasPreview = demos.some((d) => d.preview);
   const inputCls =
-    "w-full rounded-lg border border-line bg-paper/60 px-3 py-2.5 text-[15px] outline-none transition placeholder:text-muted focus:border-olive focus:bg-card focus-visible:ring-2 focus-visible:ring-olive/25";
+    "min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-[15px] transition-colors placeholder:text-muted hover:border-ink-2/50 focus:border-olive focus-visible:outline-2 focus-visible:outline-offset-0";
+
+  const formEl = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(form);
+      }}
+      className="rise min-w-0 border border-line bg-card p-4 [--d:120ms] sm:p-6"
+    >
+      <JudgeNote phase={phase} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Restaurant">
+          <input required value={form.restaurant} onChange={(e) => setForm({ ...form, restaurant: e.target.value })} placeholder="e.g. Casa Lucio" className={inputCls} />
+        </Field>
+        <Field label="City">
+          <input required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="e.g. Madrid" className={inputCls} />
+        </Field>
+        <Field label="Website (optional)">
+          <input
+            value={form.website ?? ""}
+            onChange={(e) => setForm({ ...form, website: e.target.value || undefined })}
+            placeholder="e.g. yourrestaurant.com"
+            inputMode="url"
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Menu photo (optional)" asDiv>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 border border-dashed border-line bg-paper px-3 py-2.5 text-[14px] text-ink-2 transition hover:border-olive has-[:focus-visible]:border-olive has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-olive">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                setPhotoError(null);
+                if (!file) return;
+                try {
+                  const dataUrl = await photoToDataUrl(file);
+                  if (dataUrl.length > 2_900_000) throw new Error("too large");
+                  setForm((f) => ({ ...f, menu_photo: dataUrl }));
+                  setPhotoName(file.name);
+                } catch {
+                  setPhotoError("Could not use that image. Try a JPEG or PNG photo.");
+                }
+              }}
+            />
+            <span className="truncate">{photoName ?? "Add a photo of your menu"}</span>
+            {photoName && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setPhotoName(null);
+                  setForm((f) => ({ ...f, menu_photo: undefined }));
+                }}
+                className="ml-auto text-xs text-muted hover:text-ink"
+                aria-label="Remove menu photo"
+              >
+                ✕
+              </button>
+            )}
+          </label>
+          {photoError && <p className="mt-1 text-xs text-terracotta">{photoError}</p>}
+        </Field>
+      </div>
+      <fieldset className="mt-5">
+        <legend className="mb-2 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-2">What do you want this week?</legend>
+        <div className="flex flex-wrap gap-1.5">
+          {GOALS.map((g) => (
+            <button
+              key={g}
+              type="button"
+              aria-pressed={form.goal === g}
+              onClick={() => setForm({ ...form, goal: g })}
+              className={`min-h-10 border px-3 text-[13px] transition-[color,background-color,border-color,scale] duration-200 motion-safe:active:scale-[0.97] ${
+                form.goal === g ? "border-olive bg-olive text-paper" : "border-line bg-paper text-ink-2 hover:border-ink-2/50 hover:text-ink"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <div className="mt-4 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.06em] text-ink-2">
+        <span className="w-20 shrink-0">Language</span>
+        <Segmented label="Plan language" options={LANGUAGES} value={form.language ?? "English"} onChange={(l) => setForm({ ...form, language: l })} />
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[11px] uppercase tracking-[0.06em] text-ink-2">
+        <span className="w-20 shrink-0">Writer</span>
+        <Segmented label="Which writer plans the week" options={MODES} value={form.mode ?? "quick"} onChange={(mode) => setForm({ ...form, mode })} />
+        <span className="normal-case tracking-normal text-muted">{MODES.find((md) => md.id === (form.mode ?? "quick"))?.hint}</span>
+      </div>
+      <button
+        ref={submit}
+        type="submit"
+        disabled={phase === "running"}
+        className="magnetic group mt-6 inline-flex min-h-13 w-full items-center justify-center gap-2.5 bg-ink px-5 font-mono text-[13px] font-semibold uppercase tracking-[0.06em] text-paper hover:bg-olive disabled:cursor-wait disabled:opacity-70"
+      >
+        {phase === "running" ? (
+          <>
+            <span className="pulse-dot h-2 w-2 rounded-full bg-terracotta" /> Reading your week…
+          </>
+        ) : (
+          <>
+            <IconSearch size={16} /> Plan my week
+            <IconArrow size={15} className="nudge opacity-70" />
+          </>
+        )}
+      </button>
+      {liveLocked && hasLink === false && (
+        <p className="mt-2.5 text-[12.5px] leading-snug text-muted">
+          A live run takes 2 to 4 minutes and spends real Otari credit, so on this public page it needs the owner’s link or the judges’ link.
+          The recorded runs are real runs on Otari and play at once.
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted">
+        <span>{demos.length ? "Instant replays of real runs:" : "Try:"}</span>
+        {(demos.length ? demos : SAMPLES).map((s) => (
+          <button
+            key={s.restaurant}
+            type="button"
+            onClick={() => {
+              if ("slug" in s) return startReplay(s);
+              const req: AgentRequest = { restaurant: s.restaurant, city: s.city, goal: s.goal, language: "English" };
+              setForm(req);
+              setPhotoName(null);
+              run(req);
+            }}
+            disabled={phase === "running"}
+            className="hit group inline-flex items-center gap-1 text-ink-2 underline decoration-line underline-offset-4 transition-colors hover:text-olive hover:decoration-olive disabled:opacity-60"
+          >
+            {s.restaurant}, {s.city} <IconArrow size={12} className="nudge" />
+          </button>
+        ))}
+      </div>
+    </form>
+  );
 
   return (
     <div className="relative isolate flex min-h-screen flex-col overflow-x-clip">
-      {/* Light behind the hero: a soft saffron glow that follows the cursor (static on touch / reduced motion). */}
-      <div
-        aria-hidden
-        className="no-print pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(1100px,130vh)] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_60%,transparent)]"
-      >
-        <div className="absolute -right-48 -top-56 h-[620px] w-[620px] rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--olive-2)_16%,transparent),transparent)]" />
-        <CursorLight
-          scope="window"
-          size={720}
-          rest={[0.22, 0.3]}
-          style={{
-            background:
-              "radial-gradient(closest-side, color-mix(in srgb, var(--saffron) 26%, transparent), color-mix(in srgb, var(--saffron) 7%, transparent) 55%, transparent)",
-          }}
-        />
-      </div>
-
-      <header className="no-print mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
-        <Link href="/" className="group flex items-center gap-2.5" aria-label="Tablecast home">
+      <header className="no-print flex w-full items-center justify-between gap-4 border-b border-line px-4 py-2.5 sm:px-8">
+        <Link href="/" className="group flex min-h-11 items-center gap-2.5" aria-label="Tablecast home">
           <Logo />
-          <span className="font-display text-xl tracking-tight">Tablecast</span>
+          <span className="font-wordmark text-xl tracking-tight">Tablecast</span>
         </Link>
-        <nav className="flex items-center gap-4 text-xs text-muted">
-          <span className="hidden sm:inline">Live local data × open-weight models on Otari</span>
+        <nav className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.08em]">
+          <span className="hidden pr-4 text-muted lg:inline">Live local data × open-weight models on Otari</span>
+          {!started && (
+            <a href="#otari-map" className="hidden min-h-10 items-center px-3 text-ink-2 transition-colors hover:text-olive sm:inline-flex">
+              Otari map
+            </a>
+          )}
           <Link
             href="/about"
-            className="group inline-flex min-h-9 items-center gap-1 rounded-full border border-line bg-card/60 px-3 text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
+            className="group inline-flex min-h-10 items-center gap-1.5 border border-line px-3 text-ink transition-colors hover:border-olive hover:text-olive"
           >
             How it works <IconArrow size={12} className="nudge" />
           </Link>
         </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 sm:px-6">
+      <main className="w-full flex-1 px-4 pb-20 sm:px-8">
         <section
-          className={`no-print flex flex-col gap-6 ${started ? "py-4" : "pb-10 pt-4 sm:pb-14 sm:pt-6"} lg:grid lg:grid-cols-[1.1fr_1fr] lg:items-start lg:gap-x-12`}
+          className={`no-print grid gap-8 ${started ? "py-6" : "pb-14 pt-8 sm:pt-12"} lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[auto_1fr] lg:gap-x-12 xl:gap-x-16`}
         >
-          <div className="contents lg:flex lg:flex-col lg:gap-5">
-            <div className="order-1 lg:order-none">
-              <p className="rise text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">
-                For independent restaurants <span className="text-muted">·</span> <span className="whitespace-nowrap text-olive">Built on Otari</span>
-              </p>
-              <h1 className="kinetic font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-6xl">
-                <SplitWords text="Plan this week with what’s happening" />{" "}
-                <span className="relative inline-block text-olive">
-                  <SplitWords text="around you." start={6} />
-                  <Underline delayMs={6 * 60 + 2 * 60 + 560} />
-                </span>
-              </h1>
-              <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-ink-2">
-                Rain on Wednesday, a match two streets away, a holiday on Sunday. Tablecast reads a restaurant’s week and turns it into three
-                dishes to test, an event, a post and a supplier order. Every cited claim links to the sentence it stands on, checked in code.
-              </p>
-              {!started && <OtariChips className="rise mt-5 max-w-xl [--d:160ms]" />}
-            </div>
-
-            {!started && hasPreview && (
-              <ReplayWeek demos={demos} onPlay={startReplay} className="rise order-2 lg:order-none [--d:240ms]" />
+          <div className="flex min-w-0 flex-col lg:col-start-1 lg:row-start-1">
+            <h1
+              className={`ruled font-display uppercase leading-[0.92] [--lh:0.92em] ${
+                started ? "text-[clamp(2.6rem,9vw,4.2rem)]" : "text-[clamp(3.3rem,13.6vw,5.4rem)] lg:text-[clamp(5rem,6.7vw,7.4rem)]"
+              }`}
+            >
+              Plan this week with what’s happening around you.
+            </h1>
+            <p className="rise mt-6 max-w-[34rem] text-[17px] leading-relaxed text-ink-2 [--d:420ms] sm:text-[18px]">
+              Rain on Wednesday, a match two streets away, a holiday on Sunday. Tablecast reads a restaurant’s week and turns it into three dishes to
+              test, an event, a post and a supplier order. Every cited claim links to the sentence it stands on, checked in code.
+            </p>
+            {!started && (
+              <>
+                <a
+                  href="#run-live"
+                  className="rise group mt-5 inline-flex min-h-11 w-fit items-center gap-2 font-mono text-[12px] uppercase tracking-[0.06em] text-olive underline decoration-olive/40 underline-offset-[6px] transition-colors hover:decoration-olive [--d:520ms]"
+                >
+                  Or plan your own restaurant’s week <IconArrow size={13} className="rotate-90" />
+                </a>
+              </>
             )}
-            {!started && !hasPreview && demos.length > 0 && (
-              <div className="order-2 max-w-xl rounded-2xl border border-olive/25 bg-olive/5 p-4 lg:hidden">
-                <p className="text-[14px] font-semibold text-olive">Watch a real recorded run — no wait</p>
+          </div>
+
+          {started ? (
+            formEl
+          ) : hasPreview ? (
+            <ReplayWeek demos={demos} onPlay={startReplay} className="rise [--d:200ms] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:-mr-8 lg:self-start lg:border-r-0" />
+          ) : (
+            demos.length > 0 && (
+              <div className="border border-line bg-card p-5">
+                <p className="text-[14px] font-semibold text-olive">Watch a real recorded run, no wait</p>
                 <p className="mt-1 text-[12px] text-ink-2">Instant replays of live runs, labelled as recorded.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {demos.map((d) => (
@@ -256,155 +392,41 @@ export default function TablecastApp({ demos = [], liveLocked = false }: { demos
                       key={d.slug}
                       type="button"
                       onClick={() => startReplay(d)}
-                      className="group inline-flex min-h-11 items-center gap-1 rounded-full border border-line bg-card px-3 text-[13px] text-ink-2 transition hover:border-ink-2/40 hover:text-ink"
+                      className="group inline-flex min-h-11 items-center gap-1 border border-line bg-paper px-3 text-[13px] text-ink-2 transition hover:border-olive hover:text-ink"
                     >
                       {d.restaurant}, {d.city} <IconArrow size={12} className="nudge" />
                     </button>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-
-          <div className="contents lg:flex lg:flex-col lg:gap-5">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                run(form);
-              }}
-              className="rise order-5 rounded-2xl border border-line bg-card p-5 shadow-[0_1px_0_rgba(29,27,23,0.04),0_18px_40px_-28px_rgba(29,27,23,0.35)] [--d:120ms] sm:p-6 lg:order-none"
-            >
-              <JudgeNote phase={phase} />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Restaurant">
-                  <input required value={form.restaurant} onChange={(e) => setForm({ ...form, restaurant: e.target.value })} placeholder="e.g. Casa Lucio" className={inputCls} />
-                </Field>
-                <Field label="City">
-                  <input required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="e.g. Madrid" className={inputCls} />
-                </Field>
-                <Field label="Website (optional)">
-                  <input
-                    value={form.website ?? ""}
-                    onChange={(e) => setForm({ ...form, website: e.target.value || undefined })}
-                    placeholder="e.g. yourrestaurant.com"
-                    inputMode="url"
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="Menu photo (optional)" asDiv>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-line bg-paper/60 px-3 py-2.5 text-[14px] text-ink-2 transition hover:border-olive has-[:focus-visible]:border-olive has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-olive/25">
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="sr-only"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        setPhotoError(null);
-                        if (!file) return;
-                        try {
-                          const dataUrl = await photoToDataUrl(file);
-                          if (dataUrl.length > 2_900_000) throw new Error("too large");
-                          setForm((f) => ({ ...f, menu_photo: dataUrl }));
-                          setPhotoName(file.name);
-                        } catch {
-                          setPhotoError("Could not use that image. Try a JPEG or PNG photo.");
-                        }
-                      }}
-                    />
-                    <span className="truncate">{photoName ?? "Add a photo of your menu"}</span>
-                    {photoName && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setPhotoName(null);
-                          setForm((f) => ({ ...f, menu_photo: undefined }));
-                        }}
-                        className="ml-auto text-xs text-muted hover:text-ink"
-                        aria-label="Remove menu photo"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </label>
-                  {photoError && <p className="mt-1 text-xs text-terracotta">{photoError}</p>}
-                </Field>
-              </div>
-              <fieldset className="mt-4">
-                <legend className="mb-2 text-xs font-medium text-ink-2">What do you want this week?</legend>
-                <div className="flex flex-wrap gap-2">
-                  {GOALS.map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      aria-pressed={form.goal === g}
-                      onClick={() => setForm({ ...form, goal: g })}
-                      className={`min-h-9 rounded-full border px-3 text-[13px] transition-[color,background-color,border-color,scale] duration-200 motion-safe:active:scale-[0.97] ${
-                        form.goal === g ? "border-olive bg-olive text-paper" : "border-line bg-paper/60 text-ink-2 hover:border-ink-2/40 hover:text-ink"
-                      }`}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <div className="mt-4 flex items-center gap-3 text-xs text-ink-2">
-                <span>Plan language</span>
-                <Segmented label="Plan language" options={LANGUAGES} value={form.language ?? "English"} onChange={(l) => setForm({ ...form, language: l })} />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-2">
-                <span>Writer</span>
-                <Segmented label="Which writer plans the week" options={MODES} value={form.mode ?? "quick"} onChange={(mode) => setForm({ ...form, mode })} />
-                <span className="text-muted">{MODES.find((md) => md.id === (form.mode ?? "quick"))?.hint}</span>
-              </div>
-              <button
-                ref={submit}
-                type="submit"
-                disabled={phase === "running"}
-                className="magnetic group mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-5 text-[15px] font-medium text-paper hover:bg-olive disabled:cursor-wait disabled:opacity-70"
-              >
-                {phase === "running" ? (
-                  <>
-                    <span className="pulse-dot h-2 w-2 rounded-full bg-saffron" /> Reading your week…
-                  </>
-                ) : (
-                  <>
-                    <IconSearch size={17} /> Plan my week
-                    <IconArrow size={15} className="nudge opacity-70" />
-                  </>
-                )}
-              </button>
-              {liveLocked && hasLink === false && (
-                <p className="mt-2.5 text-[12.5px] leading-snug text-muted">
-                  A live run takes 2 to 4 minutes and spends real Otari credit, so on this public page it needs the owner’s link or the judges’ link.
-                  The recorded runs are real runs on Otari and play at once.
-                </p>
-              )}
-              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted">
-                <span>{demos.length ? "Instant replays of real runs:" : "Try:"}</span>
-                {(demos.length ? demos : SAMPLES).map((s) => (
-                  <button
-                    key={s.restaurant}
-                    type="button"
-                    onClick={() => {
-                      if ("slug" in s) return startReplay(s);
-                      const req: AgentRequest = { restaurant: s.restaurant, city: s.city, goal: s.goal, language: "English" };
-                      setForm(req);
-                      setPhotoName(null);
-                      run(req);
-                    }}
-                    disabled={phase === "running"}
-                    className="hit group inline-flex items-center gap-1 text-ink-2 underline decoration-line underline-offset-4 transition-colors hover:text-ink hover:decoration-ink-2 disabled:opacity-60"
-                  >
-                    {s.restaurant}, {s.city} <IconArrow size={12} className="nudge" />
-                  </button>
-                ))}
-              </div>
-            </form>
-
-            {!started && <MeasuredOnOtari demos={demos} className="rise order-3 [--d:320ms] lg:order-none" />}
-          </div>
+            )
+          )}
+          {!started && <OtariChips className="rise min-w-0 [--d:600ms] lg:col-start-1 lg:row-start-2 lg:self-end" />}
         </section>
+
+        {!started && (
+          <section
+            id="run-live"
+            aria-labelledby="run-live-title"
+            className="no-print -mx-4 scroll-mt-4 border-y border-line bg-paper-2/50 px-4 py-12 sm:-mx-8 sm:px-8 sm:py-16"
+          >
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 xl:gap-16">
+              <div className="min-w-0">
+                <h2 id="run-live-title" className="font-display text-[clamp(2.6rem,9vw,4.6rem)] uppercase leading-[0.9]">
+                  Your restaurant,
+                  <br />
+                  <span className="text-olive">this week</span>
+                </h2>
+                <p className="mt-4 max-w-md text-[15px] leading-relaxed text-ink-2">
+                  Type a restaurant and its city. Tablecast reads its week, its block and the live web through Otari, writes the plan and checks every
+                  cited claim in code.
+                </p>
+                <MeasuredOnOtari demos={demos} className="mt-10" />
+              </div>
+              {formEl}
+            </div>
+          </section>
+        )}
 
         {!started && <OtariMap />}
         {!started && <HowItWorks />}
@@ -444,9 +466,9 @@ export default function TablecastApp({ demos = [], liveLocked = false }: { demos
         </div>
       </main>
 
-      <footer className="no-print border-t border-line pt-5 pb-6 text-center text-xs leading-relaxed text-muted">
+      <footer className="no-print border-t border-line pb-6 pt-4">
         <Marquee items={PROVIDERS} />
-        <p className="mt-4 px-4 sm:px-6">
+        <p className="mt-4 border-t border-line px-4 pt-4 font-mono text-[11px] leading-relaxed text-muted sm:px-8">
           Built for MozFest Developers Wilding (Mozilla.ai) · Every model call, web search, guardrail check and sandbox run through Otari · Open-weight
           models on Otari’s hosted providers · Map data © OpenStreetMap contributors · Weather by Open-Meteo
         </p>
@@ -598,7 +620,7 @@ function Segmented<T extends string>({
   usePillClip(ref, active);
   return (
     <div ref={ref} className="relative">
-      <div role="radiogroup" aria-label={label} className="inline-flex rounded-full border border-line bg-paper/60 p-0.5">
+      <div role="radiogroup" aria-label={label} className="inline-flex border border-line bg-paper p-0.5">
         {options.map((o) => (
           <button
             key={o.id}
@@ -608,15 +630,15 @@ function Segmented<T extends string>({
             data-pill-item=""
             data-active={value === o.id}
             onClick={() => onChange(o.id)}
-            className="min-h-8 rounded-full px-3 text-ink-2 transition-colors hover:text-ink"
+            className="min-h-9 px-3 uppercase text-ink-2 transition-colors hover:text-ink"
           >
             {o.label}
           </button>
         ))}
       </div>
-      <div aria-hidden className="pill-layer pointer-events-none absolute inset-0 inline-flex rounded-full border border-transparent bg-ink p-0.5">
+      <div aria-hidden className="pill-layer pointer-events-none absolute inset-0 inline-flex border border-transparent bg-olive p-0.5">
         {options.map((o) => (
-          <span key={o.id} className="grid min-h-8 place-items-center rounded-full px-3 text-paper">
+          <span key={o.id} className="grid min-h-9 place-items-center px-3 uppercase text-paper">
             {o.label}
           </span>
         ))}
@@ -627,9 +649,9 @@ function Segmented<T extends string>({
 
 function RecordedBanner({ replay, running }: { replay: DemoSummary; running: boolean }) {
   return (
-    <p className="no-print flex flex-col items-start gap-x-3 gap-y-1.5 rounded-xl border border-saffron/50 bg-saffron/10 px-4 py-2.5 text-[13px] text-ink-2 sm:flex-row sm:items-center">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-ink px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-paper">
-        <span aria-hidden className={`h-1.5 w-1.5 rounded-full bg-saffron ${running ? "pulse-dot" : ""}`} />
+    <p className="no-print flex flex-col items-start gap-x-3 gap-y-1.5 border border-terracotta/50 bg-terracotta/[0.06] px-4 py-2.5 text-[13px] text-ink-2 sm:flex-row sm:items-center">
+      <span className="inline-flex items-center gap-1.5 bg-terracotta px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-paper">
+        <span aria-hidden className={`h-1.5 w-1.5 rounded-full bg-paper ${running ? "pulse-dot" : ""}`} />
         {running ? "Replaying" : "Replay"}
       </span>
       <span className="min-w-0 flex-1">
@@ -663,7 +685,7 @@ function ErrorState({
       role="alert"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-5 flex gap-3 rounded-2xl border border-terracotta/30 bg-terracotta/5 px-5 py-4 text-sm"
+      className="mb-5 flex gap-3 border border-terracotta/40 bg-terracotta/[0.06] px-5 py-4 text-sm"
     >
       <span aria-hidden className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-terracotta/10 text-terracotta">
         <IconAlert size={16} />
@@ -678,7 +700,7 @@ function ErrorState({
             <button
               type="button"
               onClick={onRetry}
-              className="min-h-9 rounded-full bg-ink px-4 text-xs font-medium text-paper transition-[background-color,scale] hover:bg-olive motion-safe:active:scale-[0.97]"
+              className="min-h-9 rounded-[3px] bg-ink px-4 text-xs font-medium text-paper transition-[background-color,scale] hover:bg-olive motion-safe:active:scale-[0.97]"
             >
               Try again
             </button>
@@ -691,7 +713,7 @@ function ErrorState({
                   key={d.slug}
                   type="button"
                   onClick={() => onReplay(d)}
-                  className="group inline-flex min-h-9 items-center gap-1 rounded-full border border-line bg-card px-3 text-xs font-medium text-ink-2 transition hover:text-ink"
+                  className="group inline-flex min-h-9 items-center gap-1 rounded-[3px] border border-line bg-card px-3 text-xs font-medium text-ink-2 transition hover:text-ink"
                 >
                   {d.restaurant} <IconArrow size={12} className="nudge" />
                 </button>
@@ -732,45 +754,45 @@ function Logo() {
 function MeasuredOnOtari({ demos, className = "" }: { demos: DemoSummary[]; className?: string }) {
   const billed = demos.filter((d) => d.preview?.onOtari?.billed != null);
   return (
-    <div className={`rounded-2xl border border-line bg-card p-4 sm:p-5 ${className}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Measured on Otari</p>
-      <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+    <div className={className}>
+      <p className="border-b border-line pb-2 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-2">
+        Measured on Otari <span className="text-muted">· single runs from 4 Nov 2026, not an eval</span>
+      </p>
+      <dl>
         {billed.length > 0 && (
-          <div>
+          <div className="grid gap-x-5 gap-y-1 border-b border-line py-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-baseline">
             <dt className="sr-only">What Otari billed each recorded plan</dt>
-            <dd className="font-display text-3xl leading-none text-olive tabular-nums">
+            <dd className="font-display text-[40px] leading-none text-olive tabular-nums">
               {billed.map((d) => `$${d.preview!.onOtari!.billed!.toFixed(3)}`).join(" · ")}
             </dd>
-            <dd className="mt-1.5 text-[12.5px] leading-snug text-ink-2">
+            <dd className="text-[13px] leading-snug text-ink-2">
               billed by Otari to each restaurant’s own end user for {billed.length === 1 ? "the recorded plan" : `the ${billed.length} recorded plans`} (
               {billed.map((d) => d.restaurant).join(", ")}), against a $1 weekly budget
             </dd>
           </div>
         )}
-        <div>
+        <div className="grid gap-x-5 gap-y-1 border-b border-line py-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-baseline">
           <dt className="sr-only">The failover drill</dt>
-          <dd className="font-display text-3xl leading-none text-olive tabular-nums">2 attempts</dd>
-          <dd className="mt-1.5 text-[12.5px] leading-snug text-ink-2">
+          <dd className="font-display text-[40px] leading-none text-olive tabular-nums">2 attempts</dd>
+          <dd className="text-[13px] leading-snug text-ink-2">
             in the failover drill: Mistral Large 3 refuses a parameter the drill sends, Otari moves on by itself and Nemotron 3 Ultra answers (
-            <code className="text-[11.5px]">Otari-Fallback: true</code>)
+            <code className="text-[11.5px] text-ink">Otari-Fallback: true</code>)
           </dd>
         </div>
       </dl>
-      <p className="mt-3 border-t border-line pt-2.5 text-[12px] text-muted">
-        Single runs from 4 Nov 2026, not an eval ·{" "}
-        <a
-          href="https://github.com/antonmareo10/tablecast/tree/otari-wilding#what-i-measured-on-otari"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline decoration-line underline-offset-2 hover:text-ink"
-        >
-          what I measured
-        </a>
-      </p>
+      <a
+        href="https://github.com/antonmareo10/tablecast/tree/otari-wilding#what-i-measured-on-otari"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group mt-3 inline-flex min-h-11 items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.06em] text-ink-2 underline decoration-line underline-offset-4 hover:text-olive hover:decoration-olive"
+      >
+        What I measured <IconArrow size={12} className="nudge" />
+      </a>
     </div>
   );
 }
 
+/** The four stops from the forecast to the plan, drawn as a line with stations. */
 function HowItWorks() {
   const steps = [
     ["Your week", "The 7-day forecast at your door, public holidays, and the concerts and matches within 5 km."],
@@ -779,14 +801,25 @@ function HowItWorks() {
     ["A plan you can check", "Three dishes, an event, a post and a supplier order. Every cited claim is linked to the sentence it stands on and checked in code."],
   ];
   return (
-    <section aria-label="How it works" className="grid gap-6 border-t border-line py-10 sm:grid-cols-2 lg:grid-cols-4">
-      {steps.map(([t, d], i) => (
-        <Reveal key={t} delay={i * STAGGER * 1.4}>
-          <p className="font-display text-3xl text-terracotta">{String(i + 1).padStart(2, "0")}</p>
-          <p className="mt-1 font-semibold">{t}</p>
-          <p className="mt-1 text-sm leading-relaxed text-ink-2">{d}</p>
-        </Reveal>
-      ))}
+    <section aria-labelledby="how-title" className="py-14 sm:py-20">
+      <h2 id="how-title" className="font-display text-[clamp(2.4rem,7vw,4.2rem)] uppercase leading-[0.9]">
+        From the forecast <span className="text-muted">to the plan</span>
+      </h2>
+      <ol className="mt-10 grid gap-8 lg:grid-cols-4 lg:gap-0">
+        {steps.map(([t, d], i) => (
+          <Reveal
+            as="li"
+            key={t}
+            delay={i * STAGGER * 1.4}
+            className="relative pl-9 before:absolute before:bottom-[-2rem] before:left-[7px] before:top-0 before:w-px before:bg-line last:before:hidden lg:pl-0 lg:pr-8 lg:pt-10 lg:before:bottom-auto lg:before:left-0 lg:before:right-0 lg:before:top-[7px] lg:before:h-px lg:before:w-auto lg:last:before:block lg:last:before:right-1/2"
+          >
+            <span aria-hidden className={`absolute left-0 top-0 h-[15px] w-[15px] rounded-full border-2 ${i === 3 ? "border-olive bg-olive" : "border-olive bg-paper"}`} />
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-olive">Stop {String(i + 1).padStart(2, "0")}</p>
+            <p className="mt-1 font-display text-[28px] uppercase leading-none">{t}</p>
+            <p className="mt-2 max-w-xs text-[14px] leading-relaxed text-ink-2">{d}</p>
+          </Reveal>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -795,37 +828,37 @@ function HowItWorks() {
 function SkeletonCards() {
   return (
     <div className="space-y-5" aria-hidden>
-      <div className="shimmer rounded-2xl bg-olive/85 p-6 sm:p-8">
-        <div className="h-2.5 w-36 rounded-full bg-paper/25" />
-        <div className="mt-4 h-8 w-56 rounded-lg bg-paper/25" />
-        <div className="mt-3 h-3 w-72 max-w-full rounded-full bg-paper/20" />
+      <div className="shimmer border border-line bg-card p-6 sm:p-8">
+        <div className="h-2.5 w-36 bg-paper-2" />
+        <div className="mt-4 h-8 w-56 bg-paper-2" />
+        <div className="mt-3 h-3 w-72 max-w-full bg-paper-2" />
       </div>
-      <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
+      <div className="border border-line bg-card p-4 sm:p-5">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
           {Array.from({ length: 7 }, (_, i) => (
-            <div key={i} className="shimmer h-[148px] rounded-xl border border-line bg-paper/60" style={{ "--d": `${i * 60}ms` } as CSSProperties} />
+            <div key={i} className="shimmer h-[148px] border border-line bg-paper" style={{ "--d": `${i * 60}ms` } as CSSProperties} />
           ))}
         </div>
       </div>
-      <div className="shimmer h-56 rounded-2xl border border-line bg-card" />
+      <div className="shimmer h-56 border border-line bg-card" />
     </div>
   );
 }
 
-/** The providers behind every plan, drifting by; pauses on hover, sits still with reduced motion. */
+/** The providers behind every plan, drifting by like a station ticker; pauses on hover, sits still with reduced motion. */
 function Marquee({ items }: { items: string[] }) {
   const row = (copy: boolean) => (
     <ul aria-hidden={copy || undefined} className={`flex shrink-0 items-center ${copy ? "marquee-copy" : ""}`}>
       {items.map((p) => (
-        <li key={p} className="flex items-center whitespace-nowrap px-5 font-display text-[17px] text-ink-2/80 sm:text-[19px]">
+        <li key={p} className="flex items-center whitespace-nowrap px-6 font-display text-[34px] uppercase text-ink-2 sm:text-[48px]">
           {p}
-          <span aria-hidden className="ml-10 h-1 w-1 rounded-full bg-terracotta/60" />
+          <span aria-hidden className="ml-12 h-2 w-2 bg-olive" />
         </li>
       ))}
     </ul>
   );
   return (
-    <div className="marquee overflow-hidden">
+    <div className="marquee overflow-hidden py-2">
       <div className="marquee-track flex w-max">
         {row(false)}
         {row(true)}

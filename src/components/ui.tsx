@@ -28,23 +28,20 @@ export function Section({
       as="section"
       id={id}
       tabIndex={id ? -1 : undefined}
-      className="scroll-mt-20 rounded-2xl border border-line bg-card p-5 outline-none sm:p-6"
+      className="scroll-mt-20 border border-line bg-card outline-none"
     >
-      <header className="mb-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          {icon && (
-            <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-paper text-olive">
-              {icon}
-            </span>
-          )}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{kicker}</p>
-            <h3 className={`font-display leading-tight ${title.length > 80 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"}`}>{title}</h3>
-          </div>
-        </div>
+      {/* A panel label strip (what this panel is, and its actions), then the title set large. */}
+      <header className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line px-5 py-2 sm:px-6">
+        <p className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.1em] text-muted">
+          {icon && <span className="text-olive [&_svg]:h-3.5 [&_svg]:w-3.5">{icon}</span>}
+          {kicker}
+        </p>
         {aside}
       </header>
-      {children}
+      <div className="px-5 pb-6 pt-5 sm:px-6">
+        <h3 className={`font-display uppercase leading-[0.95] ${title.length > 80 ? "text-[22px] sm:text-[26px]" : "text-[28px] sm:text-[34px]"}`}>{title}</h3>
+        <div className="mt-4">{children}</div>
+      </div>
     </Reveal>
   );
 }
@@ -67,7 +64,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
           toast("Couldn’t copy here — select the text and copy it instead");
         }
       }}
-      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-[3px] border border-line bg-paper px-3 py-1.5 text-xs font-medium text-ink-2 transition-[color,border-color,scale] hover:border-ink-2/40 hover:text-ink motion-safe:active:scale-[0.97]"
     >
       {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
       {copied ? "Copied" : label}
@@ -82,7 +79,7 @@ export function Pill({ children, tone = "plain" }: { children: ReactNode; tone?:
     terracotta: "border-terracotta/25 bg-terracotta/10 text-terracotta",
   };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs ${tones[tone]}`}>
+    <span className={`inline-flex items-center rounded-[3px] border px-2.5 py-0.5 text-xs ${tones[tone]}`}>
       {children}
     </span>
   );

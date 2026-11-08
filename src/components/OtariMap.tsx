@@ -5,7 +5,7 @@
 // stay true to the code it links to. In the texts, `backticks` mark identifiers, shown as code.
 
 import { Fragment, type ReactNode } from "react";
-import { IconArrow, IconCheck } from "./icons";
+import { IconArrow } from "./icons";
 import { Reveal, scrollToEl } from "./motion";
 
 const REPO = "https://github.com/antonmareo10/tablecast/blob/otari-wilding/";
@@ -127,7 +127,7 @@ export const OTARI_FEATURES: OtariFeature[] = [
 function rich(text: string): ReactNode {
   return text.split("`").map((part, i) =>
     i % 2 ? (
-      <code key={i} className="rounded bg-paper px-1 text-[12px] text-ink">
+      <code key={i} className="bg-paper-2 px-1 text-[11.5px] text-ink">
         {part}
       </code>
     ) : (
@@ -144,27 +144,28 @@ export function jumpToFeature(id: string) {
   el.focus({ preventScroll: true });
 }
 
-/** The hero's row of chips: one per Otari feature, each a link to its row in the map. */
+/** The hero's index of Otari features: numbered like a timetable, each a link to its row in the map. */
 export function OtariChips({ className = "" }: { className?: string }) {
   return (
     <div className={className}>
-      <p className="text-[13px] text-ink-2">
+      <p className="max-w-[34rem] border-b border-line pb-2.5 text-[13px] leading-snug text-ink-2">
         Built on <span className="font-semibold text-olive">Otari</span> by Mozilla.ai: every model call, search, page read, guardrail check and code run goes
         through it. What it uses, and where:
       </p>
-      <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Otari features this app uses">
-        {OTARI_FEATURES.map((f) => (
-          <li key={f.id}>
+      <ul className="grid sm:grid-cols-2 sm:gap-x-6" aria-label="Otari features this app uses">
+        {OTARI_FEATURES.map((f, i) => (
+          <li key={f.id} className="border-b border-line">
             <a
               href={`#${f.id}`}
               onClick={(e) => {
                 e.preventDefault();
                 jumpToFeature(f.id);
               }}
-              className="group inline-flex min-h-8 items-center gap-1.5 rounded-full border border-olive/25 bg-card/80 px-2.5 text-[12.5px] text-ink-2 transition-[color,border-color,background-color] hover:border-olive/60 hover:bg-card hover:text-ink"
+              className="group flex min-h-11 items-center gap-3 text-[13.5px] text-ink-2 transition-colors hover:text-olive"
             >
-              <IconCheck size={12} className="text-olive" />
-              {f.chip}
+              <span className="font-mono text-[11px] tabular-nums text-muted group-hover:text-olive">{String(i + 1).padStart(2, "0")}</span>
+              <span className="min-w-0 flex-1">{f.chip}</span>
+              <IconArrow size={12} className="nudge text-muted group-hover:text-olive" />
             </a>
           </li>
         ))}
@@ -182,7 +183,7 @@ function CodeLinks({ code }: { code: Code[] }) {
             href={REPO + c.path}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[11.5px] text-olive underline decoration-olive/30 underline-offset-2 hover:decoration-olive"
+            className="inline-block min-h-6 py-0.5 font-mono text-[11.5px] text-olive underline decoration-olive/30 underline-offset-2 hover:decoration-olive"
           >
             {c.path.replace(/^src\//, "")}
           </a>
@@ -196,14 +197,13 @@ function CodeLinks({ code }: { code: Code[] }) {
 /** The full map: feature → what the app does → where in the code → where you see it. */
 export function OtariMap() {
   return (
-    <section id="otari-map" aria-labelledby="otari-map-title" className="scroll-mt-4 border-t border-line py-10 sm:py-12">
+    <section id="otari-map" aria-labelledby="otari-map-title" className="scroll-mt-4 py-14 sm:py-20">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
         <div className="max-w-2xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">Built on Otari</p>
-          <h2 id="otari-map-title" className="font-display mt-2 text-3xl tracking-tight sm:text-4xl">
-            How this app uses Otari
+          <h2 id="otari-map-title" className="font-display text-[clamp(2.4rem,7vw,4.2rem)] uppercase leading-[0.9]">
+            How this app <span className="text-olive">uses Otari</span>
           </h2>
-          <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
+          <p className="mt-4 text-[15px] leading-relaxed text-ink-2">
             Eight Otari features, each used by the code of a normal run: what Tablecast does with it, the file and function, and where you can see it work.
             The two recorded runs above show all of them except the menu photo and the web-fetch fallback, which only run when they are needed.
           </p>
@@ -212,16 +212,16 @@ export function OtariMap() {
           href="https://github.com/antonmareo10/tablecast/tree/otari-wilding#how-this-app-uses-otari"
           target="_blank"
           rel="noopener noreferrer"
-          className="group inline-flex min-h-10 shrink-0 items-center gap-1.5 self-start rounded-full border border-line bg-card px-4 text-[13px] text-ink-2 transition hover:border-ink-2/40 hover:text-ink lg:self-auto"
+          className="group inline-flex min-h-11 shrink-0 items-center gap-1.5 self-start border border-line px-4 font-mono text-[11px] uppercase tracking-[0.06em] text-ink-2 transition hover:border-olive hover:text-olive lg:self-auto"
         >
           The same map in the README <IconArrow size={13} className="nudge" />
         </a>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-card">
+      <div className="mt-8 border-y border-line">
         <div
           aria-hidden
-          className="hidden grid-cols-[minmax(0,13rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] gap-6 border-b border-line bg-paper/60 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted lg:grid"
+          className="hidden grid-cols-[minmax(0,15rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] gap-6 border-b border-line py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted lg:grid"
         >
           <span>Otari feature</span>
           <span>What Tablecast does with it</span>
@@ -237,21 +237,19 @@ export function OtariMap() {
               y={10}
               id={f.id}
               tabIndex={-1}
-              className="grid scroll-mt-4 gap-3 border-b border-line px-5 py-4 outline-none last:border-b-0 focus-visible:bg-olive/5 lg:grid-cols-[minmax(0,13rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-6"
+              className="grid scroll-mt-4 gap-3 border-b border-line py-5 outline-none transition-colors last:border-b-0 hover:bg-paper-2/60 focus-visible:bg-olive/10 lg:grid-cols-[minmax(0,15rem)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-6"
             >
-              <p className="flex items-start gap-2 font-semibold leading-snug text-ink">
-                <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-olive text-paper">
-                  <IconCheck size={11} />
-                </span>
+              <p className="flex items-baseline gap-3 font-display text-[22px] uppercase leading-[1.05] text-ink">
+                <span aria-hidden className="font-mono text-[11px] tabular-nums text-olive">{String(i + 1).padStart(2, "0")}</span>
                 {f.name}
               </p>
               <p className="text-[13.5px] leading-relaxed text-ink-2">{rich(f.what)}</p>
               <div>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted lg:hidden">In the code</p>
+                <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-muted lg:hidden">In the code</p>
                 <CodeLinks code={f.code} />
               </div>
               <div className="text-[12.5px] leading-snug text-ink-2">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted lg:hidden">Where you see it</p>
+                <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.1em] text-muted lg:hidden">Where you see it</p>
                 <p>
                   <span className="font-medium text-ink">App:</span> {f.app}
                 </p>
@@ -265,7 +263,7 @@ export function OtariMap() {
       </div>
       <p className="mt-3 text-[12.5px] leading-relaxed text-muted">
         Also used: sessions. Every request of a run carries one <code className="text-[12px]">Otari-Conversation-Id</code> (
-        <a href={REPO + "src/lib/otari.ts"} target="_blank" rel="noopener noreferrer" className="font-mono text-[11.5px] text-olive underline decoration-olive/30 underline-offset-2">
+        <a href={REPO + "src/lib/otari.ts"} target="_blank" rel="noopener noreferrer" className="inline-block min-h-6 py-0.5 font-mono text-[11.5px] text-olive underline decoration-olive/30 underline-offset-2">
           lib/otari.ts
         </a>{" "}
         · otariFetch()), so a whole run is one session in Otari&apos;s agent traces, and the app shows its id.

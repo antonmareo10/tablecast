@@ -664,7 +664,7 @@ function drawInstagramPost(spec: AssetSpec, fonts: Fonts): string {
 async function prepareFonts(): Promise<Fonts> {
   const root = getComputedStyle(document.documentElement);
   const fraunces = root.getPropertyValue("--font-fraunces").trim();
-  const inter = root.getPropertyValue("--font-inter").trim();
+  const inter = root.getPropertyValue("--font-text").trim();
   const fonts: Fonts = {
     display: [fraunces, 'Georgia, "Times New Roman", serif'].filter(Boolean).join(", "),
     sans: [inter, '"Helvetica Neue", Arial, sans-serif'].filter(Boolean).join(", "),

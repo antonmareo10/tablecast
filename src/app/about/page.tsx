@@ -50,25 +50,24 @@ const PIPELINE: { step: string; who: string; what: string }[] = [
 
 export default function About() {
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 pb-24 pt-6 sm:px-6">
-      <Link
-        href="/"
-        className="group inline-flex min-h-9 items-center gap-1 text-sm text-ink-2 underline decoration-line underline-offset-4 transition-colors hover:text-ink"
-      >
-        <span aria-hidden className="inline-block transition-transform duration-300 group-hover:-translate-x-0.5">
-          ←
-        </span>{" "}
-        Back to Tablecast
-      </Link>
+    <main className="w-full px-4 pb-24 sm:px-8">
+      <div className="-mx-4 flex items-center justify-between gap-4 border-b border-line px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] sm:-mx-8 sm:px-8">
+        <Link href="/" className="group inline-flex min-h-11 items-center gap-1.5 text-ink transition-colors hover:text-olive">
+          <span aria-hidden className="inline-block transition-transform duration-300 group-hover:-translate-x-0.5">
+            ←
+          </span>
+          Back to Tablecast
+        </Link>
+        <span className="text-muted">How it works</span>
+      </div>
 
-      <header className="mt-8">
-        <p className="rise text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">How it works</p>
-        <h1 className="kinetic font-display mt-3 text-4xl leading-[1.05] tracking-tight sm:text-5xl">
+      <header className="mt-10 sm:mt-14">
+        <h1 className="kinetic ruled font-display max-w-[15ch] text-[clamp(3rem,9vw,8.4rem)] uppercase leading-[0.9] [--lh:0.9em]">
           <SplitWords text="The Monday-morning plan chains get from an insight team." />
         </h1>
       </header>
 
-      <section className="mt-12 grid gap-4 sm:grid-cols-3">
+      <section aria-label="Why it matters" className="mt-12 grid border-t border-line lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Stat i={0} value="412,498" label="independent restaurants left in the US at the end of 2025" href={SOURCES.technomic} />
         <Stat i={1} value="−2.3%" label="independents lost in 2025 (about 9,500 closures), while chains grew 1.4%" href={SOURCES.nrn} />
         <Stat i={2} value="7 in 10" label="US restaurants are single-unit operations, with no insight team" href={SOURCES.nra} />
@@ -91,10 +90,10 @@ export default function About() {
           </Link>
           .
         </p>
-        <ol className="mt-4 space-y-3">
+        <ol className="mt-6">
           {PIPELINE.map((p, i) => (
-            <Reveal as="li" key={p.step} delay={i * 0.06} y={12} className="rounded-2xl border border-line bg-card p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-terracotta">
+            <Reveal as="li" key={p.step} delay={i * 0.06} y={12} className="border-b border-line py-4 first:border-t">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink">
                 {p.step} · <span className="text-olive">{p.who}</span>
               </p>
               <p className="mt-1 text-[15px] leading-relaxed text-ink-2">{p.what}</p>
@@ -216,20 +215,20 @@ function Stat({ value, label, href, i }: { value: string; label: string; href: s
       target="_blank"
       rel="noreferrer"
       style={{ "--d": `${300 + i * 80}ms` } as React.CSSProperties}
-      className="rise lift block rounded-2xl border border-line bg-card p-5 hover:border-ink-2/30"
+      className="rise group block border-b border-line py-6 transition-colors hover:bg-paper-2/60 lg:border-b-0 lg:border-l lg:px-6 lg:first:border-l-0 lg:first:pl-0"
     >
-      <p className="font-display text-4xl text-olive">{value}</p>
-      <p className="mt-2 text-sm leading-snug text-ink-2">{label}</p>
-      <p className="mt-3 text-[11px] text-muted underline underline-offset-2">Source</p>
+      <p className={`font-display leading-[0.85] tabular-nums ${i === 0 ? "text-[clamp(4.5rem,13vw,10rem)] text-olive" : "text-[clamp(3.2rem,8vw,5rem)] text-ink"}`}>{value}</p>
+      <p className="mt-3 max-w-xs text-[15px] leading-snug text-ink-2">{label}</p>
+      <p className="mt-3 font-mono text-[10.5px] uppercase tracking-[0.08em] text-muted underline underline-offset-4 group-hover:text-olive">Source</p>
     </a>
   );
 }
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Reveal as="section" className="mt-12">
-      <h2 className="font-display text-2xl sm:text-3xl">{title}</h2>
-      <div className="mt-3 space-y-3 text-[16px] leading-relaxed text-ink-2">{children}</div>
+    <Reveal as="section" className="mt-16 grid gap-4 border-t-2 border-ink pt-4 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+      <h2 className="font-display text-[34px] uppercase leading-[0.92] sm:text-[44px] lg:sticky lg:top-6 lg:self-start">{title}</h2>
+      <div className="max-w-3xl space-y-3 text-[16px] leading-relaxed text-ink-2 [&_li]:marker:text-olive">{children}</div>
     </Reveal>
   );
 }
